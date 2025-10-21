@@ -55,6 +55,20 @@ public class NodoPerifericoRepository {
         return em.find(NodoPeriferico.class, id);
     }
 
+    /**
+     * Update only the estado of a Nodo in a new transaction.
+     * This is used when the caller transaction is marked for rollback
+     * but we still want to persist an Estado change reliably.
+     */
+    @jakarta.ejb.TransactionAttribute(jakarta.ejb.TransactionAttributeType.REQUIRES_NEW)
+    public void updateEstadoInNewTx(Long id, uy.edu.tse.hcen.model.enums.EstadoNodoPeriferico estado) {
+        NodoPeriferico ref = em.find(NodoPeriferico.class, id);
+        if (ref != null) {
+            ref.setEstado(estado);
+            em.merge(ref);
+        }
+    }
+
     public NodoPeriferico findByRUT(String rut) {
         List<NodoPeriferico> list = em.createQuery("SELECT n FROM NodoPeriferico n WHERE n.RUT = :rut", NodoPeriferico.class)
                 .setParameter("rut", rut)

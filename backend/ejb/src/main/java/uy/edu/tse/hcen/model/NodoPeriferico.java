@@ -1,6 +1,7 @@
 package uy.edu.tse.hcen.model;
 
 import jakarta.persistence.*;
+import java.util.UUID;
 import java.time.OffsetDateTime;
 import uy.edu.tse.hcen.model.enums.Departamento;
 import uy.edu.tse.hcen.model.enums.EstadoNodoPeriferico;

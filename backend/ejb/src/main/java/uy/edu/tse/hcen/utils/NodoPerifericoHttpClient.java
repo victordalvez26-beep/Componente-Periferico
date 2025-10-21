@@ -34,6 +34,7 @@ public class NodoPerifericoHttpClient {
             if (!url.endsWith("/")) url += "/";
             url += "config/init";
 
+            // id is numeric Long (DB-generated) so do not quote the id field
             String payload = "{\"id\": " + nodo.getId() + ", \"nombre\": \"" + escapeJson(nodo.getNombre()) + "\"}";
 
             HttpRequest req = HttpRequest.newBuilder()
@@ -54,6 +55,40 @@ public class NodoPerifericoHttpClient {
             }
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error sending init to nodo periférico", e);
+            return false;
+        }
+    }
+
+    /**
+     * Envia un request para indicar baja/config delete al nodo periférico.
+     */
+    public boolean enviarBaja(NodoPeriferico nodo) {
+        if (nodo == null || nodo.getNodoPerifericoUrlBase() == null) return false;
+        try {
+            String url = nodo.getNodoPerifericoUrlBase();
+            if (!url.endsWith("/")) url += "/";
+            url += "config/delete";
+
+            String payload = "{\"id\": " + nodo.getId() + "}";
+
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(payload))
+                    .build();
+
+            HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+            int status = resp.statusCode();
+            if (status >= 200 && status < 300) {
+                logger.info("NodoPeriferico delete sent to " + url + ", status=" + status);
+                return true;
+            } else {
+                logger.log(Level.WARNING, "NodoPeriferico responded with non-2xx: " + status + " body=" + resp.body());
+                return false;
+            }
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error sending delete to nodo periférico", e);
             return false;
         }
     }

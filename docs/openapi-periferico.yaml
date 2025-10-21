@@ -1,0 +1,142 @@
+openapi: 3.0.3
+info:
+  title: Nodo Periférico API (periferico)
+  version: 1.0.0
+  description: API del nodo periferico para pruebas locales
+servers:
+  - url: http://localhost:8080/nodo-periferico/api
+paths:
+  /auth/login:
+    post:
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              sample:
+                value:
+                  username: admin
+                  password: admin
+      responses:
+        '200':
+          description: Usuario autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDTO'
+              examples:
+                success:
+                  value:
+                    username: admin
+                    nombre: Administrador
+                    roles: ["ADMIN"]
+        '401':
+          description: Unauthorized
+        '400':
+          description: Bad request (missing username/password)
+  /auth/session:
+    get:
+      summary: Verificar sesión actual
+      responses:
+        '200':
+          description: Session status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+              examples:
+                notAuthenticated:
+                  value:
+                    authenticated: false
+                authenticated:
+                  value:
+                    authenticated: true
+                    username: admin
+                    nombre: Administrador
+                    roles: ["ADMIN"]
+  /auth/logout:
+    get:
+      summary: Logout (invalida la sesión)
+      responses:
+        '200':
+          description: OK
+  /nodos/{rut}:
+    get:
+      summary: Obtener nodo por RUT
+      parameters:
+        - name: rut
+          in: path
+          required: true
+          description: RUT del nodo (clave lógica). Ej: "12345678-9".
+          schema:
+            type: string
+            example: "12345678-9"
+      responses:
+        '200':
+          description: Nodo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodoPerifericoDTO'
+              examples:
+                sample:
+                  value:
+                    id: "1"
+                    RUT: "12345678-9"
+                    nombre: "Clínica Central"
+                    estado: "ACTIVO"
+                    clinicId: "CLINICA-123"
+        '404':
+          description: Not found
+
+components:
+  schemas:
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    UserDTO:
+      type: object
+      properties:
+        username:
+          type: string
+        nombre:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+    SessionResponse:
+      type: object
+      properties:
+        authenticated:
+          type: boolean
+        username:
+          type: string
+        nombre:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+    NodoPerifericoDTO:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Identificador interno (no usar en front-end). Use RUT para identificar recursos.
+        RUT:
+          type: string
+          description: Clave lógica del nodo; usar en las rutas (path).
+        nombre:
+          type: string
+        estado:
+          type: string
+        clinicId:
+          type: string

@@ -17,7 +17,7 @@ import jakarta.ws.rs.core.Response.Status;
 public class NodoInitResource {
 
     public static class InitPayload {
-        public Long id;
+        public String id;
         public String nombre;
     }
 
@@ -27,7 +27,7 @@ public class NodoInitResource {
         // Aquí podrías ejecutar lógica de configuración local como persistir
         // valores, generar claves, o validar la conexión. Para fines de prueba
         // devolvemos 200 OK si el payload tiene un id.
-        if (p == null || p.id == null) {
+        if (p == null || p.id == null || p.id.isBlank()) {
             return Response.status(Status.BAD_REQUEST).entity("Missing id").build();
         }
         return Response.ok().build();
@@ -36,7 +36,7 @@ public class NodoInitResource {
     @POST
     @Path("/update")
     public Response update(InitPayload p) {
-        if (p == null || p.id == null) {
+        if (p == null || p.id == null || p.id.isBlank()) {
             return Response.status(Status.BAD_REQUEST).entity("Missing id").build();
         }
         // For testing we accept update requests and respond 200
@@ -46,7 +46,7 @@ public class NodoInitResource {
     @POST
     @Path("/delete")
     public Response delete(InitPayload p) {
-        if (p == null || p.id == null) {
+        if (p == null || p.id == null || p.id.isBlank()) {
             return Response.status(Status.BAD_REQUEST).entity("Missing id").build();
         }
         // Simulate clean-up on the node side

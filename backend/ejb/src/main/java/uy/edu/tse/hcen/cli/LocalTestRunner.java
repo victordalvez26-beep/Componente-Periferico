@@ -96,10 +96,10 @@ public class LocalTestRunner {
     // Simple in-memory repo suitable for local testing
     static class InMemoryNodoRepo {
         private final Map<Long, NodoPeriferico> store = new LinkedHashMap<>();
-        private long seq = 1;
+        private long seq = 1L;
 
         public NodoPeriferico create(NodoPeriferico nodo) {
-            nodo.setId(seq++);
+            if (nodo.getId() == null) nodo.setId(seq++);
             if (nodo.getEstado() == null) nodo.setEstado(EstadoNodoPeriferico.PENDIENTE);
             store.put(nodo.getId(), nodo);
             return nodo;

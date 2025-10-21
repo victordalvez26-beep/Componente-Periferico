@@ -14,7 +14,7 @@ import jakarta.ws.rs.core.Response;
 import uy.edu.tse.hcen.auth.AuthService;
 import uy.edu.tse.hcen.auth.UserDTO;
 
-@Path("/api/auth")
+@Path("/auth")
 public class AuthResource {
     @Inject
     private AuthService authService;

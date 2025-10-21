@@ -12,7 +12,7 @@ public class NodoPerifericoConverterTest {
     @Test
     public void testDtoToEntityAndBack() {
         NodoPerifericoDTO dto = new NodoPerifericoDTO();
-        dto.setId(1L);
+    dto.setId(1L);
         dto.setNombre("Centro A");
         dto.setRUT("12345678-9");
         dto.setDepartamento("MONTEVIDEO");
@@ -24,7 +24,7 @@ public class NodoPerifericoConverterTest {
 
         NodoPeriferico entity = NodoPerifericoConverter.toEntity(dto);
         assertNotNull(entity);
-        assertEquals(dto.getId(), entity.getId());
+    assertEquals(dto.getId(), entity.getId());
         assertEquals(dto.getNombre(), entity.getNombre());
         assertEquals(dto.getRUT(), entity.getRUT());
         assertNotNull(entity.getEstado());

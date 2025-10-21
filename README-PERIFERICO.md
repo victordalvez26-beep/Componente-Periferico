@@ -7,7 +7,7 @@ Este README describe la utilidad de los archivos clave en `componente-periferico
 
 - `backend/` — Microservicio Java que expone la API REST del nodo periférico y contiene la lógica de integración con RabbitMQ (cuando aplica).
   - `web/src/main/java/uy/edu/tse/hcen/rest/NodoInitResource.java` — Recurso JAX-RS con endpoints de prueba:
-    - `POST /api/config/init` — Simula la inicialización del nodo (espera payload con `id`) y devuelve 200 OK.
+  - `POST /api/config/init` — Simula la inicialización del nodo (espera payload con `id` como string UUID) y devuelve 200 OK.
     - `POST /api/config/update` — Simula actualización de configuración.
     - `POST /api/config/delete` — Simula baja/limpieza.
   - `web/src/main/java/uy/edu/tse/hcen/rest/NodoPerifericoResource.java` — Recursos para CRUD locales del nodo cuando aplica.
@@ -41,8 +41,8 @@ npm start
 - Normalmente el dev server corre en `http://localhost:3000` y hace llamadas al backend configurado.
 
 ## Pruebas E2E rápidas (manualmente)
-1. Verificar que HCEN está desplegado y que existe un nodo con `id=1` o crea uno con el payload apropiado.
-2. Desde el Management UI de RabbitMQ o usando scripts, publicar un mensaje a `clinica_config_exchange` con `routing_key=alta.clinica` y `payload={"id":1,"action":"alta"}` para forzar la llamada desde el consumer.
+1. Verificar que HCEN está desplegado y que existe un nodo con `RUT=<rut>` o crea uno con el payload apropiado.
+2. Desde el Management UI de RabbitMQ o usando scripts, publicar un mensaje a `clinica_config_exchange` con `routing_key=alta.clinica` y `payload={"id_clinica": 123, "action":"alta"}` para forzar la llamada desde el consumer.
 3. Si el periphery está en WildFly, la URL que HCEN debe usar será algo como `http://localhost:8080/nodo-periferico/api`.
 4. Comprobar logs de WildFly para ver la llamada entrante y la respuesta (`server.log`).
 

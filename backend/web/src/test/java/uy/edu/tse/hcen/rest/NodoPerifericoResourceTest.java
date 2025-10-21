@@ -40,8 +40,8 @@ public class NodoPerifericoResourceTest {
         dto.setDepartamento("MONTEVIDEO");
         dto.setEstado("ACTIVO");
 
-        NodoPeriferico saved = NodoPerifericoConverter.toEntity(dto);
-        saved.setId(10L);
+    NodoPeriferico saved = NodoPerifericoConverter.toEntity(dto);
+    saved.setId(10L);
 
         when(repo.create(any())).thenReturn(saved);
 
@@ -50,7 +50,7 @@ public class NodoPerifericoResourceTest {
         assertEquals(201, resp.getStatus());
         NodoPerifericoDTO returned = (NodoPerifericoDTO) resp.getEntity();
         assertNotNull(returned);
-        assertEquals(10L, returned.getId());
+    assertEquals(10L, returned.getId());
 
         ArgumentCaptor<NodoPeriferico> captor = ArgumentCaptor.forClass(NodoPeriferico.class);
         verify(repo, times(1)).create(captor.capture());

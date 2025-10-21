@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jboss-web>
+    <!-- Force the web context root to /nodo-periferico so the UI can reliably call
+         http://localhost:8080/nodo-periferico/api/... -->
+    <context-root>/nodo-periferico</context-root>
+</jboss-web>

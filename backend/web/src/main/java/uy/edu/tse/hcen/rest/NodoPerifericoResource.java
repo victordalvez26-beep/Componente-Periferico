@@ -37,9 +37,9 @@ public class NodoPerifericoResource {
     }
 
     @GET
-    @Path("{id}")
-    public Response get(@PathParam("id") Long id) {
-        NodoPeriferico n = repo.find(id);
+    @Path("{rut}")
+    public Response get(@PathParam("rut") String rut) {
+        NodoPeriferico n = repo.findByRUT(rut);
         if (n == null) return Response.status(Response.Status.NOT_FOUND).build();
         return Response.ok(NodoPerifericoConverter.toDTO(n)).build();
     }
@@ -83,14 +83,17 @@ public class NodoPerifericoResource {
    
 
     @PUT
-    @Path("{id}")
-    public Response update(@PathParam("id") Long id, @Valid NodoPerifericoDTO nodoDto) {
-        NodoPeriferico existing = repo.find(id);
+    @Path("{rut}")
+    public Response update(@PathParam("rut") String rut, @Valid NodoPerifericoDTO nodoDto) {
+        NodoPeriferico existing = repo.findByRUT(rut);
         if (existing == null) return Response.status(Response.Status.NOT_FOUND).build();
         try {
             validateEnumValues(nodoDto);
+            if (nodoDto.getRUT() != null && !nodoDto.getRUT().equals(existing.getRUT()) && repo.findByRUT(nodoDto.getRUT()) != null) {
+                return Response.status(Response.Status.CONFLICT).entity("Nodo with same RUT already exists").build();
+            }
             NodoPeriferico nodo = NodoPerifericoConverter.toEntity(nodoDto);
-            nodo.setId(id);
+            nodo.setId(existing.getId());
             NodoPeriferico updated = repo.update(nodo);
             return Response.ok(NodoPerifericoConverter.toDTO(updated)).build();
         } catch (IllegalArgumentException e) {
@@ -102,11 +105,11 @@ public class NodoPerifericoResource {
     }
 
     @DELETE
-    @Path("{id}")
-    public Response delete(@PathParam("id") Long id) {
-        NodoPeriferico existing = repo.find(id);
+    @Path("{rut}")
+    public Response delete(@PathParam("rut") String rut) {
+        NodoPeriferico existing = repo.findByRUT(rut);
         if (existing == null) return Response.status(Response.Status.NOT_FOUND).build();
-        repo.delete(id);
+        repo.delete(existing.getId());
         return Response.noContent().build();
     }
 

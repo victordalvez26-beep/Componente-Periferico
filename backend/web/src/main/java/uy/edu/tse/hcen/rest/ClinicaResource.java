@@ -9,7 +9,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import uy.edu.tse.hcen.service.ClinicaProducer;
 
-@Path("/api/clinica")
+@Path("/clinica")
 public class ClinicaResource {
 
     @Inject

@@ -31,7 +31,8 @@ public class NodoService {
         NodoPeriferico created = repo.create(nodo);
 
         // Preparar payload
-        String payload = "{\"id_clinica\":" + created.getId() + "}";
+            // Preparar payload (id is a DB-generated Long)
+            String payload = "{\"id_clinica\":" + created.getId() + "}";
 
         try {
             sender.sendToExchange("clinica_config_exchange", "alta.clinica", payload);

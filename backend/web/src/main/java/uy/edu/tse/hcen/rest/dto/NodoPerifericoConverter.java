@@ -9,6 +9,7 @@ public class NodoPerifericoConverter {
     public static NodoPeriferico toEntity(NodoPerifericoDTO dto) {
         if (dto == null) return null;
         NodoPeriferico e = new NodoPeriferico();
+        // dto.id is Long (internal DB id). Map directly.
         e.setId(dto.getId());
         e.setNombre(dto.getNombre());
         e.setRUT(dto.getRUT());
@@ -31,7 +32,7 @@ public class NodoPerifericoConverter {
     public static NodoPerifericoDTO toDTO(NodoPeriferico e) {
         if (e == null) return null;
         NodoPerifericoDTO dto = new NodoPerifericoDTO();
-        dto.setId(e.getId());
+    dto.setId(e.getId() != null ? e.getId() : null);
         dto.setNombre(e.getNombre());
         dto.setRUT(e.getRUT());
         if (e.getDepartamento() != null) dto.setDepartamento(e.getDepartamento().name());

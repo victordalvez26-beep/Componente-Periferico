@@ -48,8 +48,8 @@ La aplicación expone una API JAX-RS bajo `@ApplicationPath("/api")` y el recurs
 - GET /nodo-periferico/api/nodos
   - Lista todos los nodos.
 
-- GET /nodo-periferico/api/nodos/{id}
-  - Recupera un nodo por id.
+- GET /nodo-periferico/api/nodos/{rut}
+  - Recupera un nodo por RUT (clave lógica pública). El `id` interno es un UUID generado por la BD y no debe usarse desde el front-end.
 
 Flujo de mensajería (resumen)
 -----------------------------

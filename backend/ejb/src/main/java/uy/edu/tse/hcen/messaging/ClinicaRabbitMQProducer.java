@@ -18,7 +18,7 @@ public class ClinicaRabbitMQProducer {
     public void enviarAlta(NodoPeriferico nodo) {
         if (nodo == null || nodo.getId() == null) return;
         String routingKey = "alta.clinica";
-        String payload = "{\"id_clinica\":" + nodo.getId() + "}";
+    String payload = "{\"id_clinica\":" + nodo.getId() + "}";
         try {
             sender.sendToExchange(EXCHANGE_NAME, routingKey, payload);
             logger.info("RabbitSender used to publish alta, ID=" + nodo.getId());

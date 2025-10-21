@@ -5,10 +5,12 @@ import java.io.Serializable;
 
 @Entity
 @Table(name = "profesionales")
-// Ejemplo opcional: usar filtros de Hibernate para centralizar el aislamiento por tenant.
+// TODO: usar filtros de Hibernate para centralizar el aislamiento por tenant.
 // Requiere dependencias de Hibernate y configuración en el runtime.
 // @FilterDef(name = "tenantFilter", parameters = @ParamDef(name = "tenantId", type = "string"))
 // @Filter(name = "tenantFilter", condition = "tenant_id = :tenantId")
+ // Nota: para activar el filtro en tiempo de ejecución, desde el EntityManager/Hibernate Session:
+ // session.enableFilter("tenantFilter").setParameter("tenantId", currentTenantId);
 public class Profesional implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -17,7 +19,7 @@ public class Profesional implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // COLUMNA DISCRIMINADORA: Aísla al profesional por clínica
+    //  Aísla al profesional por clínica
     @Column(name = "tenant_id", nullable = false, updatable = false)
     private String tenantId;
 
@@ -30,11 +32,9 @@ public class Profesional implements Serializable {
     @Column(name = "especialidad")
     private String especialidad;
     
-    // Campo para el login (podría ser un hash de la contraseña o integrarse con gub.uy)
     @Column(name = "usuario_gubuy")
     private String usuarioGubUy; 
 
-    // Getters y Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     
@@ -47,6 +47,4 @@ public class Profesional implements Serializable {
     public String getEspecialidad() { return especialidad; }
     public void setEspecialidad(String especialidad) { this.especialidad = especialidad; }
     
-    // Nota: para activar el filtro en tiempo de ejecución, desde el EntityManager/Hibernate Session:
-    // session.enableFilter("tenantFilter").setParameter("tenantId", currentTenantId);
 }
