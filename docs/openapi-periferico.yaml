@@ -138,5 +138,3 @@ components:
           type: string
         estado:
           type: string
-        clinicId:
-          type: string
