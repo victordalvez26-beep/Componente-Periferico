@@ -2,7 +2,6 @@
 
 Este README describe la utilidad de los archivos clave en `componente-periferico`, cómo levantar el periphery (frontend/backend), y cómo probar la integración con HCEN (E2E).
 
-Carpeta principal: `componente-periferico/`
 
 ## Archivos y carpetas importantes
 
