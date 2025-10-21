@@ -1,0 +1,15 @@
+batch
+# Create PoliticasDS and RndcDS using the same H2 in-memory DB used by HcenDS (idempotent)
+try
+    /subsystem=datasources/data-source=PoliticasDS:read-resource
+catch
+    /subsystem=datasources/data-source=PoliticasDS:add(jndi-name="java:jboss/datasources/PoliticasDS",driver-name="h2",connection-url="jdbc:h2:mem:hcen;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",user-name="sa",password="sa",enabled=true,jta=true)
+end-try
+
+try
+    /subsystem=datasources/data-source=RndcDS:read-resource
+catch
+    /subsystem=datasources/data-source=RndcDS:add(jndi-name="java:jboss/datasources/RndcDS",driver-name="h2",connection-url="jdbc:h2:mem:hcen;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",user-name="sa",password="sa",enabled=true,jta=true)
+end-try
+
+run-batch

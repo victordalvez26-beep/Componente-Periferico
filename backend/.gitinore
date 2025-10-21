@@ -1,0 +1,14 @@
+# Maven
+**/target/
+pom.properties
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+release.properties
+
+# IDEs (por si usás alguno)
+*.iml
+.idea/
+*.classpath
+*.project
+#*.settings/

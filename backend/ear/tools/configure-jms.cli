@@ -1,0 +1,41 @@
+batch
+# create datasources used by the WARs (idempotent)
+try
+    /subsystem=datasources/data-source=PoliticasDS:read-resource
+catch
+    /subsystem=datasources/data-source=PoliticasDS:add(jndi-name="java:jboss/datasources/PoliticasDS",driver-name="h2",connection-url="jdbc:h2:mem:hcen;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",user-name="sa",password="sa",enabled=true,jta=true)
+end-try
+
+try
+    /subsystem=datasources/data-source=RndcDS:read-resource
+catch
+    /subsystem=datasources/data-source=RndcDS:add(jndi-name="java:jboss/datasources/RndcDS",driver-name="h2",connection-url="jdbc:h2:mem:hcen;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",user-name="sa",password="sa",enabled=true,jta=true)
+end-try
+
+# create JMS queue and connection factory if missing
+try
+    /subsystem=messaging-activemq/server=default/jms-queue=NodoRegistrationQueue:read-resource
+catch
+    /subsystem=messaging-activemq/server=default/jms-queue=NodoRegistrationQueue:add(durable=true,entries=["java:/jms/queue/NodoRegistrationQueue","java:jboss/exported/jms/queue/NodoRegistrationQueue"])
+end-try
+
+try
+    /subsystem=messaging-activemq/server=default/connection-factory=RemoteConnectionFactory:read-resource
+catch
+    /subsystem=messaging-activemq/server=default/connection-factory=RemoteConnectionFactory:add(entries=["java:/jms/RemoteConnectionFactory","java:jboss/exported/jms/RemoteConnectionFactory"])
+end-try
+
+# add naming lookup bindings (so java:/jms/queue/NodoRegistrationQueue is resolvable to JNDI lookups)
+try
+    /subsystem=naming/binding=java\:\/jms\/queue\/NodoRegistrationQueue:read-resource
+catch
+    /subsystem=naming/binding=java\:\/jms\/queue\/NodoRegistrationQueue:add(binding-type=lookup,lookup="java:/jms/queue/NodoRegistrationQueue")
+end-try
+
+try
+    /subsystem=naming/binding=java\:\/jboss\/exported\/jms\/queue\/NodoRegistrationQueue:read-resource
+catch
+    /subsystem=naming/binding=java\:\/jboss\/exported\/jms\/queue\/NodoRegistrationQueue:add(binding-type=lookup,lookup="java:jboss/exported/jms/queue/NodoRegistrationQueue")
+end-try
+
+run-batch

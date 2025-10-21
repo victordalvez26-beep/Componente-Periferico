@@ -1,0 +1,71 @@
+/* Global color palette for Nodo Periferico frontend */
+:root {
+  --mint-green: #BEE9E8;
+  --moonstone: #62B6CB;
+  --indigo-dye: #1B4965;
+  --columbia-blue: #CAE9FF;
+  --picton-blue: #5FA8D3;
+  --light-gray: #F8F8F8;
+  --white: #FFFFFF;
+  --dark-text: #333333;
+  --border-gray: #E0E0E0;
+  --footer-separator: #EAEAEA;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  background: var(--columbia-blue);
+  color: var(--dark-text);
+}
+
+.app {
+  max-width: 960px;
+  margin: 24px auto;
+  background: var(--white);
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  padding: 20px;
+  border: 1px solid var(--border-gray);
+}
+
+.header {
+  display:flex;
+  align-items: center;
+  gap: 12px;
+}
+.title {
+  color: var(--indigo-dye);
+  font-size: 1.6rem;
+  margin: 0;
+}
+
+.button-primary {
+  background: var(--indigo-dye);
+  color: var(--white);
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.button-secondary {
+  background: var(--moonstone);
+  color: var(--white);
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.link {
+  color: var(--picton-blue);
+}
+
+.card { background: var(--white); padding: 12px; border-radius: 6px; border: 1px solid var(--border-gray); }
+
+.form-row { display:flex; gap:8px; align-items:center; margin-bottom:8px }
+.input { padding:8px; border-radius:6px; border:1px solid var(--border-gray); flex:1 }
+
+.footer { margin-top: 18px; border-top:1px solid var(--footer-separator); padding-top:12px; font-size:0.9rem; color:#666 }

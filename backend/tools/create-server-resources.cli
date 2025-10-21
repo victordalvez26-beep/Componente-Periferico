@@ -1,0 +1,27 @@
+connect
+
+# Ensure messaging-activemq subsystem is available
+/subsystem=messaging-activemq:read-resource
+
+# Add an InVM ConnectionFactory bound to java:/ConnectionFactory (if missing)
+/subsystem=messaging-activemq/server=default/connection-factory=InVmConnectionFactory:read-resource
+if (outcome != success) of /subsystem=messaging-activemq/server=default/connection-factory=InVmConnectionFactory:read-resource
+    /subsystem=messaging-activemq/server=default/connection-factory=InVmConnectionFactory:add(entries=["java:/ConnectionFactory"])
+end-if
+
+# Add a RemoteConnectionFactory for remote clients (exported)
+/subsystem=messaging-activemq/server=default/connection-factory=RemoteConnectionFactory:read-resource
+if (outcome != success) of /subsystem=messaging-activemq/server=default/connection-factory=RemoteConnectionFactory:read-resource
+    /subsystem=messaging-activemq/server=default/connection-factory=RemoteConnectionFactory:add(entries=["java:/jms/RemoteConnectionFactory","java:jboss/exported/jms/RemoteConnectionFactory"]) 
+end-if
+
+# Create the JMS queue (exported) used by the application
+/subsystem=messaging-activemq/server=default/jms-queue=NodoRegistrationQueue:read-resource
+if (outcome != success) of /subsystem=messaging-activemq/server=default/jms-queue=NodoRegistrationQueue:read-resource
+    /subsystem=messaging-activemq/server=default/jms-queue=NodoRegistrationQueue:add(entries=["java:/jms/queue/NodoRegistrationQueue","java:jboss/exported/jms/queue/NodoRegistrationQueue"], durable=false)
+end-if
+
+# Optional: deploy the EAR (uncomment and adjust path if you want the script to deploy)
+# deploy C:/Users/CaroH/Documents/fing/TSE/lab/hcen/ear/target/hcen.ear --force
+
+exit

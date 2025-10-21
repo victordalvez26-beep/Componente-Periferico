@@ -1,0 +1,2 @@
+/subsystem=naming/binding=java\:\/jms\/queue\/NodoRegistrationQueue:add(binding-type=lookup,lookup="java:/jms/queue/NodoRegistrationQueue")
+/subsystem=naming/binding=java\:\/jboss\/exported\/jms\/queue\/NodoRegistrationQueue:add(binding-type=lookup,lookup="java:jboss/exported/jms/queue/NodoRegistrationQueue")

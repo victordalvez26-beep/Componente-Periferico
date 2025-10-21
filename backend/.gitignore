@@ -1,0 +1,22 @@
+# Maven
+target/
+**/target/
+
+# Eclipse/IDE
+.classpath
+.project
+.settings/
+
+# m2e generated resources
+**/target/m2e-wtp/
+
+# Environment files
+.env
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+/.metadata/

@@ -1,0 +1,4 @@
+/subsystem=messaging-activemq/server=default/jms-queue=NodoRegistrationQueue:remove()
+/subsystem=messaging-activemq/server=default/connection-factory=RemoteConnectionFactory:remove()
+/subsystem=naming/binding=java\:\/jms\/queue\/NodoRegistrationQueue:remove()
+/subsystem=naming/binding=java\:\/jboss\/exported\/jms\/queue\/NodoRegistrationQueue:remove()
