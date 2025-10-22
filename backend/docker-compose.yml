@@ -17,3 +17,31 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+  mongo:
+    image: mongo:6.0
+    container_name: nodo-periferico-mongo
+    restart: unless-stopped
+    ports:
+      - "27018:27017" # host 27018 -> container 27017 to avoid conflict with local mongo
+    volumes:
+      - ./mongodb/data:/data/db
+      - ./mongodb/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    environment:
+      MONGO_INITDB_DATABASE: hcen_documents_db
+    healthcheck:
+      # Use mongosh (modern shell) to perform the ping; the legacy 'mongo' binary may not be present
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongo-seed:
+    image: mongo:6.0
+    depends_on:
+      mongo:
+        condition: service_healthy
+    # Run the initialization script via mongosh against the mongo service
+    entrypoint: ["mongosh", "--host", "mongo", "/docker-entrypoint-initdb.d/init-mongo.js"]
+    volumes:
+      - ./mongodb/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    restart: "no"

@@ -48,5 +48,24 @@ public class ProfesionalAdminResource {
         return profesionalRepository.findByTenantId(currentTenantId);
     }
     
-    // ... Implementación de PUT (Modificación) y DELETE (Baja) [cite: 1134]
+    // Modifica profesional de su clínica (CU 7).
+    @PUT
+    @Path("/{id}")
+    public Response modificarProfesional(@PathParam("id") Long id, Profesional profesionalModificado) {
+        String currentTenantId = tenantContext.getCurrentTenantId();
+        Profesional profesionalExistente = profesionalRepository.findByIdAndTenantId(id, currentTenantId);
+        
+        if (profesionalExistente == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        
+        // Actualizar los campos necesarios
+        profesionalExistente.setNombre(profesionalModificado.getNombre());
+        profesionalExistente.setEspecialidad(profesionalModificado.getEspecialidad());
+        // ..
+        profesionalRepository.update(profesionalExistente);
+        return Response.ok(profesionalExistente).build();
+    }
+
+    // ... Implementación de  DELETE (Baja) 
 }

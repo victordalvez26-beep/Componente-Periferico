@@ -21,16 +21,12 @@ public class ProfesionalResource {
     @Inject
     private ProfesionalRepository profesionalRepository;
 
-    // Rutas para el portal de clínica/profesional
-    // - POST /v1/clinica/profesionales  (PROFESIONAL)
-    // - GET  /v1/clinica/profesionales  (ADMIN_CLINICA, PROFESIONAL)
-
+   //SOLO DE PRUEBA
     /**
      * (PROFESIONAL) Crea un nuevo profesional y asigna el tenantId actual.
      */
     @POST
     @Path("/clinica/profesionales")
-    // @RolesAllowed("PROFESIONAL")
     public Response crearProfesionalClinica(Profesional nuevoProfesional) {
         String currentTenantId = tenantContext.getCurrentTenantId();
         nuevoProfesional.setTenantId(currentTenantId);
@@ -58,13 +54,10 @@ public class ProfesionalResource {
     @Path("/admin/profesionales")
     // @RolesAllowed("ADMIN_CLINICA")
     public Response crearProfesionalAdmin(Profesional nuevoProfesional) {
-        // AISLAMIENTO DE ESCRITURA: El tenantId de la clínica logueada se asigna al profesional
+
         String currentTenantId = tenantContext.getCurrentTenantId();
         nuevoProfesional.setTenantId(currentTenantId);
-
-        // Se deben hashear las credenciales antes de guardar.
-        // nuevoProfesional.setPasswordHash(PasswordUtil.hash(nuevoProfesional.getPasswordHash()));
-
+        nuevoProfesional.setPasswordHash(PasswordUtil.hash(nuevoProfesional.getPasswordHash()));
         profesionalRepository.save(nuevoProfesional);
         return Response.status(Response.Status.CREATED).entity(nuevoProfesional).build();
     }
@@ -77,5 +70,5 @@ public class ProfesionalResource {
         return profesionalRepository.findByTenantId(currentTenantId);
     }
 
-    // ... Implementación de PUT (Modificación) y DELETE (Baja) para admin/clinic (comentar/implementar según necesidad)
+    // ... Implementación de PUT (Modificación) y DELETE (Baja) para admin/clinica
 }

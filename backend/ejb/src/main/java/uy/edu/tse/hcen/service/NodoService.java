@@ -3,9 +3,13 @@ package uy.edu.tse.hcen.service;
 import jakarta.ejb.Stateless;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.annotation.Resource;
+import jakarta.transaction.TransactionSynchronizationRegistry;
+import jakarta.transaction.Status;
 import uy.edu.tse.hcen.messaging.RabbitSenderLocal;
 import uy.edu.tse.hcen.model.NodoPeriferico;
 import uy.edu.tse.hcen.repository.NodoPerifericoRepository;
+import uy.edu.tse.hcen.model.enums.EstadoNodoPeriferico;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -13,6 +17,7 @@ import java.util.logging.Logger;
 public class NodoService {
 
     private static final Logger logger = Logger.getLogger(NodoService.class.getName());
+    private static final String EXCHANGE_NAME = "clinica_config_exchange";
 
     @Inject
     private NodoPerifericoRepository repo;
@@ -20,31 +25,110 @@ public class NodoService {
     @Inject
     private RabbitSenderLocal sender;
 
-    /**
-     * Crea el nodo en BD y publica el mensaje de alta de forma transaccional.
-     * Política: si la publicación falla, marcamos estado ERROR_MENSAJERIA y lanzamos
-     * una RuntimeException para provocar rollback (configurable si quieres otra política).
-     */
+    @Resource
+    private jakarta.transaction.TransactionSynchronizationRegistry txRegistry;
+
     @Transactional
     public NodoPeriferico createAndNotify(NodoPeriferico nodo) {
-        // Persistir (repo.create usa EntityManager y quedará en la misma tx)
-        NodoPeriferico created = repo.create(nodo);
-
-        // Preparar payload
-            // Preparar payload (id is a DB-generated Long)
-            String payload = "{\"id_clinica\":" + created.getId() + "}";
-
-        try {
-            sender.sendToExchange("clinica_config_exchange", "alta.clinica", payload);
-            logger.info("Published alta for nodo id=" + created.getId());
-            return created;
-        } catch (Exception e) {
-            logger.log(Level.SEVERE, "Failed to publish alta message for nodo id=" + created.getId(), e);
-            // marcar estado de nodo y forzar rollback
-            created.setEstado(uy.edu.tse.hcen.model.enums.EstadoNodoPeriferico.ERROR_MENSAJERIA);
-            repo.update(created);
-            // lanzar excepción para rollback de la transacción
-            throw new RuntimeException("Failed to publish message to RabbitMQ", e);
+        // Validar datos antes de persistir
+        if (nodo.getRUT() == null || nodo.getNombre() == null) {
+            throw new IllegalArgumentException("RUT y nombre son obligatorios");
         }
+        
+        NodoPeriferico created = repo.create(nodo);
+        final String payload = buildPayload(created.getId(), "alta");
+
+        registerSyncPublication(created.getId(), "alta.clinica", payload);
+        return created;
+    }
+
+    @Transactional
+    public NodoPeriferico updateAndNotify(NodoPeriferico nodo) {
+        NodoPeriferico updated = repo.update(nodo);
+        final String payload = buildPayload(updated.getId(), "update");
+        registerSyncPublication(updated.getId(), "update.clinica", payload);
+        return updated;
+    }
+
+    @Transactional
+    public void deleteAndNotify(Long id) {
+        repo.delete(id);
+        final String payload = buildPayload(id, "delete");
+        registerSyncPublication(id, "delete.clinica", payload);
+    }
+
+    public void publishForId(Long id, String action) {
+        NodoPeriferico existing = repo.find(id);
+        if (existing == null) {
+            throw new IllegalArgumentException("Nodo no encontrado: " + id);
+        }
+        
+        String routing = determineRoutingKey(action);
+        String payload = buildPayload(id, action);
+        
+        try {
+            sender.sendToExchange(EXCHANGE_NAME, routing, payload);
+            logger.info("Published " + routing + " for nodo id=" + id);
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Failed to publish for nodo id=" + id, e);
+            throw new RuntimeException("Failed to publish message", e);
+        }
+    }
+
+    // --- Métodos auxiliares ---
+    
+    private void registerSyncPublication(Long nodoId, String routingKey, String payload) {
+        try {
+            txRegistry.registerInterposedSynchronization(new jakarta.transaction.Synchronization() {
+                @Override
+                public void beforeCompletion() {}
+
+                @Override
+                public void afterCompletion(int status) {
+                    if (status == Status.STATUS_COMMITTED) {
+                        try {
+                            sender.sendToExchange(EXCHANGE_NAME, routingKey, payload);
+                            logger.info("Published " + routingKey + " for nodo id=" + nodoId);
+                        } catch (Exception e) {
+                            logger.log(Level.SEVERE, "Failed to publish after commit", e);
+                            markMessageError(nodoId);
+                        }
+                    }
+                }
+            });
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Could not register tx sync", e);
+            // Fallback inmediato
+            try {
+                sender.sendToExchange(EXCHANGE_NAME, routingKey, payload);
+            } catch (Exception ex) {
+                markMessageError(nodoId);
+                throw new RuntimeException("Failed to publish message", ex);
+            }
+        }
+    }
+
+    private void markMessageError(Long nodoId) {
+        try {
+            repo.updateEstadoInNewTx(nodoId, EstadoNodoPeriferico.ERROR_MENSAJERIA);
+        } catch (Exception ex) {
+            logger.log(Level.SEVERE, "Failed to mark ERROR_MENSAJERIA", ex);
+        }
+    }
+
+    private String buildPayload(Long clinicaId, String action) {
+        StringBuilder sb = new StringBuilder("{\"id_clinica\":").append(clinicaId);
+        if (action != null && !action.equals("alta")) {
+            sb.append(",\"action\":\"").append(action).append("\"");
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String determineRoutingKey(String action) {
+        if (action == null || action.equalsIgnoreCase("alta")) return "alta.clinica";
+        if (action.equalsIgnoreCase("update")) return "update.clinica";
+        if (action.equalsIgnoreCase("delete")) return "delete.clinica";
+        return "alta.clinica";
     }
 }
