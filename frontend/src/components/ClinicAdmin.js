@@ -44,11 +44,16 @@ function ClinicAdmin(){
     }
   }, [session]);
 
-  async function loadPatients(){
+  // search term for patients
+  const [patientQuery, setPatientQuery] = useState('');
+
+  async function loadPatients(q){
     try{
       // The backend exposes /api/profesional/pacientes/{username}?clinicId=...
       const username = session ? (session.username || 'prof1') : 'prof1';
-      const res = await fetch(`${backendBase}/api/profesional/pacientes/${encodeURIComponent(username)}?clinicId=${encodeURIComponent(localStorage.getItem('clinicId') || 'clinic-1')}`, { credentials: 'include' });
+      const clinic = encodeURIComponent(localStorage.getItem('clinicId') || 'clinic-1');
+      const qparam = q ? `&q=${encodeURIComponent(q)}` : '';
+      const res = await fetch(`${backendBase}/api/profesional/pacientes/${encodeURIComponent(username)}?clinicId=${clinic}${qparam}`, { credentials: 'include' });
       if(res.ok){
         const j = await res.json();
         setPatients(Array.isArray(j) ? j : []);
@@ -107,6 +112,10 @@ function ClinicAdmin(){
         alert('Error al loguear: ' + res.status + ' ' + txt);
       }
     }catch(err){ console.error(err); alert('Error al hacer login'); }
+  }
+
+  function onSearchPatients(){
+    loadPatients(patientQuery);
   }
 
   async function fetchNodo(){
@@ -180,11 +189,16 @@ function ClinicAdmin(){
         )}
       </div>
 
-      {/* Professional panel */}
-      {session && session.authenticated && Array.isArray(session.roles) && session.roles.includes('PROFESIONAL') && (
+      {/* Simple login-first flow and professional panel */}
+      {session && session.authenticated && Array.isArray(session.roles) && session.roles.includes('PROFESIONAL') ? (
         <div className="card">
           <h2>Panel Profesional</h2>
-          <div>
+          <div style={{display:'flex', gap:8, alignItems:'center'}}>
+            <input className="input" placeholder="Buscar paciente por nombre" value={patientQuery} onChange={(e)=>setPatientQuery(e.target.value)} />
+            <button className="button-primary" onClick={onSearchPatients}>Buscar</button>
+            <button className="button-secondary" onClick={()=>{ setPatientQuery(''); loadPatients(); }}>Limpiar</button>
+          </div>
+          <div style={{marginTop:12}}>
             <h3>Pacientes</h3>
             {patients.length === 0 ? <div>No hay pacientes</div> : (
               <ul>
@@ -216,47 +230,9 @@ function ClinicAdmin(){
             )}
           </div>
         </div>
-      )}
+      ) : null}
 
-      <div style={{height:12}} />
-
-      <div className="card">
-        <h3>Configuración de esta Clínica (multitenant)</h3>
-        <div className="form-row">
-          <input className="input" value={clinicId} onChange={(e)=>setClinicId(e.target.value)} />
-          <button className="button-secondary" onClick={()=>{ localStorage.setItem('clinicId', clinicId); alert('clinicId guardado: ' + clinicId); }}>Guardar</button>
-        </div>
-
-        <h2>Estado de Activación (Nodo)</h2>
-        <div className="form-row">
-          <input className="input" value={nodoId} onChange={(e)=>setNodoId(e.target.value)} />
-          <button className="button-primary" onClick={fetchNodo} disabled={nodoLoading}>Consultar</button>
-        </div>
-        <div>
-          {nodoLoading && <div>Cargando nodo...</div>}
-          {nodoInfo && nodoInfo.notFound && <div style={{color:'#b33'}}>Nodo no encontrado</div>}
-          {nodoInfo && nodoInfo.notOwned && <div style={{color:'#b33'}}>Este nodo no pertenece a esta clínica (multitenant)</div>}
-          {nodoInfo && nodoInfo.error && <div style={{color:'#b33'}}>Error: {nodoInfo.error}</div>}
-          {nodoInfo && !nodoInfo.notFound && !nodoInfo.error && !nodoInfo.notOwned && (
-            <div>
-              <p><strong>Id:</strong> {nodoInfo.id}</p>
-              <p><strong>Nombre:</strong> {nodoInfo.nombre}</p>
-              <p><strong>Estado:</strong> <span style={{fontWeight:700, color: nodoInfo.estado === 'ACTIVO' ? '#28a745' : (nodoInfo.estado === 'PENDIENTE' ? '#dc9a00' : '#dc3545')}}>{nodoInfo.estado}</span></p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="card">
-        <h2>Alta de Clínica</h2>
-        <div className="form-row">
-          <textarea className="input" rows={6} value={payload} onChange={(e)=>setPayload(e.target.value)} />
-        </div>
-        <div style={{display:'flex', gap:8}}>
-          <button className="button-primary" onClick={sendAlta} disabled={loading}>{loading ? 'Enviando...':'Enviar Alta'}</button>
-          <button className="button-secondary" onClick={()=>setPayload('{ "clinic": "Mi Clinica", "address": "Av. Siempreviva 123" }')}>Reset</button>
-        </div>
-      </div>
+      {/* Removed clinic configuration and nodo alta UI — handled in backend for this app */}
     </div>
   )
 }
