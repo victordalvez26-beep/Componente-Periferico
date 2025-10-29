@@ -49,9 +49,16 @@ public class NodoPerifericoResource {
         try {
 
             validateEnumValues(nodoDto);
-            // check duplicate RUT
-            if (nodoDto.getRUT() != null && repo.findByRUT(nodoDto.getRUT()) != null) {
-                return Response.status(Response.Status.CONFLICT).entity("Ya existe un nodo con el mismo RUT").build();
+            // check duplicate RUT: if exists, return existing and ensure we use its stored estado
+            if (nodoDto.getRUT() != null) {
+                NodoPeriferico existing = repo.findByRUT(nodoDto.getRUT());
+                if (existing != null) {
+                    // adopt the persisted state and return the existing resource instead of attempting to recreate
+                    NodoPerifericoDTO existingDto = NodoPerifericoConverter.toDTO(existing);
+                    // Ensure the response signals that the state is the persisted one
+                    existingDto.setEstado(existing.getEstado() != null ? existing.getEstado().name() : null);
+                    return Response.ok(existingDto).build();
+                }
             }
 
             nodoDto.setEstado(null);

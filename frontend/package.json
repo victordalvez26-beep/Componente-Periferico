@@ -2,7 +2,7 @@
   "name": "nodo-periferico-frontend",
   "version": "0.1.0",
   "private": true,
-  "proxy": "http://localhost:8180",
+  "proxy": "http://localhost:8080",
   "dependencies": {
     "react": "18.2.0",
     "react-dom": "18.2.0",

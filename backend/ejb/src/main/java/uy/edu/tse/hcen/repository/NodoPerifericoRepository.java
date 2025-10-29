@@ -4,6 +4,7 @@ import jakarta.ejb.Stateless;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import uy.edu.tse.hcen.model.NodoPeriferico;
+import uy.edu.tse.hcen.model.enums.EstadoNodoPeriferico;
 
 import java.util.List;
 import uy.edu.tse.hcen.common.security.PasswordUtil;
@@ -16,6 +17,15 @@ public class NodoPerifericoRepository {
 
     public NodoPeriferico create(NodoPeriferico nodo) {
 
+        // Defensive: if a nodo with same RUT already exists, return it instead of inserting.
+        if (nodo.getRUT() != null) {
+            NodoPeriferico existing = findByRUT(nodo.getRUT());
+            if (existing != null) {
+                // preserve existing estado and do not modify DB
+                return existing;
+            }
+        }
+
         if (nodo.getNodoPerifericoPassword() != null && !nodo.getNodoPerifericoPassword().isBlank()) {
             String salt = PasswordUtil.generateSalt();
             String hash = PasswordUtil.hashPassword(nodo.getNodoPerifericoPassword().toCharArray(), salt);
@@ -24,7 +34,7 @@ public class NodoPerifericoRepository {
             nodo.setNodoPerifericoPassword(null); 
         }
         if (nodo.getEstado() == null) {
-            nodo.setEstado(uy.edu.tse.hcen.model.enums.EstadoNodoPeriferico.PENDIENTE);
+            nodo.setEstado(EstadoNodoPeriferico.PENDIENTE);
         }
         if (nodo.getFechaAlta() == null) {
             nodo.setFechaAlta(java.time.OffsetDateTime.now());
@@ -61,7 +71,7 @@ public class NodoPerifericoRepository {
      * but we still want to persist an Estado change reliably.
      */
     @jakarta.ejb.TransactionAttribute(jakarta.ejb.TransactionAttributeType.REQUIRES_NEW)
-    public void updateEstadoInNewTx(Long id, uy.edu.tse.hcen.model.enums.EstadoNodoPeriferico estado) {
+    public void updateEstadoInNewTx(Long id, EstadoNodoPeriferico estado) {
         NodoPeriferico ref = em.find(NodoPeriferico.class, id);
         if (ref != null) {
             ref.setEstado(estado);

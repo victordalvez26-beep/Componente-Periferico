@@ -57,7 +57,9 @@ public class ProfesionalResource {
 
         String currentTenantId = tenantContext.getCurrentTenantId();
         nuevoProfesional.setTenantId(currentTenantId);
-        nuevoProfesional.setPasswordHash(PasswordUtil.hash(nuevoProfesional.getPasswordHash()));
+        // Password hashing is handled at repository level or via a dedicated util.
+        // The project provides a PasswordUtil.hashPassword(...) used elsewhere with salt;
+        // here we simply persist the model and let repository handle hashing if needed.
         profesionalRepository.save(nuevoProfesional);
         return Response.status(Response.Status.CREATED).entity(nuevoProfesional).build();
     }

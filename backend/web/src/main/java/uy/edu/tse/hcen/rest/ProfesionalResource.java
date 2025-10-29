@@ -25,6 +25,8 @@ public class ProfesionalResource {
     private static final String NORMALIZE_REGEX = "[^A-Za-z0-9]";
     private static final String CLINIC_DEFAULT = "clinic-1";
     private static final String INTERRUPTED = "interrupted";
+    private static final String KEY_PROFESIONAL_SOLICITANTE = "profesionalSolicitante";
+    private static final String KEY_SOLICITANTE_ID = "solicitanteId";
 
     @Inject
     public ProfesionalResource(NodoPerifericoHttpClient httpClient) {
@@ -96,12 +98,12 @@ public class ProfesionalResource {
     @Path("/paciente/{ci}/documentos")
     public Response documentosPaciente(@PathParam("ci") String ci, @QueryParam("profesionalId") String profesionalId) {
         try {
-            // RNDC service (default): note the RNDC in this workspace uses double /api path in frontend; here we call the backend microservice path
-            // default RNDC_URL corrected (previously had duplicate /api/api)
-            String rndc = System.getenv().getOrDefault("RNDC_URL", "http://localhost:8180/hcen-rndc-service/api/rndc/documentos");
+            // RNDC service (default): prefer loopback: use 127.0.0.1:8080 which matches WildFly binding
+            String rndc = System.getenv().getOrDefault("RNDC_URL", "http://127.0.0.1:8080/hcen-rndc-service/api/rndc/documentos");
             String url = rndc + "/paciente/" + java.net.URLEncoder.encode(ci, java.nio.charset.StandardCharsets.UTF_8);
             Map<String,String> headers = new HashMap<>();
             if (profesionalId != null) headers.put("X-Profesional-Id", profesionalId);
+            if (LOGGER.isLoggable(java.util.logging.Level.INFO)) LOGGER.info(String.format("Calling RNDC URL: %s headers=%s", url, headers));
             java.net.http.HttpResponse<String> resp = httpClient.getString(url, headers, 10);
             return Response.status(resp.statusCode()).entity(resp.body()).build();
         } catch (InterruptedException e) {
@@ -120,13 +122,15 @@ public class ProfesionalResource {
     @Path("/verificar")
     public Response verificarPermiso(@QueryParam("profesionalId") String profesionalId, @QueryParam("pacienteCI") String pacienteCI, @QueryParam("tipoDoc") String tipoDoc) {
         try {
-            String politicas = System.getenv().getOrDefault("POLITICAS_URL", "http://localhost:8180/hcen-politicas-service/api/politicas");
+            // Prefer loopback address and port 8080 by default so the server can reach local microservices reliably
+            String politicas = System.getenv().getOrDefault("POLITICAS_URL", "http://127.0.0.1:8080/hcen-politicas-service/api/politicas");
             String q = String.format("%s/verificar?profesionalId=%s&pacienteCI=%s&tipoDoc=%s",
                     politicas,
                     java.net.URLEncoder.encode(profesionalId == null?"":profesionalId, java.nio.charset.StandardCharsets.UTF_8),
                     java.net.URLEncoder.encode(pacienteCI == null?"":pacienteCI, java.nio.charset.StandardCharsets.UTF_8),
                     java.net.URLEncoder.encode(tipoDoc == null?"":tipoDoc, java.nio.charset.StandardCharsets.UTF_8)
             );
+            if (LOGGER.isLoggable(java.util.logging.Level.INFO)) LOGGER.info(String.format("Calling POLITICAS verificar URL: %s", q));
             java.net.http.HttpResponse<String> resp = httpClient.getString(q, null, 5);
             return Response.status(resp.statusCode()).entity(resp.body()).build();
         } catch (InterruptedException e) {
@@ -144,9 +148,20 @@ public class ProfesionalResource {
     @Path("/solicitudes")
     public Response crearSolicitud(Map<String,Object> body) {
         try {
-            String politicas = System.getenv().getOrDefault("POLITICAS_URL", "http://localhost:8180/hcen-politicas-service/api/politicas");
-            String json = JSON.writeValueAsString(body);
-            java.net.http.HttpResponse<String> resp = httpClient.postString(politicas + "/solicitudes", Map.of("Content-Type","application/json"), json, 5);
+            String politicas = System.getenv().getOrDefault("POLITICAS_URL", "http://127.0.0.1:8080/hcen-politicas-service/api/politicas");
+            // Normalize incoming payload keys so Politicas receives the expected DTO shape
+            Map<String,Object> payload = new HashMap<>();
+            if (body != null) payload.putAll(body);
+            // frontend/perimetral historically used 'profesionalSolicitante' — Politicas expects 'solicitanteId'
+            if (payload.containsKey(KEY_PROFESIONAL_SOLICITANTE) && !payload.containsKey(KEY_SOLICITANTE_ID)) {
+                payload.put(KEY_SOLICITANTE_ID, payload.get(KEY_PROFESIONAL_SOLICITANTE));
+                payload.remove(KEY_PROFESIONAL_SOLICITANTE);
+            }
+
+            String json = JSON.writeValueAsString(payload);
+            String solicitUrl = politicas + "/solicitudes";
+            if (LOGGER.isLoggable(java.util.logging.Level.INFO)) LOGGER.info(String.format("Calling POLITICAS crear solicitud URL: %s payload=%s", solicitUrl, json));
+            java.net.http.HttpResponse<String> resp = httpClient.postString(solicitUrl, Map.of("Content-Type","application/json"), json, 5);
             return Response.status(resp.statusCode()).entity(resp.body()).build();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

@@ -19,8 +19,13 @@ public class CorsFilter implements ContainerResponseFilter {
 
     @Override
     public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) throws IOException {
-        // Allow dev origin
-        responseContext.getHeaders().putSingle("Access-Control-Allow-Origin", "http://localhost:3000");
+        // Allow dev localhost origins dynamically (supports CRA dev-server on 3000 or 3001)
+        String origin = requestContext.getHeaderString("Origin");
+        String allowOrigin = "http://localhost:3000";
+        if (origin != null && origin.startsWith("http://localhost")) {
+            allowOrigin = origin;
+        }
+        responseContext.getHeaders().putSingle("Access-Control-Allow-Origin", allowOrigin);
         responseContext.getHeaders().putSingle("Access-Control-Allow-Credentials", "true");
         responseContext.getHeaders().putSingle("Access-Control-Allow-Headers", "origin, content-type, accept, authorization");
         responseContext.getHeaders().putSingle("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD");
