@@ -23,18 +23,19 @@
    <persistence-unit name="hcenPersistenceUnit">
       <!-- If you are running in a production environment, add a managed
          data source, this configuration uses the JakartaEE default data source is just for development and testing! -->
-      <jta-data-source>java:comp/DefaultDataSource</jta-data-source>
+      <jta-data-source>java:/jdbc/MyMainDataSource</jta-data-source>
       <properties>
-         <!--The database schema is auto created on deployment and dropped before redeploy.
-             Note: the following configuration does not drop the tables on undeploy. If you prefer this, use this
-             Hibernate property instead:
-             <property name="hibernate.hbm2ddl.auto" value="create-drop" />
-         -->
-         <property name="jakarta.persistence.schema-generation.database.action" value="drop-and-create"/>
-         <property name="jakarta.persistence.schema-generation.create-source" value="metadata"/>
-         <property name="jakarta.persistence.schema-generation.drop-source" value="metadata"/>
+         <!-- Use SCHEMA multi-tenancy. The resolver and provider classes below must be present in the classpath. -->
+         <property name="hibernate.multiTenancy" value="SCHEMA"/>
+         <property name="hibernate.tenant_identifier_resolver" value="uy.edu.tse.hcen.multitenancy.SchemaTenantResolver"/>
+         <property name="hibernate.multi_tenant_connection_provider" value="uy.edu.tse.hcen.multitenancy.SchemaMultiTenantProvider"/>
 
-         <!-- Properties for Hibernate -->
+         <!-- Dialect and schema generation: in a schema-per-tenant setup we generally avoid automatic DDL.
+              Set database.action to 'none' and manage schema creation externally per tenant. -->
+         <property name="hibernate.dialect" value="org.hibernate.dialect.PostgresPlusDialect"/>
+         <property name="jakarta.persistence.schema-generation.database.action" value="none" />
+
+         <!-- Other hibernate properties -->
          <property name="hibernate.show_sql" value="false" />
       </properties>
    </persistence-unit>

@@ -2,6 +2,7 @@ package uy.edu.tse.hcen.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import uy.edu.tse.hcen.utils.PasswordUtils;
 
 @Entity
 public class UsuarioPeriferico extends Usuario {
@@ -10,15 +11,18 @@ public class UsuarioPeriferico extends Usuario {
     private String nickname; // Atributo de UsuarioPeriferico
 
     @Column(nullable = false)
-    private String password; // Atributo de UsuarioPeriferico (se recomienda hash)
+    private String passwordHash; // Almacenamos el hash, no la contraseña plana
 
     public UsuarioPeriferico() {
+        /* Default constructor required by JPA/Hibernate; intentionally left empty.
+           The persistence provider uses this constructor via reflection when instantiating entities. */
+    }
+    public void setPassword(String rawPassword) {
+        this.passwordHash = PasswordUtils.hashPassword(rawPassword);
     }
 
-    public UsuarioPeriferico(String nombre, String email, String nickname, String password) {
-        super(nombre, email);
-        this.nickname = nickname;
-        this.password = password;
+    public boolean checkPassword(String rawPassword) {
+        return PasswordUtils.verifyPassword(rawPassword, this.passwordHash);
     }
 
     public String getNickname() {
@@ -29,11 +33,6 @@ public class UsuarioPeriferico extends Usuario {
         this.nickname = nickname;
     }
 
-    public String getPassword() {
-        return password;
-    }
 
-    public void setPassword(String password) {
-        this.password = password;
-    }
+ 
 }

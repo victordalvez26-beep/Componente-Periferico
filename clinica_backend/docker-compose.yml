@@ -1,33 +1,84 @@
 version: '3.8'
 
 services:
-  # ------------------------------------------------------------------
-  #  Base de Datos Documental (MongoDB) - Para Documentos Clínicos y Metadatos (RNDC)
-  # ------------------------------------------------------------------
+  # ----------------------------------------------------
+  # 1. Base de Datos Documental (MongoDB)
+  # ----------------------------------------------------
   mongodb:
     image: mongo:latest
     container_name: mongodb
     restart: always
-    ports:
-      - "27017:27017"
     environment:
-      # Credenciales de Administrador (Root) - Cargadas desde .env
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
-      # Base de datos inicial (opcional)
-      # MONGO_INITDB_DATABASE: ${MONGODB_DB}
     volumes:
-      # Persistencia de datos
       - mongo-volumen:/data/db
+    ports:
+      - "27017:27017"
     networks:
       - hcen_network
 
+  # ----------------------------------------------------
+  # 2. Base de Datos Relacional (PostgreSQL)
+  # ----------------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: hcen-postgres-db
+    environment:
+      POSTGRES_DB: hcen_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - ./db/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+    networks:
+      - hcen_network
+
+  # ----------------------------------------------------
+  # 3. Servidor de Aplicaciones (WildFly 30.0.1.Final)
+  # ----------------------------------------------------
+  wildfly:
+    image: jboss/wildfly:30.0.1.Final # 👈 ¡VERIFIQUE ESTA LÍNEA!
+    container_name: hcen-wildfly-app
+    
+    depends_on:
+      db:
+        condition: service_healthy 
+      mongodb:
+        condition: service_started
+        
+    # Variables de Entorno cruciales para su aplicación Java EE (JWT y MongoDB)
+    environment:
+      JWT_SECRET_BASE64: ${JWT_SECRET_BASE64}
+      MONGO_HOST: mongodb # Host para la conexión desde Java
+      MONGO_PORT: 27017
+      MONGO_USER: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      
+    volumes:
+      - ./drivers/postgresql-42.2.14.jar:/opt/jboss/wildfly/modules/system/layers/base/org/postgresql/postgresql-42.2.14.jar
+      - ./wildfly/configure-wildfly.cli:/opt/jboss/wildfly/standalone/deployments/configure-wildfly.cli
+      - ./web/target/hcen-web.war:/opt/jboss/wildfly/standalone/deployments/hcen-web.war
+      
+    command: 
+      /opt/jboss/wildfly/bin/standalone.sh -c standalone.xml --admin-cli --execute=/opt/jboss/wildfly/standalone/deployments/configure-wildfly.cli
+    ports:
+      - "8080:8080"
+      - "9990:9990"
+    networks:
+      - hcen_network
 
 # Definición de Redes y Volúmenes
-volumes:
-  mongo-volumen:
-  # postgres-volumen: # Descomenta cuando agregues PostgreSQL
-
 networks:
   hcen_network:
     driver: bridge
+
+volumes:
+  mongo-volumen:
+    driver: local

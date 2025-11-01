@@ -1,0 +1,11 @@
+# 1. Instalar el driver de PostgreSQL como un módulo JBoss/WildFly
+module add --name=org.postgres --resources=/opt/jboss/wildfly/modules/system/layers/base/org/postgresql/postgresql-42.2.14.jar --dependencies=javax.api,javax.transaction.api
+
+# 2. Registrar el driver
+/subsystem=datasources/jdbc-driver=postgres:add(driver-name="postgres", driver-module-name="org.postgres", driver-class-name=org.postgresql.Driver)
+
+# 3. Crear el DataSource principal que será usado en persistence.xml
+data-source add --name=MyMainDataSource --driver-name=postgres --jndi-name=java:/jdbc/MyMainDataSource --use-java-context=true --connection-url=jdbc:postgresql://db:5432/hcen_db --user-name=postgres --password=password --max-pool-size=20 --flush-strategy=IdleConnections --enabled=true
+
+# 4. Finalizar
+:reload

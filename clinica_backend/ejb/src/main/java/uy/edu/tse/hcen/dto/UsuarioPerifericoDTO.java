@@ -38,15 +38,24 @@ public class UsuarioPerifericoDTO extends UsuarioDTO {
      */
     public static UsuarioPerifericoDTO fromEntity(UsuarioPeriferico u) {
         if (u == null) return null;
-        return new UsuarioPerifericoDTO(u.getId(), u.getNombre(), u.getEmail(), u.getNickname(), u.getPassword());
+        // For security reasons the plain password is not available from the entity.
+        // We return a DTO without the password field populated.
+        return new UsuarioPerifericoDTO(u.getId(), u.getNombre(), u.getEmail(), u.getNickname(), null);
     }
 
     /**
      * Convert this DTO back to an entity. Note: password should be hashed before persisting in production.
      */
     public UsuarioPeriferico toEntity() {
-        UsuarioPeriferico u = new UsuarioPeriferico(getNombre(), getEmail(), this.nickname, this.password);
+        UsuarioPeriferico u = new UsuarioPeriferico();
         if (getId() != null) u.setId(getId());
+        u.setNombre(getNombre());
+        u.setEmail(getEmail());
+        u.setNickname(this.nickname);
+        // If a raw password was provided in the DTO, hash it via the entity setter
+        if (this.password != null) {
+            u.setPassword(this.password);
+        }
         return u;
     }
 }

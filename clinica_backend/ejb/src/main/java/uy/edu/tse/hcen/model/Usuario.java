@@ -22,10 +22,10 @@ public abstract class Usuario {
     @Column(nullable = false)
     private String email; 
 
-    public Usuario() {
+    protected Usuario() {
     }
 
-    public Usuario(String nombre, String email) {
+    protected Usuario(String nombre, String email) {
         this.nombre = nombre;
         this.email = email;
     }

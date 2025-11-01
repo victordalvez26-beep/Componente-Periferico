@@ -27,10 +27,17 @@ public class ProfesionalSalud extends UsuarioPeriferico {
     @JoinColumn(name = "nodo_periferico_id")
     private NodoPeriferico trabajaEn; // Relación con NodoPeriferico
 
-    protected ProfesionalSalud() { super(); }
+    public ProfesionalSalud() { super(); }
 
     public ProfesionalSalud(String nombre, String email, String nickname, String password, Especialidad especialidad, Departamentos departamento, String calidad) {
-        super(nombre, email, nickname, password);
+        super();
+        setNombre(nombre);
+        setEmail(email);
+        setNickname(nickname);
+        if (password != null) {
+            setPassword(password);
+        }
+
         this.especialidad = especialidad;
         this.departamento = departamento;
         this.calidad = calidad;
@@ -48,6 +55,10 @@ public class ProfesionalSalud extends UsuarioPeriferico {
     public String getDireccion() { return direccion; }
     public void setDireccion(String direccion) { this.direccion = direccion; }
 
-    public NodoPeriferico getTrabajaEn() { return trabajaEn; }
     public void setTrabajaEn(NodoPeriferico trabajaEn) { this.trabajaEn = trabajaEn; }
+
+    //Obtiene el ID del Tenant (el ID del NodoPeriferico asociado).
+    public Long getTenantId() {
+        return this.trabajaEn != null ? this.trabajaEn.getId() : null;
+    }
 }

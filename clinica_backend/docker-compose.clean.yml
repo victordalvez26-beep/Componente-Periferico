@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - mongo-volumen:/data/db
+    networks:
+      - hcen_network
+
+  db:
+    image: postgres:15-alpine
+    container_name: hcen-postgres-db
+    environment:
+      POSTGRES_DB: hcen_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    # The DB init script caused a syntax error in the alpine image's init step
+    # For now don't mount the init script so Postgres can initialize cleanly.
+    # We'll apply schema/data after the DB is healthy (manual or fixed script).
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hcen_network
+
+  wildfly:
+    image: quay.io/wildfly/wildfly:37.0.0.Final-jdk17
+    container_name: hcen-wildfly-app
+    ports:
+      - "8080:8080"
+      - "9990:9990"
+    depends_on:
+      db:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+    environment:
+      # Provide the application with a Docker-network-accessible MongoDB URI
+      MONGODB_URI: ${MONGODB_URI}
+      MONGODB_DB: ${MONGODB_DB}
+      # legacy variables the app may also read
+      MONGO_HOST: mongodb
+      MONGO_PORT: 27017
+      MONGO_USER: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - ./drivers/postgresql-42.2.14.jar:/opt/jboss/wildfly/modules/system/layers/base/org/postgresql/postgresql-42.2.14.jar
+      - ./wildfly/configure-wildfly.cli:/opt/jboss/wildfly/configure-wildfly.cli
+      - ./wildfly/start-with-cli.sh:/opt/jboss/wildfly/start-with-cli.sh
+      # Mount EAR to /tmp and let the startup script copy it into deployments after DS is created
+      - ./ear/target/hcen.ear:/tmp/hcen.ear
+    # Start WildFly via the helper script which will apply CLI and then deploy the EAR
+    command: bash -c "chmod +x /opt/jboss/wildfly/start-with-cli.sh; /opt/jboss/wildfly/start-with-cli.sh"
+    networks:
+      - hcen_network
+
+networks:
+  hcen_network:
+    driver: bridge
+
+volumes:
+  mongo-volumen:
+    driver: local

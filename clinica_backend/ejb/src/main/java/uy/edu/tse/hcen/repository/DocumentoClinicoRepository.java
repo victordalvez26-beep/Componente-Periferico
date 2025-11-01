@@ -21,11 +21,23 @@ public class DocumentoClinicoRepository {
         return database.getCollection("documentos_clinicos");
     }
 
+    public Document crearDocumentoClinico(String pacienteDoc, String contenido) {
+        Document documento = new Document();
+        documento.append("pacienteDoc", pacienteDoc);
+        documento.append("contenido", contenido);
+        guardarDocumento(documento);
+        //crear metadata y almacenarla 
+
+        return documento;
+
+    }
+
     public void guardarDocumento(Document documento) {
         getCollection().insertOne(documento);
     }
 
-    public Document buscarPorInus(String inus) {
-        return getCollection().find(new Document("pacienteInus", inus)).first();
+    public Document buscarPorDocumentoPaciente(String documento) {
+        return getCollection().find(new Document("pacienteDoc", documento)).first();
     }
+
 }
