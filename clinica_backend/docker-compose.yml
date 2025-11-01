@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  # ------------------------------------------------------------------
+  #  Base de Datos Documental (MongoDB) - Para Documentos Clínicos y Metadatos (RNDC)
+  # ------------------------------------------------------------------
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      # Credenciales de Administrador (Root) - Cargadas desde .env
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      # Base de datos inicial (opcional)
+      # MONGO_INITDB_DATABASE: ${MONGODB_DB}
+    volumes:
+      # Persistencia de datos
+      - mongo-volumen:/data/db
+    networks:
+      - hcen_network
+
+
+# Definición de Redes y Volúmenes
+volumes:
+  mongo-volumen:
+  # postgres-volumen: # Descomenta cuando agregues PostgreSQL
+
+networks:
+  hcen_network:
+    driver: bridge

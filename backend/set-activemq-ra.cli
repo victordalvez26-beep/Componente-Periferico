@@ -1,2 +1,0 @@
-/subsystem=resource-adapters/resource-adapter=activemq-ra:add(module="org.apache.activemq.artemis.ra",transaction-support="XATransaction")
-:reload

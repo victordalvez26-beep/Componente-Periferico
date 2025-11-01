@@ -1,2 +1,0 @@
-/subsystem=ejb3:undefine-attribute(name=default-resource-adapter-name)
-:reload
