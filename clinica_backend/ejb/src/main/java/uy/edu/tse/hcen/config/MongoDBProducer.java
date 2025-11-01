@@ -8,8 +8,9 @@ import com.mongodb.client.MongoDatabase;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Disposes;
 import jakarta.enterprise.inject.Produces;
+import uy.edu.tse.hcen.business.exceptions.MongoDBConfigurationException;
+
 import org.bson.Document;
-import uy.edu.tse.hcen.model.exceptions.MongoDBConfigurationException;
 
 import java.util.concurrent.TimeUnit;
 import java.util.ArrayList;
