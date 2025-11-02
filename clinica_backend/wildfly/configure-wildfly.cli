@@ -6,11 +6,6 @@ embed-server --std-out=echo --server-config=standalone.xml
 # 2. Crear el DataSource principal que será usado en persistence.xml
 /subsystem=datasources/data-source=MyMainDataSource:add(jndi-name="java:/jdbc/MyMainDataSource", driver-name="postgres", connection-url="jdbc:postgresql://db:5432/hcen_db", user-name="postgres", password="password", use-java-context=true, enabled=true, max-pool-size=20, flush-strategy=IdleConnections)
 
-# Ensure the DataSource is marked as JTA-managed and confirm use-java-context
-# This helps ensure connections are enlisted into container transactions (autoCommit should be managed by the container)
-/subsystem=datasources/data-source=MyMainDataSource:write-attribute(name=jta,value=true)
-/subsystem=datasources/data-source=MyMainDataSource:write-attribute(name=use-java-context,value=true)
-
 # 3. Enable debug logging for Hibernate to assist tracing entity persister issues
 # (This will be persisted into the server configuration so remote logs include DEBUG output)
 /subsystem=logging/logger=org.hibernate:add(level=DEBUG)
