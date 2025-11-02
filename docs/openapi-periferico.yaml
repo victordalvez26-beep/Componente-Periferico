@@ -4,137 +4,159 @@ info:
   version: 1.0.0
   description: API del nodo periferico para pruebas locales
 servers:
-  - url: http://localhost:8080/nodo-periferico/api
-paths:
-  /auth/login:
-    post:
-      summary: Login
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LoginRequest'
-            examples:
-              sample:
-                value:
-                  username: admin
-                  password: admin
-      responses:
-        '200':
-          description: Usuario autenticado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserDTO'
-              examples:
-                success:
-                  value:
-                    username: admin
-                    nombre: Administrador
-                    roles: ["ADMIN"]
-        '401':
-          description: Unauthorized
-        '400':
-          description: Bad request (missing username/password)
-  /auth/session:
-    get:
-      summary: Verificar sesión actual
-      responses:
-        '200':
-          description: Session status
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SessionResponse'
-              examples:
-                notAuthenticated:
-                  value:
-                    authenticated: false
-                authenticated:
-                  value:
-                    authenticated: true
-                    username: admin
-                    nombre: Administrador
-                    roles: ["ADMIN"]
-  /auth/logout:
-    get:
-      summary: Logout (invalida la sesión)
-      responses:
-        '200':
-          description: OK
-  /nodos/{rut}:
-    get:
-      summary: Obtener nodo por RUT
-      parameters:
-        - name: rut
-          in: path
-          required: true
-          description: RUT del nodo (clave lógica). Ej: "12345678-9".
-          schema:
-            type: string
-            example: "12345678-9"
-      responses:
-        '200':
-          description: Nodo
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NodoPerifericoDTO'
-              examples:
-                sample:
-                  value:
-                    id: "1"
-                    RUT: "12345678-9"
-                    nombre: "Clínica Central"
-                    estado: "ACTIVO"
-                    clinicId: "CLINICA-123"
-        '404':
-          description: Not found
+  openapi: 3.0.3
+  info:
+    title: Nodo Periférico API (periferico)
+    version: 1.0.0
+    description: API del nodo periférico — endpoints de autenticación, configuración de portal y administración de tenants.
+  servers:
+    - url: http://localhost:8080/hcen-web
 
-components:
-  schemas:
-    LoginRequest:
-      type: object
-      properties:
-        username:
-          type: string
-        password:
-          type: string
-    UserDTO:
-      type: object
-      properties:
-        username:
-          type: string
-        nombre:
-          type: string
-        roles:
-          type: array
-          items:
+  components:
+    securitySchemes:
+      bearerAuth:
+        type: http
+        scheme: bearer
+        bearerFormat: JWT
+    schemas:
+      LoginRequest:
+        type: object
+        required: [nickname, password]
+        properties:
+          nickname:
             type: string
-    SessionResponse:
-      type: object
-      properties:
-        authenticated:
-          type: boolean
-        username:
-          type: string
-        nombre:
-          type: string
-        roles:
-          type: array
-          items:
+            example: admin_c1
+          password:
             type: string
-    NodoPerifericoDTO:
-      type: object
-      properties:
-        id:
-          type: string
-          description: Identificador interno (no usar en front-end). Use RUT para identificar recursos.
-        RUT:
-          type: string
-          description: Clave lógica del nodo; usar en las rutas (path).
-        nombre:
-          type: string
-        estado:
-          type: string
+            example: password123
+
+      LoginResponse:
+        type: object
+        properties:
+          token:
+            type: string
+            description: JWT bearer token
+          role:
+            type: string
+            description: Usuario role
+        example:
+          token: eyJhbGciOiJIUzI1NiJ9... (truncated)
+          role: ADMINISTRADOR
+
+      PortalConfiguracion:
+        type: object
+        properties:
+          id:
+            type: integer
+            format: int64
+          colorPrimario:
+            type: string
+            example: '#007bff'
+          colorSecundario:
+            type: string
+            example: '#6c757d'
+          logoUrl:
+            type: string
+          nombrePortal:
+            type: string
+            example: 'Clinica Montevideo'
+
+      TenantCreateRequest:
+        type: object
+        required: [tenantId, nombrePortal]
+        properties:
+          tenantId:
+            type: string
+            description: Numeric tenant identifier (suffix used in schema name, e.g. '103')
+            example: '108'
+          nombrePortal:
+            type: string
+            example: 'Clinica Nueva'
+          colorPrimario:
+            type: string
+            example: '#00aa88'
+
+      TenantSummary:
+        type: object
+        properties:
+          id:
+            type: integer
+          nombre:
+            type: string
+          rut:
+            type: string
+
+  security:
+    - bearerAuth: []
+
+  paths:
+    /api/auth/login:
+      post:
+        summary: Login and obtain a JWT
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginRequest'
+        responses:
+          '200':
+            description: Authentication successful. Returns token and role.
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/LoginResponse'
+          '401':
+            description: Invalid credentials
+
+    /api/portal-configuracion/public:
+      get:
+        summary: Get tenant-specific portal configuration (public)
+        security:
+          - bearerAuth: []
+        responses:
+          '200':
+            description: Portal configuration for the tenant resolved from JWT
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/PortalConfiguracion'
+          '401':
+            description: Unauthorized or invalid token
+
+    /api/admin/tenants:
+      post:
+        summary: Create a new tenant (admin only)
+        security:
+          - bearerAuth: []
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantCreateRequest'
+        responses:
+          '201':
+            description: Tenant created (Location header with tenant id)
+          '400':
+            description: Bad request
+          '403':
+            description: Forbidden (requires ADMINISTRADOR role)
+          '500':
+            description: Server error
+
+      get:
+        summary: List tenants (admin only)
+        security:
+          - bearerAuth: []
+        responses:
+          '200':
+            description: Array of tenant summaries
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/TenantSummary'
+          '403':
+            description: Forbidden
