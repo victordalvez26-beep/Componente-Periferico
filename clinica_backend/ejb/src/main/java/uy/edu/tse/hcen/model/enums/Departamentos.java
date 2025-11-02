@@ -1,4 +1,4 @@
-package uy.edu.tse.hcen.business.model.enums;
+package uy.edu.tse.hcen.model.enums;
 
 public enum Departamentos {
   MONTEVIDEO,

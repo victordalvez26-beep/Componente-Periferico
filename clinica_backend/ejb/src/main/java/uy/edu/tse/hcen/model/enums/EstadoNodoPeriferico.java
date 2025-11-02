@@ -1,4 +1,4 @@
-package uy.edu.tse.hcen.business.model;
+package uy.edu.tse.hcen.model.enums;
 
 public enum EstadoNodoPeriferico {
    ACTIVO,

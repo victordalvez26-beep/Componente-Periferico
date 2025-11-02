@@ -7,7 +7,6 @@ import jakarta.annotation.Resource;
 import org.jboss.logging.Logger;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.Statement;
 import javax.sql.DataSource;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
@@ -28,7 +27,15 @@ public class SchemaMultiTenantProvider implements MultiTenantConnectionProvider<
 
     @Override
     public Connection getAnyConnection() throws SQLException {
-        // If resource injection did not occur yet, try JNDI lookup as a fallback.
+        // If resource injection did not occur yet (Hibernate instantiates this class),
+        // perform a one-time JNDI lookup and cache the DataSource reference.
+        initializeDataSourceIfNeeded();
+        Connection c = dataSource.getConnection();
+        
+        return c;
+    }
+
+    private synchronized void initializeDataSourceIfNeeded() throws SQLException {
         if (dataSource == null) {
             try {
                 InitialContext ic = new InitialContext();
@@ -37,7 +44,6 @@ public class SchemaMultiTenantProvider implements MultiTenantConnectionProvider<
                 throw new SQLException("Unable to obtain DataSource from JNDI java:/jdbc/MyMainDataSource", ne);
             }
         }
-        return dataSource.getConnection();
     }
 
     @Override
@@ -50,33 +56,25 @@ public class SchemaMultiTenantProvider implements MultiTenantConnectionProvider<
         // Use the TenantContext (populated by application/login/filter) to build
         // the actual schema name used in the search_path. The resolver class
         // converts tenant ids (e.g. "101") into schema names (e.g. "schema_clinica_101").
-        final String tenantId = TenantContext.getCurrentTenant();
-        final String schema;
-        if (tenantId != null && !tenantId.isBlank()) {
-            schema = "schema_clinica_" + tenantId;
-        } else {
-            schema = "public";
-        }
-
         try {
-            final Connection connection = getAnyConnection();
-            LOG.infof("SchemaMultiTenantProvider.getConnection() tenant='%s' -> schema='%s'", tenantId, schema);
-            // Use PostgreSQL search_path to switch schema for the session
-            try (Statement stmt = connection.createStatement()) {
-                // include public as fallback in the search_path
-                String sql = "SET search_path TO " + schema + ", public";
-                LOG.debugf("Executing SQL to set schema: %s", sql);
-                stmt.execute(sql);
-            }
-            return connection;
+            // Return the physical connection from the shared DataSource. Schema switching
+            // is handled at a higher level (service layer / integrator) in current deployments.
+            return getAnyConnection();
         } catch (final SQLException e) {
-            throw new HibernateException("Error trying to alter the schema [" + schema + "]", e);
+            throw new HibernateException("Error trying to obtain connection", e);
         }
     }
 
     @Override
     public void releaseConnection(Object tenantIdentifier, Connection connection) throws SQLException {
-        releaseAnyConnection(connection);
+        // Close the physical connection. We applied schema on getConnection(), so
+        // simply close the connection when requested.
+        try {
+            releaseAnyConnection(connection);
+        } catch (Exception ex) {
+            LOG.warnf("Error while closing connection: %s", ex.getMessage());
+            throw new SQLException(ex);
+        }
     }
 
     @Override
@@ -93,4 +91,5 @@ public class SchemaMultiTenantProvider implements MultiTenantConnectionProvider<
     public <T> T unwrap(Class<T> unwrapType) {
         return null;
     }
+
 }

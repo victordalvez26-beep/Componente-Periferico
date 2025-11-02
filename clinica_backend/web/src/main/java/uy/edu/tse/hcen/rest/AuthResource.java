@@ -39,4 +39,13 @@ public class AuthResource {
                            .build();
         }
     }
+
+    @POST
+    @Path("/logout")
+    public Response logout() {
+        // Stateless JWT: logout is handled client-side by discarding the token.
+        // We provide a simple endpoint so the client has a unified API.
+        return Response.ok(java.util.Map.of("message", "Logout successful - discard token on client"))
+                       .build();
+    }
 }

@@ -1,4 +1,4 @@
-package uy.edu.tse.hcen.business.exceptions;
+package uy.edu.tse.hcen.exceptions;
 
 /**
  * Excepción en tiempo de ejecución lanzada cuando no se puede configurar o conectar a MongoDB.

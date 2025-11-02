@@ -8,7 +8,7 @@ import com.mongodb.client.MongoDatabase;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Disposes;
 import jakarta.enterprise.inject.Produces;
-import uy.edu.tse.hcen.business.exceptions.MongoDBConfigurationException;
+import uy.edu.tse.hcen.exceptions.MongoDBConfigurationException;
 
 import org.bson.Document;
 

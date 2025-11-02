@@ -11,8 +11,8 @@ import jakarta.persistence.InheritanceType;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.EnumType;
-import uy.edu.tse.hcen.business.model.EstadoNodoPeriferico;
-import uy.edu.tse.hcen.business.model.enums.Departamentos;
+import uy.edu.tse.hcen.model.enums.Departamentos;
+import uy.edu.tse.hcen.model.enums.EstadoNodoPeriferico;
 
 @Entity
 @Inheritance(strategy = InheritanceType.JOINED)

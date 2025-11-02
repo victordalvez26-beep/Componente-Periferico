@@ -1,10 +1,9 @@
 package uy.edu.tse.hcen.dto;
 
-import uy.edu.tse.hcen.business.model.enums.Especialidad;
+import uy.edu.tse.hcen.model.enums.Especialidad;
 
 /**
  * DTO ligero para crear/actualizar ProfesionalSalud.
- * Nota: usamos campos públicos para mapeo sencillo en el ejemplo.
  */
 public class ProfesionalDTO {
     private String nombre;
