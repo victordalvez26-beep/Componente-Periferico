@@ -5,23 +5,28 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.MapsId;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.Column;
 
 @Entity
 public class ConfiguracionClinica {
 
     @Id
-    private Long id; // Mismo ID que el NodoPeriferico asociado
+    @Column(name = "nodo_periferico_id")
+    private Long id; // Mismo ID que el NodoPeriferico asociado (mapeado a nodo_periferico_id)
 
     @OneToOne
     @MapsId
     @JoinColumn(name = "nodo_periferico_id")
     private NodoPeriferico nodoPeriferico;
 
-    private String logoUrl; // Atributo de ConfiguracionClinica
+    @Column(name = "logourl")
+    private String logoUrl; // Atributo de ConfiguracionClinica (mapeado a logourl)
 
-    private String colorPrincipal; // Atributo de ConfiguracionClinica
+    @Column(name = "colorprincipal")
+    private String colorPrincipal; // Atributo de ConfiguracionClinica (mapeado a colorprincipal)
 
-    private boolean habilitado; // Atributo de ConfiguracionClinica
+    @Column(name = "habilitado")
+    private boolean habilitado; // Atributo de ConfiguracionClinica (mapeado a habilitado)
 
     public ConfiguracionClinica() {}
 

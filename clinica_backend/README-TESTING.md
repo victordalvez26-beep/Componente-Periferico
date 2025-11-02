@@ -1,4 +1,3 @@
-README corto — cómo arrancar y probar los endpoints
 
 Requisitos
 - Docker y Docker Compose
@@ -17,7 +16,7 @@ docker compose up -d
 
 Observa que el compose crea los contenedores llamados (ejemplos): `hcen-postgres-db`, `mongodb`, `hcen-wildfly-app`.
 
-2) Inicializar la base de datos (script idempotente)
+2) Inicializar la base de datos (script )
 
 Copia y ejecuta el script `db/init-db.sql` dentro del contenedor Postgres y ejecútalo con psql (esto es idempotente y puede volver a ejecutarse):
 
@@ -51,7 +50,6 @@ Opciones para desplegar en WildFly:
 
 4) Endpoints relevantes y prueba rápida
 
-- Login (devuelve token JWT y role):
   POST http://localhost:8080/hcen-web/api/auth/login
   Body JSON:
   { "nickname": "admin_c1", "password": "password123" }
@@ -66,6 +64,34 @@ $r.token
 $r.role
 ```
 
+## Endpoints administrativos
+
+Hay dos endpoints administrativos bajo `/api/admin/tenants` protegidos por la claim `role` en el JWT (el `AuthTokenFilter` configura un SecurityContext simple a partir del token): solo usuarios con el rol `ADMINISTRADOR` pueden llamarlos.
+
+- POST /api/admin/tenants
+    - Crea un tenant en tiempo de ejecución. Body JSON:
+        ```json
+        { "tenantId": "107", "nombrePortal": "NombreClinica", "colorPrimario": "#007bff" }
+        ```
+    - Devuelve: 201 Created en caso de éxito.
+    - Ejemplo (PowerShell):
+        ```powershell
+        $body = '{"tenantId":"107","nombrePortal":"Clinica Test","colorPrimario":"#00aa88"}'
+        $token = (Invoke-RestMethod -Method Post -Uri 'http://localhost:8080/hcen-web/api/auth/login' -ContentType 'application/json' -Body '{"nickname":"admin_c3","password":"password123"}').token
+        Invoke-RestMethod -Method Post -Uri 'http://localhost:8080/hcen-web/api/admin/tenants' -ContentType 'application/json' -Body $body -Headers @{ Authorization = "Bearer $token" }
+        ```
+
+- GET /api/admin/tenants
+    - Devuelve un arreglo JSON con los tenants registrados en `public.nodoperiferico` (id, nombre, rut).
+    - Ejemplo (PowerShell):
+        ```powershell
+        $token = (Invoke-RestMethod -Method Post -Uri 'http://localhost:8080/hcen-web/api/auth/login' -ContentType 'application/json' -Body '{"nickname":"admin_c3","password":"password123"}').token
+        Invoke-RestMethod -Method Get -Uri 'http://localhost:8080/hcen-web/api/admin/tenants' -Headers @{ Authorization = "Bearer $token" } | ConvertTo-Json
+        ```
+
+Notas:
+- El endpoint REST de administración crea el esquema del tenant y las tablas mínimas (portal_configuracion, usuario, usuarioperiferico, nodoperiferico). No inserta usuarios locales del tenant por defecto — usa la opción `-createGlobalAdmin` en el helper de PowerShell si quieres crear un administrador global al mismo tiempo.
+- El script auxiliar de PowerShell `db/create-tenant.ps1` puede usarse desde el host para crear un tenant sin llamar al endpoint REST.
 Respuesta esperada (ejemplo):
 {
   "role": "ADMINISTRADOR",

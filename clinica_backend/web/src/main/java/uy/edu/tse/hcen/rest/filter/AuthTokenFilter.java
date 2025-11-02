@@ -40,8 +40,37 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
                     TenantContext.setCurrentTenant(tenantId);
                 }
 
+                // expose auth info to request properties and SecurityContext
                 requestContext.setProperty("auth.subject", subject);
                 requestContext.setProperty("auth.role", role);
+
+                final String fSubject = subject;
+                final String fRole = role;
+
+                // set a simple SecurityContext so resource methods can call isUserInRole
+                requestContext.setSecurityContext(new jakarta.ws.rs.core.SecurityContext() {
+                    @Override
+                    public java.security.Principal getUserPrincipal() {
+                        if (fSubject == null) return null;
+                        return () -> fSubject;
+                    }
+
+                    @Override
+                    public boolean isUserInRole(String role) {
+                        if (fRole == null) return false;
+                        return fRole.equals(role);
+                    }
+
+                    @Override
+                    public boolean isSecure() {
+                        return "https".equalsIgnoreCase(requestContext.getUriInfo().getRequestUri().getScheme());
+                    }
+
+                    @Override
+                    public String getAuthenticationScheme() {
+                        return "Bearer";
+                    }
+                });
 
             } catch (Exception ex) {
                 // Token inválido: abortar con 401
