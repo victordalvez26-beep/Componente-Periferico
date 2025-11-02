@@ -12,9 +12,10 @@ public class SchemaTenantResolver extends MultiTenantResolver {
     private static final String DEFAULT_SCHEMA = "public";
 
     @Override
-    public String resolveCurrentTenantIdentifier() {
-        if (this.tenantIdentifier != null && !this.tenantIdentifier.isBlank()) {
-            return "schema_clinica_" + this.tenantIdentifier;
+    public Object resolveCurrentTenantIdentifier() {
+        String tenant = TenantContext.getCurrentTenant();
+        if (tenant != null && !tenant.isBlank()) {
+            return "schema_clinica_" + tenant;
         }
 
         return DEFAULT_SCHEMA;

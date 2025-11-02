@@ -9,7 +9,7 @@ import java.util.Optional;
 @Stateless
 public class PortalConfiguracionRepository {
 
-    @PersistenceContext(unitName = "myPersistenceUnit")
+    @PersistenceContext(unitName = "hcenPersistenceUnit")
     private EntityManager em;
 
     /**

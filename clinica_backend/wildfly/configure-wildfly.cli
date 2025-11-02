@@ -1,11 +1,17 @@
-# 1. Instalar el driver de PostgreSQL como un módulo JBoss/WildFly
-module add --name=org.postgres --resources=/opt/jboss/wildfly/modules/system/layers/base/org/postgresql/postgresql-42.2.14.jar --dependencies=javax.api,javax.transaction.api
+embed-server --std-out=echo --server-config=standalone.xml
 
-# 2. Registrar el driver
-/subsystem=datasources/jdbc-driver=postgres:add(driver-name="postgres", driver-module-name="org.postgres", driver-class-name=org.postgresql.Driver)
+# 1. Registrar el driver (module files are copied into the image at build time)
+/subsystem=datasources/jdbc-driver=postgres:add(driver-name="postgres", driver-module-name="org.postgresql", driver-class-name=org.postgresql.Driver)
 
-# 3. Crear el DataSource principal que será usado en persistence.xml
-data-source add --name=MyMainDataSource --driver-name=postgres --jndi-name=java:/jdbc/MyMainDataSource --use-java-context=true --connection-url=jdbc:postgresql://db:5432/hcen_db --user-name=postgres --password=password --max-pool-size=20 --flush-strategy=IdleConnections --enabled=true
+# 2. Crear el DataSource principal que será usado en persistence.xml
+/subsystem=datasources/data-source=MyMainDataSource:add(jndi-name="java:/jdbc/MyMainDataSource", driver-name="postgres", connection-url="jdbc:postgresql://db:5432/hcen_db", user-name="postgres", password="password", use-java-context=true, enabled=true, max-pool-size=20, flush-strategy=IdleConnections)
 
-# 4. Finalizar
-:reload
+# 3. Enable debug logging for Hibernate to assist tracing entity persister issues
+# (This will be persisted into the server configuration so remote logs include DEBUG output)
+/subsystem=logging/logger=org.hibernate:add(level=DEBUG)
+/subsystem=logging/logger=org.hibernate.persister.entity:add(level=DEBUG)
+/subsystem=logging/logger=org.hibernate.loader:add(level=DEBUG)
+
+# 4. Persist changes and stop embedded server
+/:write-configuration
+stop-embedded-server

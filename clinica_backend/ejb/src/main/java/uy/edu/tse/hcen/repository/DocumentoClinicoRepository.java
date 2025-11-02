@@ -9,11 +9,11 @@ import jakarta.enterprise.context.ApplicationScoped;
 @ApplicationScoped
 public class DocumentoClinicoRepository {
 
-    private final MongoDatabase database;
-
     @Inject // Inyecta la instancia producida por MongoDBProducer
-    public DocumentoClinicoRepository(MongoDatabase database) {
-        this.database = database;
+    private MongoDatabase database;
+
+    // Public no-arg constructor required so CDI can create proxies for application-scoped beans
+    public DocumentoClinicoRepository() {
     }
 
     public MongoCollection<Document> getCollection() {

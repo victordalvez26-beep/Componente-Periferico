@@ -3,6 +3,7 @@ package uy.edu.tse.hcen.model;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.FetchType;
 
 /**
  * Entidad para el Administrador de Clínica.
@@ -11,7 +12,7 @@ import jakarta.persistence.ManyToOne;
 public class AdministradorClinica extends UsuarioPeriferico {
 
     // Relación con el NodoPeriferico que administra
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "nodo_periferico_id")
     private NodoPeriferico administra;
 
@@ -32,9 +33,9 @@ public class AdministradorClinica extends UsuarioPeriferico {
     }
 
     /**
-     * Obtiene el ID del Tenant (el ID del NodoPeriferico asociado).
+     * Obtiene el ID del NodoPeriferico asociado (tenant ID numérico).
      */
-    public Long getTenantId() {
+    public Long getTenantNodeId() {
         return this.administra != null ? this.administra.getId() : null;
     }
 }

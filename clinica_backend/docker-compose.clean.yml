@@ -36,7 +36,10 @@ services:
       - hcen_network
 
   wildfly:
-    image: quay.io/wildfly/wildfly:37.0.0.Final-jdk17
+    build:
+      context: .
+      dockerfile: wildfly/Dockerfile
+    image: hcen-wildfly-custom:latest
     container_name: hcen-wildfly-app
     ports:
       - "8080:8080"
@@ -56,13 +59,10 @@ services:
       MONGO_USER: ${MONGO_INITDB_ROOT_USERNAME}
       MONGO_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
     volumes:
-      - ./drivers/postgresql-42.2.14.jar:/opt/jboss/wildfly/modules/system/layers/base/org/postgresql/postgresql-42.2.14.jar
-      - ./wildfly/configure-wildfly.cli:/opt/jboss/wildfly/configure-wildfly.cli
-      - ./wildfly/start-with-cli.sh:/opt/jboss/wildfly/start-with-cli.sh
-      # Mount EAR to /tmp and let the startup script copy it into deployments after DS is created
-      - ./ear/target/hcen.ear:/tmp/hcen.ear
-    # Start WildFly via the helper script which will apply CLI and then deploy the EAR
-    command: bash -c "chmod +x /opt/jboss/wildfly/start-with-cli.sh; /opt/jboss/wildfly/start-with-cli.sh"
+      # Mount the EAR directly into deployments; the image will already contain the driver and CLI
+      - ./ear/target/hcen.ear:/opt/jboss/wildfly/standalone/deployments/hcen.ear
+      # If you still want to inspect the CLI inside the container, you can mount it (optional)
+      - ./wildfly/configure-wildfly.cli:/opt/jboss/wildfly/configure-wildfly.cli:ro
     networks:
       - hcen_network
 

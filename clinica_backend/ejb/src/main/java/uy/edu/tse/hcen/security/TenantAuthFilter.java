@@ -24,15 +24,15 @@ public class TenantAuthFilter implements ContainerRequestFilter {
 
     private static final String AUTH_SCHEME = "Bearer";
 
-    // Inyección de dependencias CDI
-    private final SchemaTenantResolver tenantResolver;
-
-    private final TenantContext tenantContext;
-    
+    // Inyección de dependencias CDI (usar field injection para que RESTEasy pueda instanciar el provider)
     @Inject
-    public TenantAuthFilter(SchemaTenantResolver tenantResolver, TenantContext tenantContext) {
-        this.tenantResolver = tenantResolver;
-        this.tenantContext = tenantContext;
+    private SchemaTenantResolver tenantResolver;
+
+    @Inject
+    private TenantContext tenantContext;
+
+    // Public no-arg constructor required for some container instantiation paths
+    public TenantAuthFilter() {
     }
     
     @Override

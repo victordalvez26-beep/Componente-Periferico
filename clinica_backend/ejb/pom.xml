@@ -103,11 +103,11 @@
             <artifactId>mongodb-driver-sync</artifactId>
             <version>4.11.1</version>
         </dependency>
-        <!-- Hibernate core API (provided by application server at runtime) -->
+        <!-- Hibernate core API (compile against server's version; provided at runtime) -->
         <dependency>
-            <groupId>org.hibernate</groupId>
+            <groupId>org.hibernate.orm</groupId>
             <artifactId>hibernate-core</artifactId>
-            <version>6.2.7.Final</version>
+            <version>6.6.19.Final</version>
             <scope>provided</scope>
         </dependency>
         

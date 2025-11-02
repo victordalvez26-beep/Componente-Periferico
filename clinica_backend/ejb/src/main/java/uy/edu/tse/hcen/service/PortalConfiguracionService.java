@@ -5,18 +5,13 @@ import uy.edu.tse.hcen.model.PortalConfiguracion;
 import uy.edu.tse.hcen.repository.PortalConfiguracionRepository;
 import jakarta.ejb.Stateless;
 import jakarta.inject.Inject;
-import java.util.Optional;
 
 @Stateless
 public class PortalConfiguracionService {
 
     @Inject
     private PortalConfiguracionRepository configRepository;
-    
-    // Inyectamos el contexto de tenant por si necesitamos usar el TenantId en logs, etc.
-    // @Inject 
-    // private TenantContext tenantContext; 
-
+     
     /**
      * Obtiene la configuración actual del tenant, o crea la configuración por defecto si no existe.
      */
@@ -42,7 +37,7 @@ public class PortalConfiguracionService {
     }
 
     private PortalConfiguracion createDefaultConfig() {
-        
+
         PortalConfiguracion defaultConfig = new PortalConfiguracion();
         return configRepository.save(defaultConfig);
     }

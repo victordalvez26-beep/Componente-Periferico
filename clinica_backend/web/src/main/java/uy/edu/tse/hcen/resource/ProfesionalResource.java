@@ -16,12 +16,12 @@ import java.util.List;
 @Consumes(MediaType.APPLICATION_JSON)
 public class ProfesionalResource {
 
-    private final ProfesionalSaludService profesionalService;
+    @Inject
+    private ProfesionalSaludService profesionalService;
     private static final String ERROR_KEY = "error";
 
-    @Inject
-    public ProfesionalResource(ProfesionalSaludService profesionalService) {
-        this.profesionalService = profesionalService;
+    // Public no-arg constructor so RESTEasy/Weld can instantiate this resource
+    public ProfesionalResource() {
     }
 
     // CREATE (POST /profesionales)

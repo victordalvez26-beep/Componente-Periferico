@@ -28,8 +28,6 @@ services:
       POSTGRES_DB: hcen_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-    volumes:
-      - ./db/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -41,10 +39,13 @@ services:
       - hcen_network
 
   # ----------------------------------------------------
-  # 3. Servidor de Aplicaciones (WildFly 30.0.1.Final)
+  # 3. Servidor de Aplicaciones (WildFly - custom image)
   # ----------------------------------------------------
   wildfly:
-    image: jboss/wildfly:30.0.1.Final # 👈 ¡VERIFIQUE ESTA LÍNEA!
+    build:
+      context: .
+      dockerfile: wildfly/Dockerfile
+    image: hcen-wildfly-custom:latest
     container_name: hcen-wildfly-app
     
     depends_on:
@@ -62,9 +63,9 @@ services:
       MONGO_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
       
     volumes:
-      - ./drivers/postgresql-42.2.14.jar:/opt/jboss/wildfly/modules/system/layers/base/org/postgresql/postgresql-42.2.14.jar
-      - ./wildfly/configure-wildfly.cli:/opt/jboss/wildfly/standalone/deployments/configure-wildfly.cli
-      - ./web/target/hcen-web.war:/opt/jboss/wildfly/standalone/deployments/hcen-web.war
+      # Deploy the assembled EAR so WildFly deploys the full application (EJB + WAR)
+      - ./ear/target/hcen.ear:/opt/jboss/wildfly/standalone/deployments/hcen.ear
+      - ./wildfly/configure-wildfly.cli:/opt/jboss/wildfly/configure-wildfly.cli
       
     command: 
       /opt/jboss/wildfly/bin/standalone.sh -c standalone.xml --admin-cli --execute=/opt/jboss/wildfly/standalone/deployments/configure-wildfly.cli

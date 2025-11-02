@@ -6,6 +6,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.FetchType;
 import uy.edu.tse.hcen.business.model.enums.Especialidad;
 import uy.edu.tse.hcen.business.model.enums.Departamentos;
 
@@ -19,17 +20,15 @@ public class ProfesionalSalud extends UsuarioPeriferico {
     @Enumerated(EnumType.STRING)
     private Departamentos departamento; // Atributo de ProfesionalSalud
 
-    private String calidad; // Atributo de ProfesionalSalud
-
     private String direccion; // Atributo de ProfesionalSalud
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "nodo_periferico_id")
     private NodoPeriferico trabajaEn; // Relación con NodoPeriferico
 
     public ProfesionalSalud() { super(); }
 
-    public ProfesionalSalud(String nombre, String email, String nickname, String password, Especialidad especialidad, Departamentos departamento, String calidad) {
+    public ProfesionalSalud(String nombre, String email, String nickname, String password, Especialidad especialidad, Departamentos departamento) {
         super();
         setNombre(nombre);
         setEmail(email);
@@ -40,7 +39,6 @@ public class ProfesionalSalud extends UsuarioPeriferico {
 
         this.especialidad = especialidad;
         this.departamento = departamento;
-        this.calidad = calidad;
     }
 
     public Especialidad getEspecialidad() { return especialidad; }
@@ -49,16 +47,18 @@ public class ProfesionalSalud extends UsuarioPeriferico {
     public Departamentos getDepartamento() { return departamento; }
     public void setDepartamento(Departamentos departamento) { this.departamento = departamento; }
 
-    public String getCalidad() { return calidad; }
-    public void setCalidad(String calidad) { this.calidad = calidad; }
+    // 'calidad' column/attribute removed - not used anymore
 
     public String getDireccion() { return direccion; }
     public void setDireccion(String direccion) { this.direccion = direccion; }
 
     public void setTrabajaEn(NodoPeriferico trabajaEn) { this.trabajaEn = trabajaEn; }
 
-    //Obtiene el ID del Tenant (el ID del NodoPeriferico asociado).
-    public Long getTenantId() {
+    // Obtiene el ID del NodoPeriferico asociado (tenant ID numérico).
+    // NOTE: no sobrescribe UsuarioPeriferico.getTenantId() que ahora devuelve
+    // una cadena opcional usada para usuarios globales; este método devuelve
+    // el id numérico del nodo asociado cuando aplica.
+    public Long getTenantNodeId() {
         return this.trabajaEn != null ? this.trabajaEn.getId() : null;
     }
 }
