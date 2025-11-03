@@ -2,16 +2,16 @@ package uy.edu.tse.hcen.dto;
 
 import uy.edu.tse.hcen.model.Usuario;
 
-public class UsuarioDTO {
+public class DTUsuario {
 
     private Long id;
     private String nombre;
     private String email;
 
-    public UsuarioDTO() {
+    public DTUsuario() {
     }
 
-    public UsuarioDTO(Long id, String nombre, String email) {
+    public DTUsuario(Long id, String nombre, String email) {
         this.id = id;
         this.nombre = nombre;
         this.email = email;
@@ -44,8 +44,8 @@ public class UsuarioDTO {
     /**
      * Create a DTO from an entity instance.
      */
-    public static UsuarioDTO fromEntity(Usuario usuario) {
+    public static DTUsuario fromEntity(Usuario usuario) {
         if (usuario == null) return null;
-        return new UsuarioDTO(usuario.getId(), usuario.getNombre(), usuario.getEmail());
+        return new DTUsuario(usuario.getId(), usuario.getNombre(), usuario.getEmail());
     }
 }

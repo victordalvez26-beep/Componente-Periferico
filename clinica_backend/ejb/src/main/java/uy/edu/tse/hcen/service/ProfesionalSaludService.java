@@ -1,6 +1,6 @@
 package uy.edu.tse.hcen.service;
 
-import uy.edu.tse.hcen.dto.ProfesionalDTO;
+import uy.edu.tse.hcen.dto.DTProfesionalSalud;
 import uy.edu.tse.hcen.model.ProfesionalSalud;
 import uy.edu.tse.hcen.context.TenantContext;
 import uy.edu.tse.hcen.repository.ProfesionalSaludRepository;
@@ -49,7 +49,7 @@ public class ProfesionalSaludService {
     /**
      * Crea un profesional y lo asocia al tenant actual.
      */
-    public ProfesionalSalud create(ProfesionalDTO dto) throws IllegalArgumentException {
+    public ProfesionalSalud create(DTProfesionalSalud dto) throws IllegalArgumentException {
         if (tenantContext.getRole() == null || !tenantContext.getRole().equals("ADMINISTRADOR")) {
             throw new SecurityException("Solo los administradores pueden crear profesionales.");
         }
@@ -89,7 +89,7 @@ public class ProfesionalSaludService {
         return profesionalRepository.findAll();
     }
     
-    public ProfesionalSalud update(Long id, ProfesionalDTO dto) {
+    public ProfesionalSalud update(Long id, DTProfesionalSalud dto) {
         ProfesionalSalud profesional = profesionalRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Profesional no encontrado."));
         // If updating nickname/email, check uniqueness

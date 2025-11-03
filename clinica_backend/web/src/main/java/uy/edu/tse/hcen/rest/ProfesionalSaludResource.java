@@ -1,6 +1,6 @@
 package uy.edu.tse.hcen.rest;
 
-import uy.edu.tse.hcen.dto.ProfesionalDTO;
+import uy.edu.tse.hcen.dto.DTProfesionalSalud;
 import uy.edu.tse.hcen.dto.ProfesionalResponse;
 import uy.edu.tse.hcen.model.ProfesionalSalud;
 import uy.edu.tse.hcen.service.ProfesionalSaludService;
@@ -46,7 +46,7 @@ public class ProfesionalSaludResource {
     }
 
     @POST
-    public Response create(ProfesionalDTO dto) {
+    public Response create(DTProfesionalSalud dto) {
         // Basic validation
         if (dto == null || dto.getNickname() == null || dto.getNickname().isBlank()) {
             return Response.status(Response.Status.BAD_REQUEST).entity("nickname required").build();
@@ -65,7 +65,7 @@ public class ProfesionalSaludResource {
 
     @PUT
     @Path("/{id}")
-    public Response update(@PathParam("id") Long id, ProfesionalDTO dto) {
+    public Response update(@PathParam("id") Long id, DTProfesionalSalud dto) {
         try {
             ProfesionalSalud merged = profesionalService.update(id, dto);
             return Response.ok(ProfesionalResponse.fromEntity(merged)).build();
