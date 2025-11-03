@@ -123,18 +123,32 @@ public class ConfigResource {
             
             tenantAdminService.registerNodoInPublic(req.id, req.nombre, req.rut);
             
-            // 3. TODO OPCIONAL: Crear usuario administrador inicial de la clínica
-            // usando req.nodoPerifericoUsuario y req.nodoPerifericoPassword
-            // Esto se puede implementar después si es necesario
+            // 3. Crear usuario administrador inicial de la clínica
+            LOG.infof("Creating admin user for tenant %s", tenantId);
             
-            LOG.infof("Successfully initialized tenant: %s (id=%s)", req.nombre, req.id);
+            // Extraer email del contacto si está presente
+            String adminEmail = extractEmail(req.contacto);
+            
+            // URL base del componente periférico (puede venir en la request o usar la configurada)
+            String peripheralBaseUrl = req.nodoPerifericoUrlBase != null ? 
+                                      req.nodoPerifericoUrlBase : "http://localhost:8081";
+            
+            TenantAdminService.AdminCreationResult adminResult = 
+                tenantAdminService.createAdminUser(tenantId, schemaName, adminEmail, peripheralBaseUrl);
+            
+            LOG.infof("Successfully initialized tenant: %s (id=%s), admin user: %s", 
+                      req.nombre, req.id, adminResult.adminNickname);
             
             return Response.ok()
                     .entity(Map.of(
                         "message", "Tenant initialized successfully",
                         "tenantId", tenantId,
                         "schemaName", schemaName,
-                        "clinicName", req.nombre
+                        "clinicName", req.nombre,
+                        "adminNickname", adminResult.adminNickname,
+                        "activationToken", adminResult.activationToken,
+                        "activationUrl", adminResult.activationUrl,
+                        "tokenExpiresAt", adminResult.tokenExpiry.toString()
                     ))
                     .build();
                     
@@ -233,6 +247,90 @@ public class ConfigResource {
     }
     
     /**
+     * DTO para recibir datos de activación de cuenta.
+     */
+    public static class ActivationRequest {
+        public String tenantId;
+        public String token;
+        public String password;
+        
+        public String getTenantId() { return tenantId; }
+        public void setTenantId(String tenantId) { this.tenantId = tenantId; }
+        public String getToken() { return token; }
+        public void setToken(String token) { this.token = token; }
+        public String getPassword() { return password; }
+        public void setPassword(String password) { this.password = password; }
+    }
+
+    /**
+     * Endpoint para activar la cuenta de un administrador de clínica.
+     * El administrador usa el token recibido por email para crear su contraseña.
+     * 
+     * @param req Datos de activación (tenantId, token, password)
+     * @return 200 OK con mensaje de éxito y datos de login
+     */
+    @POST
+    @Path("/activate")
+    public Response activate(ActivationRequest req) {
+        LOG.infof("Received activation request for tenant: %s", req.tenantId);
+        
+        try {
+            // Validar datos requeridos
+            if (req.tenantId == null || req.tenantId.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "Field 'tenantId' is required"))
+                        .build();
+            }
+            
+            if (req.token == null || req.token.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "Field 'token' is required"))
+                        .build();
+            }
+            
+            if (req.password == null || req.password.length() < 8) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "Password must be at least 8 characters"))
+                        .build();
+            }
+            
+            // Activar el usuario
+            String userNickname = tenantAdminService.activateAdminUser(
+                req.tenantId, 
+                req.token, 
+                req.password
+            );
+            
+            LOG.infof("Successfully activated user: %s for tenant: %s", userNickname, req.tenantId);
+            
+            return Response.ok()
+                    .entity(Map.of(
+                        "message", "Account activated successfully",
+                        "username", userNickname,
+                        "loginUrl", "/portal/clinica-" + req.tenantId + "/login",
+                        "instructions", "You can now login with your credentials"
+                    ))
+                    .build();
+                    
+        } catch (SecurityException se) {
+            // Token inválido, expirado o ya usado
+            LOG.warn("Activation failed - security error: " + se.getMessage());
+            return Response.status(Response.Status.UNAUTHORIZED)
+                    .entity(Map.of("error", se.getMessage()))
+                    .build();
+                    
+        } catch (Exception ex) {
+            LOG.error("Error during account activation", ex);
+            return Response.serverError()
+                    .entity(Map.of(
+                        "error", "Failed to activate account",
+                        "details", ex.getMessage() != null ? ex.getMessage() : "Unknown error"
+                    ))
+                    .build();
+        }
+    }
+
+    /**
      * Health check endpoint para verificar que el servicio de configuración está activo.
      * 
      * @return 200 OK con mensaje de estado
@@ -247,6 +345,29 @@ public class ConfigResource {
                     "message", "Configuration service is running"
                 ))
                 .build();
+    }
+
+    /**
+     * Extrae un email del campo de contacto.
+     * Busca un patrón de email en el string de contacto.
+     * Si no encuentra, retorna null.
+     */
+    private String extractEmail(String contacto) {
+        if (contacto == null || contacto.isBlank()) {
+            return null;
+        }
+        
+        // Regex simple para detectar email
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+            "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+        );
+        java.util.regex.Matcher matcher = pattern.matcher(contacto);
+        
+        if (matcher.find()) {
+            return matcher.group();
+        }
+        
+        return null;
     }
 }
 

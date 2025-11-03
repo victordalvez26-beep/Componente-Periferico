@@ -6,6 +6,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import javax.sql.DataSource;
 import org.jboss.logging.Logger;
 
@@ -13,6 +14,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.time.LocalDateTime;
 
 
 @Stateless
@@ -135,6 +138,251 @@ public class TenantAdminService {
         } catch (SQLException ex) {
             LOG.errorf(ex, "Error registering nodo in public schema: id=%s, rut=%s", id, rut);
             throw ex;
+        }
+    }
+
+    /**
+     * Clase interna para retornar información del usuario admin creado.
+     */
+    public static class AdminCreationResult {
+        public String adminNickname;
+        public String activationToken;
+        public String activationUrl;
+        public LocalDateTime tokenExpiry;
+    }
+
+    /**
+     * Crea un usuario administrador inicial para una clínica (tenant) recién creada.
+     * El usuario se crea sin contraseña, con un token de activación que se envía por email.
+     * 
+     * @param tenantId ID del tenant (ej: "123")
+     * @param tenantSchema Nombre del schema (ej: "schema_clinica_123")
+     * @param adminEmail Email del administrador (opcional)
+     * @param baseUrl URL base del componente periférico para construir link de activación
+     * @return AdminCreationResult con nickname, token y URL de activación
+     * @throws SQLException si hay error en la operación
+     */
+    public AdminCreationResult createAdminUser(String tenantId, String tenantSchema, String adminEmail, String baseUrl) 
+            throws SQLException {
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new IllegalArgumentException("tenantId is required");
+        }
+        if (tenantSchema == null || tenantSchema.isBlank()) {
+            throw new IllegalArgumentException("tenantSchema is required");
+        }
+
+        // Generar credenciales
+        String adminNickname = "admin_c" + tenantId;
+        String activationToken = UUID.randomUUID().toString();
+        LocalDateTime expiryTime = LocalDateTime.now().plusHours(48); // Token válido por 48 horas
+        
+        // Generar URL de activación
+        String activationUrl = (baseUrl != null ? baseUrl : "http://localhost:8081") + 
+                               "/portal/clinica-" + tenantId + "/activate?token=" + activationToken;
+
+        try (Connection c = dataSource.getConnection()) {
+            // 1. Crear tabla de tokens de activación en el schema del tenant (si no existe)
+            String createTokensTable = String.format(
+                "CREATE TABLE IF NOT EXISTS %s.activation_tokens (" +
+                "  id BIGSERIAL PRIMARY KEY, " +
+                "  token VARCHAR(255) UNIQUE NOT NULL, " +
+                "  user_nickname VARCHAR(255) NOT NULL, " +
+                "  email VARCHAR(255), " +
+                "  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
+                "  expires_at TIMESTAMP NOT NULL, " +
+                "  used BOOLEAN DEFAULT FALSE, " +
+                "  used_at TIMESTAMP" +
+                ")",
+                tenantSchema
+            );
+            
+            try (PreparedStatement ps = c.prepareStatement(createTokensTable)) {
+                ps.execute();
+                LOG.infof("Created activation_tokens table in schema %s", tenantSchema);
+            }
+
+            // 2. Insertar el token de activación
+            String insertToken = String.format(
+                "INSERT INTO %s.activation_tokens (token, user_nickname, email, expires_at) VALUES (?, ?, ?, ?)",
+                tenantSchema
+            );
+            
+            try (PreparedStatement ps = c.prepareStatement(insertToken)) {
+                ps.setString(1, activationToken);
+                ps.setString(2, adminNickname);
+                ps.setString(3, adminEmail);
+                ps.setTimestamp(4, Timestamp.valueOf(expiryTime));
+                ps.executeUpdate();
+                LOG.infof("Created activation token for %s in schema %s", adminNickname, tenantSchema);
+            }
+
+            // 3. Crear usuario en public.usuario (tabla global)
+            String insertUsuarioPublic = 
+                "INSERT INTO public.usuario (id, nombre, email) VALUES (?, ?, ?) " +
+                "ON CONFLICT (id) DO NOTHING";
+            
+            long userId = Long.parseLong(tenantId) + 10000; // Offset para evitar colisiones
+            
+            try (PreparedStatement ps = c.prepareStatement(insertUsuarioPublic)) {
+                ps.setLong(1, userId);
+                ps.setString(2, "Administrador Clínica " + tenantId);
+                ps.setString(3, adminEmail != null ? adminEmail : "admin" + tenantId + "@pendiente.local");
+                ps.executeUpdate();
+            }
+
+            // 4. Crear registro en public.usuarioperiferico (SIN contraseña todavía, estado pendiente)
+            String insertUsuarioPeriferico = 
+                "INSERT INTO public.usuarioperiferico (id, nickname, password_hash, dtype, tenant_id, role) " +
+                "VALUES (?, ?, ?, ?, ?, ?) " +
+                "ON CONFLICT (id) DO NOTHING";
+            
+            try (PreparedStatement ps = c.prepareStatement(insertUsuarioPeriferico)) {
+                ps.setLong(1, userId);
+                ps.setString(2, adminNickname);
+                ps.setString(3, "PENDING_ACTIVATION"); // Placeholder hasta que active
+                ps.setString(4, "AdministradorClinica");
+                ps.setString(5, tenantId);
+                ps.setString(6, "ADMINISTRADOR");
+                ps.executeUpdate();
+            }
+
+            // 5. Crear registro en public.administradorclinica
+            String insertAdminClinica = 
+                "INSERT INTO public.administradorclinica (id, nodo_periferico_id) VALUES (?, ?) " +
+                "ON CONFLICT (id) DO NOTHING";
+            
+            try (PreparedStatement ps = c.prepareStatement(insertAdminClinica)) {
+                ps.setLong(1, userId);
+                ps.setLong(2, Long.parseLong(tenantId));
+                ps.executeUpdate();
+            }
+
+            LOG.infof("Successfully created admin user: %s for tenant %s", adminNickname, tenantId);
+
+            // Retornar información
+            AdminCreationResult result = new AdminCreationResult();
+            result.adminNickname = adminNickname;
+            result.activationToken = activationToken;
+            result.activationUrl = activationUrl;
+            result.tokenExpiry = expiryTime;
+            
+            return result;
+
+        } catch (SQLException ex) {
+            LOG.errorf(ex, "Error creating admin user for tenant %s", tenantId);
+            throw ex;
+        }
+    }
+
+    /**
+     * Valida y activa una cuenta de administrador usando el token de activación.
+     * 
+     * @param tenantId ID del tenant
+     * @param token Token de activación
+     * @param password Nueva contraseña del administrador
+     * @return nickname del usuario activado
+     * @throws SQLException si hay error
+     * @throws SecurityException si el token es inválido o expiró
+     */
+    public String activateAdminUser(String tenantId, String token, String password) 
+            throws SQLException, SecurityException {
+        if (tenantId == null || token == null || password == null) {
+            throw new IllegalArgumentException("tenantId, token and password are required");
+        }
+
+        String tenantSchema = "schema_clinica_" + tenantId;
+
+        try (Connection c = dataSource.getConnection()) {
+            // 1. Verificar el token
+            String checkTokenSql = String.format(
+                "SELECT user_nickname, expires_at, used FROM %s.activation_tokens WHERE token = ?",
+                tenantSchema
+            );
+            
+            String userNickname = null;
+            boolean tokenUsed = false;
+            LocalDateTime expiresAt = null;
+            
+            try (PreparedStatement ps = c.prepareStatement(checkTokenSql)) {
+                ps.setString(1, token);
+                ResultSet rs = ps.executeQuery();
+                
+                if (rs.next()) {
+                    userNickname = rs.getString("user_nickname");
+                    expiresAt = rs.getTimestamp("expires_at").toLocalDateTime();
+                    tokenUsed = rs.getBoolean("used");
+                } else {
+                    throw new SecurityException("Token de activación inválido");
+                }
+            }
+
+            // 2. Validar que no esté usado ni expirado
+            if (tokenUsed) {
+                throw new SecurityException("Token de activación ya fue utilizado");
+            }
+            
+            if (LocalDateTime.now().isAfter(expiresAt)) {
+                throw new SecurityException("Token de activación expirado");
+            }
+
+            // 3. Hashear la contraseña usando BCrypt
+            // TODO: Importar PasswordUtils del proyecto
+            String passwordHash = hashPassword(password);
+
+            // 4. Actualizar el usuario en public.usuarioperiferico con la contraseña
+            String updateUserSql = 
+                "UPDATE public.usuarioperiferico SET password_hash = ? WHERE nickname = ?";
+            
+            try (PreparedStatement ps = c.prepareStatement(updateUserSql)) {
+                ps.setString(1, passwordHash);
+                ps.setString(2, userNickname);
+                int rows = ps.executeUpdate();
+                
+                if (rows == 0) {
+                    throw new SQLException("Usuario no encontrado: " + userNickname);
+                }
+            }
+
+            // 5. Marcar el token como usado
+            String markTokenUsedSql = String.format(
+                "UPDATE %s.activation_tokens SET used = TRUE, used_at = CURRENT_TIMESTAMP WHERE token = ?",
+                tenantSchema
+            );
+            
+            try (PreparedStatement ps = c.prepareStatement(markTokenUsedSql)) {
+                ps.setString(1, token);
+                ps.executeUpdate();
+            }
+
+            LOG.infof("Successfully activated user %s for tenant %s", userNickname, tenantId);
+            
+            return userNickname;
+
+        } catch (SQLException ex) {
+            LOG.errorf(ex, "Error activating user for tenant %s", tenantId);
+            throw ex;
+        }
+    }
+
+    /**
+     * Hashea una contraseña usando un algoritmo simple (para evitar dependencia de BCrypt).
+     * TODO: En producción, usar BCrypt o similar.
+     */
+    private String hashPassword(String password) {
+        // Por ahora, retornamos un hash simple
+        // En producción, usar: BCrypt.hashpw(password, BCrypt.gensalt(12))
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(password.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Error hashing password", e);
         }
     }
 }
