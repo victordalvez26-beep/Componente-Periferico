@@ -99,4 +99,42 @@ public class TenantAdminService {
         }
         return out;
     }
+
+    /**
+     * Registra o actualiza un nodo en la tabla maestra public.nodoperiferico.
+     * Este método se llama cuando HCEN central notifica sobre una nueva clínica.
+     * 
+     * @param id ID del nodo (debe ser único)
+     * @param nombre Nombre de la clínica
+     * @param rut RUT de la clínica (debe ser único)
+     * @throws SQLException si hay error en la operación SQL
+     */
+    public void registerNodoInPublic(Long id, String nombre, String rut) throws SQLException {
+        if (id == null) {
+            throw new IllegalArgumentException("id is required");
+        }
+        if (rut == null || rut.isBlank()) {
+            throw new IllegalArgumentException("rut is required");
+        }
+        if (nombre == null || nombre.isBlank()) {
+            throw new IllegalArgumentException("nombre is required");
+        }
+
+        String sql = "INSERT INTO public.nodoperiferico (id, nombre, rut) VALUES (?, ?, ?) " +
+                     "ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre, rut = EXCLUDED.rut";
+        
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setLong(1, id);
+            ps.setString(2, nombre);
+            ps.setString(3, rut);
+            int rowsAffected = ps.executeUpdate();
+            
+            LOG.infof("Registered nodo in public.nodoperiferico: id=%s, nombre=%s, rut=%s (rows affected: %d)", 
+                      id, nombre, rut, rowsAffected);
+        } catch (SQLException ex) {
+            LOG.errorf(ex, "Error registering nodo in public schema: id=%s, rut=%s", id, rut);
+            throw ex;
+        }
+    }
 }
