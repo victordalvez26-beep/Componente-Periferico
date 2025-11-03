@@ -14,6 +14,8 @@ public class DTMetadatos {
     private String especialidad;
     private LocalDateTime fechaCreacion;
     private String urlAcceso; // URL interna para que el Central pueda acceder al contenido completo.
+    private String aaPrestador; // Identificador del Prestador (AA)
+    private String emisorDocumentoOID;
 
     public DTMetadatos() {
     }
@@ -36,4 +38,10 @@ public class DTMetadatos {
 
     public String getUrlAcceso() { return urlAcceso; }
     public void setUrlAcceso(String urlAcceso) { this.urlAcceso = urlAcceso; }
+
+    public String getAaPrestador() { return aaPrestador; }
+    public void setAaPrestador(String aaPrestador) { this.aaPrestador = aaPrestador; }
+
+    public String getEmisorDocumentoOID() { return emisorDocumentoOID; }
+    public void setEmisorDocumentoOID(String emisorDocumentoOID) { this.emisorDocumentoOID = emisorDocumentoOID; }
 }

@@ -24,6 +24,14 @@ public class DocumentoClinicoRepository {
         return database.getCollection("documentos_clinicos");
     }
 
+    /**
+     * Retorna la colección donde se guardan los metadatos de los documentos.
+     * Se usa una colección separada para metadatos: 'metadatos_documentos'.
+     */
+    public MongoCollection<Document> getMetadatosCollection() {
+        return database.getCollection("metadatos_documentos");
+    }
+
     public Document crearDocumentoClinico(String pacienteDoc, String contenido) {
         Document documento = new Document();
         documento.append("pacienteDoc", pacienteDoc);
@@ -38,6 +46,8 @@ public class DocumentoClinicoRepository {
     public void guardarDocumento(Document documento) {
         getCollection().insertOne(documento);
     }
+
+  
 
     public Document buscarPorDocumentoPaciente(String documento) {
         return getCollection().find(new Document("pacienteDoc", documento)).first();

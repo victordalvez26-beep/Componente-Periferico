@@ -1,6 +1,6 @@
 package uy.edu.tse.hcen.rest;
 
-import uy.edu.tse.hcen.repository.DocumentoClinicoRepository;
+import uy.edu.tse.hcen.service.DocumentoService;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
@@ -26,7 +26,7 @@ import java.util.Map;
 public class DocumentoClinicoResource {
 
     @Inject
-    private DocumentoClinicoRepository repo;
+    private DocumentoService documentoService;
 
     public DocumentoClinicoResource() {
     }
@@ -63,11 +63,19 @@ public class DocumentoClinicoResource {
             return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "contenido required")).build();
         }
 
-        var saved = repo.guardarContenido(documentoId, contenido);
-
-        // Build a Location/URI if desired (not exposing real DB id for now)
-        URI location = UriBuilder.fromPath("/api/documentos/{documentoId}").build(documentoId);
-        return Response.created(location).entity(saved.toJson()).build();
+        try {
+            var saved = documentoService.guardarContenido(documentoId, contenido);
+            // Build a Location/URI if desired (not exposing real DB id for now)
+            URI location = UriBuilder.fromPath("/api/documentos/{documentoId}").build(documentoId);
+            return Response.created(location).entity(saved.toJson()).build();
+        } catch (IllegalArgumentException ex) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", ex.getMessage())).build();
+        } catch (SecurityException ex) {
+            // Tenant mismatch or unauthorized
+            return Response.status(Response.Status.FORBIDDEN).entity(Map.of("error", ex.getMessage())).build();
+        } catch (Exception ex) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(Map.of("error", "server error" , "detail", ex.getMessage())).build();
+        }
     }
 
     /**
@@ -77,7 +85,7 @@ public class DocumentoClinicoResource {
     @Path("/{id}")
     @RolesAllowed("PROFESIONAL")
     public Response obtenerPorId(@PathParam("id") String id) {
-        var doc = repo.buscarPorId(id);
+    var doc = documentoService.buscarPorId(id);
         if (doc == null) {
             return Response.status(Response.Status.NOT_FOUND).entity(Map.of("error", "document not found or invalid id")).build();
         }
@@ -94,7 +102,7 @@ public class DocumentoClinicoResource {
         if (documentoId == null || documentoId.isBlank()) {
             return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "documentoId required")).build();
         }
-        List<String> ids = repo.buscarIdsPorDocumentoPaciente(documentoId);
+    List<String> ids = documentoService.buscarIdsPorDocumentoPaciente(documentoId);
         return Response.ok(ids).build();
     }
 }
