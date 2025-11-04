@@ -6,12 +6,22 @@ function ActivatePage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
+  // Estados para credenciales de usuario
+  const [username, setUsername] = useState('admin_c' + tenantId); // Sugerencia editable
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  
+  // Estados para datos de la clínica
+  const [rut, setRut] = useState('');
+  const [departamento, setDepartamento] = useState('');
+  const [localidad, setLocalidad] = useState('');
+  const [direccion, setDireccion] = useState('');
+  const [telefono, setTelefono] = useState('');
+  
+  // Estados de UI
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [username, setUsername] = useState('');
 
   const token = searchParams.get('token');
 
@@ -26,6 +36,11 @@ function ActivatePage() {
     setError('');
 
     // Validaciones
+    if (!username || username.length < 3) {
+      setError('El nombre de usuario debe tener al menos 3 caracteres');
+      return;
+    }
+    
     if (password.length < 8) {
       setError('La contraseña debe tener al menos 8 caracteres');
       return;
@@ -35,11 +50,27 @@ function ActivatePage() {
       setError('Las contraseñas no coinciden');
       return;
     }
+    
+    if (!rut || rut.length < 12) {
+      setError('El RUT debe tener 12 dígitos');
+      return;
+    }
+    
+    if (!departamento) {
+      setError('Debe seleccionar un departamento');
+      return;
+    }
+    
+    if (!direccion || !telefono) {
+      setError('Debe completar dirección y teléfono');
+      return;
+    }
 
     setLoading(true);
 
     try {
-      const response = await fetch('/config/activate', {
+      // Llamada al backend periférico con TODOS los datos de la clínica
+      const response = await fetch('http://localhost:8081/hcen-web/api/config/activate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -47,7 +78,14 @@ function ActivatePage() {
         body: JSON.stringify({
           tenantId: tenantId,
           token: token,
-          password: password
+          username: username,
+          password: password,
+          // Datos de la clínica
+          rut: rut,
+          departamento: departamento,
+          localidad: localidad,
+          direccion: direccion,
+          telefono: telefono
         })
       });
 
@@ -56,9 +94,9 @@ function ActivatePage() {
         setUsername(data.username);
         setSuccess(true);
         
-        // Redirigir al login después de 3 segundos
+        // Redirigir al login después de 3 segundos (con formato correcto /clinica/ID)
         setTimeout(() => {
-          navigate(`/portal/clinica-${tenantId}/login`);
+          navigate(`/portal/clinica/${tenantId}/login`);
         }, 3000);
       } else {
         const errorData = await response.json();
@@ -240,6 +278,111 @@ function ActivatePage() {
               onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
               onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
             />
+          </div>
+
+          {/* NUEVOS CAMPOS: Datos de la Clínica */}
+          <div style={{
+            backgroundColor: '#f8fafc',
+            padding: '20px',
+            borderRadius: '10px',
+            marginBottom: '20px',
+            marginTop: '30px',
+            border: '1px solid #e5e7eb'
+          }}>
+            <h5 style={{color: '#1f2937', marginTop: '0', marginBottom: '20px', fontSize: '16px', fontWeight: '600'}}>
+              Datos de la Clínica
+            </h5>
+
+            <div style={{marginBottom: '15px'}}>
+              <label style={{display: 'block', color: '#374151', fontWeight: '600', marginBottom: '8px', fontSize: '14px'}}>
+                Nombre de Usuario <span style={{color: '#ef4444'}}>*</span>
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                placeholder="admin_c..."
+                style={{width: '100%', padding: '12px 15px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '15px'}}
+              />
+              <small style={{color: '#6b7280', fontSize: '12px'}}>Usuario para iniciar sesión en el portal</small>
+            </div>
+
+            <div style={{marginBottom: '15px'}}>
+              <label style={{display: 'block', color: '#374151', fontWeight: '600', marginBottom: '8px', fontSize: '14px'}}>
+                RUT de la Clínica <span style={{color: '#ef4444'}}>*</span>
+              </label>
+              <input
+                type="text"
+                value={rut}
+                onChange={(e) => setRut(e.target.value)}
+                required
+                maxLength={12}
+                placeholder="123456789012"
+                style={{width: '100%', padding: '12px 15px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '15px'}}
+              />
+              <small style={{color: '#6b7280', fontSize: '12px'}}>12 dígitos</small>
+            </div>
+
+            <div style={{marginBottom: '15px'}}>
+              <label style={{display: 'block', color: '#374151', fontWeight: '600', marginBottom: '8px', fontSize: '14px'}}>
+                Departamento <span style={{color: '#ef4444'}}>*</span>
+              </label>
+              <select
+                value={departamento}
+                onChange={(e) => setDepartamento(e.target.value)}
+                required
+                style={{width: '100%', padding: '12px 15px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '15px'}}
+              >
+                <option value="">Seleccione...</option>
+                <option value="MONTEVIDEO">Montevideo</option>
+                <option value="CANELONES">Canelones</option>
+                <option value="MALDONADO">Maldonado</option>
+                <option value="COLONIA">Colonia</option>
+                <option value="SALTO">Salto</option>
+              </select>
+            </div>
+
+            <div style={{marginBottom: '15px'}}>
+              <label style={{display: 'block', color: '#374151', fontWeight: '600', marginBottom: '8px', fontSize: '14px'}}>
+                Localidad
+              </label>
+              <input
+                type="text"
+                value={localidad}
+                onChange={(e) => setLocalidad(e.target.value)}
+                placeholder="Ej: Ciudad de la Costa"
+                style={{width: '100%', padding: '12px 15px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '15px'}}
+              />
+            </div>
+
+            <div style={{marginBottom: '15px'}}>
+              <label style={{display: 'block', color: '#374151', fontWeight: '600', marginBottom: '8px', fontSize: '14px'}}>
+                Dirección <span style={{color: '#ef4444'}}>*</span>
+              </label>
+              <input
+                type="text"
+                value={direccion}
+                onChange={(e) => setDireccion(e.target.value)}
+                required
+                placeholder="Ej: Av. Italia 2020"
+                style={{width: '100%', padding: '12px 15px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '15px'}}
+              />
+            </div>
+
+            <div style={{marginBottom: '15px'}}>
+              <label style={{display: 'block', color: '#374151', fontWeight: '600', marginBottom: '8px', fontSize: '14px'}}>
+                Teléfono <span style={{color: '#ef4444'}}>*</span>
+              </label>
+              <input
+                type="tel"
+                value={telefono}
+                onChange={(e) => setTelefono(e.target.value)}
+                required
+                placeholder="099123456"
+                style={{width: '100%', padding: '12px 15px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '15px'}}
+              />
+            </div>
           </div>
 
           <button

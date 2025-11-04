@@ -27,6 +27,22 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
 
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
+        // Manejar peticiones OPTIONS (CORS preflight) - siempre permitir
+        if ("OPTIONS".equalsIgnoreCase(requestContext.getMethod())) {
+            requestContext.abortWith(Response.ok().build());
+            return;
+        }
+        
+        // Excluir endpoints públicos que NO requieren autenticación JWT:
+        // - /config/* : Llamados por HCEN central (init, update, delete, activate, health)
+        // - /auth/login : Login de usuarios
+        String path = requestContext.getUriInfo().getPath();
+        if (path.startsWith("config/") || path.equals("auth/login")) {
+            // Permitir acceso sin JWT a estos endpoints públicos
+            return;
+        }
+        
+        // Para el resto de endpoints, verificar JWT si está presente
         String auth = requestContext.getHeaderString(HttpHeaders.AUTHORIZATION);
         if (auth != null && auth.startsWith("Bearer ")) {
             String token = auth.substring("Bearer ".length()).trim();
@@ -81,11 +97,18 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
                         .build());
             }
         }
-        // Si no hay header Authorization, dejamos pasar la request (endpoints públicos)
+        // Si no hay header Authorization, dejamos pasar la request
+        // (algunos endpoints pueden ser públicos, otros pueden validar manualmente)
     }
 
     @Override
     public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) throws IOException {
+        // Agregar headers CORS para permitir llamadas desde el frontend React (localhost:3001)
+        responseContext.getHeaders().add("Access-Control-Allow-Origin", "http://localhost:3001");
+        responseContext.getHeaders().add("Access-Control-Allow-Credentials", "true");
+        responseContext.getHeaders().add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD");
+        responseContext.getHeaders().add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+        
         // Limpiar el TenantContext al finalizar la petición para evitar fugas entre hilos
         TenantContext.clear();
     }

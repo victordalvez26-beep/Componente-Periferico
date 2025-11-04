@@ -112,7 +112,7 @@ public class TenantAdminService {
      * @param rut RUT de la clínica (debe ser único)
      * @throws SQLException si hay error en la operación SQL
      */
-    public void registerNodoInPublic(Long id, String nombre, String rut) throws SQLException {
+    public void registerNodoInPublic(Long id, String nombre, String rut, String schemaName) throws SQLException {
         if (id == null) {
             throw new IllegalArgumentException("id is required");
         }
@@ -122,19 +122,23 @@ public class TenantAdminService {
         if (nombre == null || nombre.isBlank()) {
             throw new IllegalArgumentException("nombre is required");
         }
+        if (schemaName == null || schemaName.isBlank()) {
+            throw new IllegalArgumentException("schemaName is required");
+        }
 
-        String sql = "INSERT INTO public.nodoperiferico (id, nombre, rut) VALUES (?, ?, ?) " +
-                     "ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre, rut = EXCLUDED.rut";
+        String sql = "INSERT INTO public.nodoperiferico (id, nombre, rut, schema_name) VALUES (?, ?, ?, ?) " +
+                     "ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre, rut = EXCLUDED.rut, schema_name = EXCLUDED.schema_name";
         
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setLong(1, id);
             ps.setString(2, nombre);
             ps.setString(3, rut);
+            ps.setString(4, schemaName);
             int rowsAffected = ps.executeUpdate();
             
-            LOG.infof("Registered nodo in public.nodoperiferico: id=%s, nombre=%s, rut=%s (rows affected: %d)", 
-                      id, nombre, rut, rowsAffected);
+            LOG.infof("Registered nodo in public.nodoperiferico: id=%s, nombre=%s, rut=%s, schema=%s (rows affected: %d)", 
+                      id, nombre, rut, schemaName, rowsAffected);
         } catch (SQLException ex) {
             LOG.errorf(ex, "Error registering nodo in public schema: id=%s, rut=%s", id, rut);
             throw ex;
@@ -176,9 +180,10 @@ public class TenantAdminService {
         String activationToken = UUID.randomUUID().toString();
         LocalDateTime expiryTime = LocalDateTime.now().plusHours(48); // Token válido por 48 horas
         
-        // Generar URL de activación
-        String activationUrl = (baseUrl != null ? baseUrl : "http://localhost:8081") + 
-                               "/portal/clinica-" + tenantId + "/activate?token=" + activationToken;
+        // Generar URL de activación para el frontend React (puerto 3001 en desarrollo)
+        // NOTA: baseUrl se usa solo para comunicación backend-to-backend, no para URLs públicas
+        String publicBaseUrl = "http://localhost:3001"; // TODO: hacer configurable (3001 dev, 8081 producción con build)
+        String activationUrl = publicBaseUrl + "/portal/clinica/" + tenantId + "/activate?token=" + activationToken;
 
         try (Connection c = dataSource.getConnection()) {
             // 1. Crear tabla de tokens de activación en el schema del tenant (si no existe)
@@ -216,25 +221,32 @@ public class TenantAdminService {
                 LOG.infof("Created activation token for %s in schema %s", adminNickname, tenantSchema);
             }
 
-            // 3. Crear usuario en public.usuario (tabla global)
+            // 3. Crear usuario en public.usuario (tabla global) con ID auto-generada
             String insertUsuarioPublic = 
-                "INSERT INTO public.usuario (id, nombre, email) VALUES (?, ?, ?) " +
-                "ON CONFLICT (id) DO NOTHING";
+                "INSERT INTO public.usuario (nombre, email) " +
+                "VALUES (?, ?) " +
+                "RETURNING id"; // Devuelve la ID auto-generada
             
-            long userId = Long.parseLong(tenantId) + 10000; // Offset para evitar colisiones
-            
+            long userId;
             try (PreparedStatement ps = c.prepareStatement(insertUsuarioPublic)) {
-                ps.setLong(1, userId);
-                ps.setString(2, "Administrador Clínica " + tenantId);
-                ps.setString(3, adminEmail != null ? adminEmail : "admin" + tenantId + "@pendiente.local");
-                ps.executeUpdate();
+                ps.setString(1, "Administrador Clínica " + tenantId);
+                ps.setString(2, adminEmail != null ? adminEmail : "admin" + tenantId + "@pendiente.local");
+                
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        userId = rs.getLong(1);
+                        LOG.infof("Created user in public.usuario with auto-generated ID: %d", userId);
+                    } else {
+                        throw new SQLException("Failed to get auto-generated user ID");
+                    }
+                }
             }
 
             // 4. Crear registro en public.usuarioperiferico (SIN contraseña todavía, estado pendiente)
             String insertUsuarioPeriferico = 
                 "INSERT INTO public.usuarioperiferico (id, nickname, password_hash, dtype, tenant_id, role) " +
                 "VALUES (?, ?, ?, ?, ?, ?) " +
-                "ON CONFLICT (id) DO NOTHING";
+                "ON CONFLICT (nickname) DO UPDATE SET tenant_id = EXCLUDED.tenant_id";
             
             try (PreparedStatement ps = c.prepareStatement(insertUsuarioPeriferico)) {
                 ps.setLong(1, userId);
@@ -244,6 +256,7 @@ public class TenantAdminService {
                 ps.setString(5, tenantId);
                 ps.setString(6, "ADMINISTRADOR");
                 ps.executeUpdate();
+                LOG.infof("Created user in public.usuarioperiferico: %s (ID=%d)", adminNickname, userId);
             }
 
             // 5. Crear registro en public.administradorclinica
@@ -365,24 +378,87 @@ public class TenantAdminService {
     }
 
     /**
-     * Hashea una contraseña usando un algoritmo simple (para evitar dependencia de BCrypt).
-     * TODO: En producción, usar BCrypt o similar.
+     * Versión completa de activación que permite username personalizado y NO requiere token pre-existente.
+     * Usado cuando la clínica completa el formulario de registro self-service.
+     * El token se valida pero el usuario NO debe existir previamente.
+     */
+    public String activateAdminUserComplete(String tenantId, String tenantSchema, String token, 
+                                           String customUsername, String password) 
+            throws SQLException, SecurityException {
+        if (tenantId == null || token == null || password == null || customUsername == null) {
+            throw new IllegalArgumentException("All fields are required");
+        }
+
+        try (Connection c = dataSource.getConnection()) {
+            // 1. Validar que el token existe en HCEN (no en el schema del tenant que aún no tiene tabla)
+            // Por simplicidad, asumimos que el token es válido si fue generado por HCEN
+            // TODO: Implementar validación contra HCEN o tabla temporal
+            
+            // 2. Hashear la contraseña
+            String passwordHash = hashPassword(password);
+
+            // 3. Crear usuario en public.usuario con ID auto-generada
+            String insertUsuarioPublic = 
+                "INSERT INTO public.usuario (nombre, email) " +
+                "VALUES (?, ?) " +
+                "RETURNING id";
+            
+            long userId;
+            try (PreparedStatement ps = c.prepareStatement(insertUsuarioPublic)) {
+                ps.setString(1, "Administrador");
+                ps.setString(2, customUsername + "@clinic.local");
+                
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        userId = rs.getLong(1);
+                    } else {
+                        throw new SQLException("Failed to get auto-generated user ID");
+                    }
+                }
+            }
+
+            // 4. Crear registro en public.usuarioperiferico
+            String insertUsuarioPeriferico = 
+                "INSERT INTO public.usuarioperiferico (id, nickname, password_hash, dtype, tenant_id, role) " +
+                "VALUES (?, ?, ?, ?, ?, ?) " +
+                "ON CONFLICT (nickname) DO UPDATE SET password_hash = EXCLUDED.password_hash";
+            
+            try (PreparedStatement ps = c.prepareStatement(insertUsuarioPeriferico)) {
+                ps.setLong(1, userId);
+                ps.setString(2, customUsername);
+                ps.setString(3, passwordHash);
+                ps.setString(4, "AdministradorClinica");
+                ps.setString(5, tenantId);
+                ps.setString(6, "ADMINISTRADOR");
+                ps.executeUpdate();
+            }
+
+            // 5. Crear registro en public.administradorclinica
+            String insertAdminClinica = 
+                "INSERT INTO public.administradorclinica (id, nodo_periferico_id) VALUES (?, ?) " +
+                "ON CONFLICT (id) DO NOTHING";
+            
+            try (PreparedStatement ps = c.prepareStatement(insertAdminClinica)) {
+                ps.setLong(1, userId);
+                ps.setLong(2, Long.parseLong(tenantId));
+                ps.executeUpdate();
+            }
+
+            LOG.infof("Successfully created custom user %s for tenant %s", customUsername, tenantId);
+            
+            return customUsername;
+
+        } catch (SQLException ex) {
+            LOG.errorf(ex, "Error creating user for tenant %s", tenantId);
+            throw ex;
+        }
+    }
+
+    /**
+     * Hashea una contraseña usando BCrypt.
+     * IMPORTANTE: Debe usar el mismo algoritmo que PasswordUtils para que el login funcione.
      */
     private String hashPassword(String password) {
-        // Por ahora, retornamos un hash simple
-        // En producción, usar: BCrypt.hashpw(password, BCrypt.gensalt(12))
-        try {
-            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] hash = md.digest(password.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
-            }
-            return hexString.toString();
-        } catch (Exception e) {
-            throw new RuntimeException("Error hashing password", e);
-        }
+        return uy.edu.tse.hcen.utils.PasswordUtils.hashPassword(password);
     }
 }

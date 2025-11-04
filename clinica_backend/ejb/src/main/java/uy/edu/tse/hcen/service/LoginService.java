@@ -39,24 +39,33 @@ public class LoginService {
 
     public LoginResponse authenticateAndGenerateToken(String nickname, String rawPassword) throws SecurityException {
     // Resolve authentication against the GLOBAL schema (public).
-    tenantResolver.setTenantIdentifier(null);
+    // IMPORTANTE: Forzar schema público para evitar problemas con herencia JPA
+    tenantResolver.setTenantIdentifier("public");
     TenantContext.clear();
 
     LOG.debugf("TenantContext in LoginService before query: '%s'", TenantContext.getCurrentTenant());
 
-    // 1) Buscar usuario en el schema por defecto (global)
-    UsuarioPeriferico user = userRepository.findByNickname(nickname);
+    // 1) Buscar usuario en el schema público (global)  
+    // Usar el método con query nativa para evitar JOINs problemáticos
+    UsuarioPeriferico user = userRepository.findByNicknameForLogin(nickname);
 
         // DEBUG: show stored hash and result of verification
         if (user != null) {
-            LOG.debugf("Retrieved user id=%s, nickname=%s", user.getId(), user.getNickname());
-            LOG.debugf("Stored password hash='%s'", user.getPasswordHash());
-            boolean matches = PasswordUtils.verifyPassword(rawPassword, user.getPasswordHash());
-            LOG.debugf("PasswordUtils.verifyPassword returned: %s", matches);
+            System.out.println("=== LoginService: User found: " + user.getNickname());
+            System.out.println("=== LoginService: User ID: " + user.getId());
+            String storedHash = user.getPasswordHash();
+            System.out.println("=== LoginService: Stored hash: " + (storedHash != null ? storedHash.substring(0, Math.min(20, storedHash.length())) + "..." : "NULL"));
+            System.out.println("=== LoginService: Hash length: " + (storedHash != null ? storedHash.length() : 0));
+            System.out.println("=== LoginService: Raw password length: " + rawPassword.length());
+            
+            boolean matches = PasswordUtils.verifyPassword(rawPassword, storedHash);
+            System.out.println("=== LoginService: Password matches: " + matches);
+            
             if (!matches) {
                 throw new SecurityException("Credenciales inválidas.");
             }
         } else {
+            System.out.println("=== LoginService: User NOT found");
             throw new SecurityException("Credenciales inválidas.");
         }
 
@@ -89,6 +98,6 @@ public class LoginService {
         }
 
         String token = TokenUtils.generateToken(nickname, role, tenantId);
-        return new LoginResponse(token, role);
+        return new LoginResponse(token, role, tenantId);
     }
 }
