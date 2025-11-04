@@ -38,13 +38,17 @@ public class TenantAuthFilter implements ContainerRequestFilter {
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
         
-        // 1. Obtener el encabezado de autorización
-        String authorizationHeader = requestContext.getHeaderString(HttpHeaders.AUTHORIZATION);
-
-        // Permitir acceso a la ruta de login sin token
-        if (requestContext.getUriInfo().getPath().contains("/auth/login")) {
+        String path = requestContext.getUriInfo().getPath();
+        
+        // Permitir acceso SIN token a endpoints públicos:
+        // - /auth/login : Login de usuarios
+        // - /config/* : Endpoints llamados por HCEN central (init, update, delete, activate, health)
+        if (path.contains("/auth/login") || path.contains("config/") || path.equals("config/health")) {
             return; 
         }
+
+        // 1. Obtener el encabezado de autorización
+        String authorizationHeader = requestContext.getHeaderString(HttpHeaders.AUTHORIZATION);
 
         if (authorizationHeader == null || !authorizationHeader.startsWith(AUTH_SCHEME + " ")) {
             // No hay token o el formato es incorrecto
