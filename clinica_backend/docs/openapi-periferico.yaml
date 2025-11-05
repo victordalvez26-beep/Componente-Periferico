@@ -1,0 +1,521 @@
+openapi: 3.0.3
+info:
+  title: Componente Periférico API
+  description: |
+    API del componente periférico que permite a las clínicas gestionar documentos clínicos
+    y enviar sus metadatos al HCEN central.
+  version: 1.0.0
+  contact:
+    name: Componente Periférico Development Team
+
+servers:
+  - url: http://localhost:8080/hcen-web/api
+    description: Servidor local de desarrollo
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Verifica que el servicio está funcionando
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Servicio funcionando
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: UP
+
+  /auth/login:
+    post:
+      summary: Login
+      description: Autentica un usuario y devuelve un token JWT
+      operationId: login
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              nickname: "admin_c101"
+              password: "password123"
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Credenciales incorrectas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      summary: Logout
+      description: Cierra sesión (stateless, el cliente descarta el token)
+      operationId: logout
+      tags:
+        - Autenticación
+      responses:
+        '200':
+          description: Logout exitoso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /config/init:
+    post:
+      summary: Inicializar tenant
+      description: Crea un nuevo tenant (clínica) y usuario administrador
+      operationId: initTenant
+      tags:
+        - Configuración
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitRequest'
+            example:
+              tenantId: "101"
+              nombre: "Clínica Test"
+              rut: "11111111"
+              colorPrimario: "#007bff"
+              nombrePortal: "Clínica Test"
+              adminEmail: "admin@test.com"
+      responses:
+        '200':
+          description: Tenant creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InitResponse'
+        '400':
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /config/activate-simple:
+    post:
+      summary: Activar usuario admin
+      description: Activa un usuario administrador con token y contraseña
+      operationId: activateSimple
+      tags:
+        - Configuración
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tenantId
+                - token
+                - password
+              properties:
+                tenantId:
+                  type: string
+                token:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Usuario activado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nickname:
+                    type: string
+                  message:
+                    type: string
+
+  /documentos/completo:
+    post:
+      summary: Crear documento completo
+      description: |
+        Crea un documento completo: guarda el contenido en MongoDB y envía los metadatos al HCEN central.
+        Este es el endpoint principal del flujo completo.
+      operationId: crearDocumentoCompleto
+      tags:
+        - Documentos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CrearDocumentoRequest'
+            example:
+              contenido: "Diagnóstico: Paciente presenta síntomas de gripe. Tratamiento: reposo y paracetamol."
+              documentoIdPaciente: "12345678"
+              tenantId: "101"
+              especialidad: "Medicina General"
+              formato: "text/plain"
+              autor: "Dr. Juan Pérez"
+              titulo: "Consulta Médica"
+              languageCode: "es"
+              breakingTheGlass: false
+              descripcion: "Consulta de rutina"
+              datosPatronimicos:
+                nombre: "Juan"
+                apellido: "García"
+                fechaNacimiento: "1990-01-15"
+      responses:
+        '201':
+          description: Documento creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CrearDocumentoResponse'
+        '400':
+          description: Error de validación
+        '403':
+          description: No autorizado (tenant incorrecto o falta autenticación)
+
+  /documentos/{id}:
+    get:
+      summary: Obtener documento por ID
+      description: Obtiene un documento por su MongoDB ID
+      operationId: obtenerDocumento
+      tags:
+        - Documentos
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Documento encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  _id:
+                    type: string
+                  documentoId:
+                    type: string
+                  contenido:
+                    type: string
+        '404':
+          description: Documento no encontrado
+
+  /documentos/{id}/contenido:
+    get:
+      summary: Descargar contenido del documento
+      description: Descarga el contenido de un documento
+      operationId: descargarContenido
+      tags:
+        - Documentos
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Contenido del documento
+          content:
+            text/plain:
+              schema:
+                type: string
+        '404':
+          description: Documento no encontrado
+
+  /documentos/paciente/{documentoIdPaciente}/metadatos:
+    get:
+      summary: Obtener metadatos del paciente
+      description: Obtiene todos los metadatos de documentos de un paciente
+      operationId: obtenerMetadatosPaciente
+      tags:
+        - Documentos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: documentoIdPaciente
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de metadatos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /profesionales:
+    get:
+      summary: Listar profesionales
+      description: Obtiene la lista de profesionales de salud
+      operationId: listarProfesionales
+      tags:
+        - Profesionales
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de profesionales
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Profesional'
+    post:
+      summary: Crear profesional
+      description: Crea un nuevo profesional de salud
+      operationId: crearProfesional
+      tags:
+        - Profesionales
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfesionalDTO'
+      responses:
+        '201':
+          description: Profesional creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profesional'
+
+  /portal/configuracion:
+    get:
+      summary: Obtener configuración del portal
+      description: Obtiene la configuración del portal de la clínica
+      operationId: obtenerConfiguracionPortal
+      tags:
+        - Portal
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Configuración del portal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfiguracionPortal'
+    put:
+      summary: Actualizar configuración del portal
+      description: Actualiza la configuración del portal
+      operationId: actualizarConfiguracionPortal
+      tags:
+        - Portal
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfiguracionPortal'
+      responses:
+        '200':
+          description: Configuración actualizada
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - nickname
+        - password
+      properties:
+        nickname:
+          type: string
+        password:
+          type: string
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        nickname:
+          type: string
+        rol:
+          type: string
+
+    InitRequest:
+      type: object
+      required:
+        - tenantId
+        - nombre
+        - rut
+      properties:
+        tenantId:
+          type: string
+        nombre:
+          type: string
+        rut:
+          type: string
+        colorPrimario:
+          type: string
+        nombrePortal:
+          type: string
+        adminEmail:
+          type: string
+
+    InitResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        tenantId:
+          type: string
+        schemaName:
+          type: string
+        clinicName:
+          type: string
+        adminNickname:
+          type: string
+        activationToken:
+          type: string
+
+    CrearDocumentoRequest:
+      type: object
+      required:
+        - contenido
+        - documentoIdPaciente
+      properties:
+        contenido:
+          type: string
+        documentoIdPaciente:
+          type: string
+        tenantId:
+          type: string
+        documentoId:
+          type: string
+          description: Si no se proporciona, se genera automáticamente
+        especialidad:
+          type: string
+        formato:
+          type: string
+        autor:
+          type: string
+        titulo:
+          type: string
+        languageCode:
+          type: string
+        breakingTheGlass:
+          type: boolean
+        descripcion:
+          type: string
+        datosPatronimicos:
+          type: object
+          properties:
+            nombre:
+              type: string
+            apellido:
+              type: string
+            fechaNacimiento:
+              type: string
+              format: date
+
+    CrearDocumentoResponse:
+      type: object
+      properties:
+        documentoId:
+          type: string
+        mongoId:
+          type: string
+        urlAcceso:
+          type: string
+        documentoIdPaciente:
+          type: string
+
+    Profesional:
+      type: object
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        apellido:
+          type: string
+        especialidad:
+          type: string
+
+    ProfesionalDTO:
+      type: object
+      required:
+        - nombre
+        - apellido
+      properties:
+        nombre:
+          type: string
+        apellido:
+          type: string
+        especialidad:
+          type: string
+
+    ConfiguracionPortal:
+      type: object
+      properties:
+        colorPrimario:
+          type: string
+        nombrePortal:
+          type: string
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        detail:
+          type: string
+
+tags:
+  - name: Health
+    description: Endpoints de salud del servicio
+  - name: Autenticación
+    description: Endpoints de autenticación y autorización
+  - name: Configuración
+    description: Configuración de tenants y usuarios
+  - name: Documentos
+    description: Gestión de documentos clínicos
+  - name: Profesionales
+    description: Gestión de profesionales de salud
+  - name: Portal
+    description: Configuración del portal de la clínica
+
