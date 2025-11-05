@@ -47,8 +47,8 @@ public class DocumentoService {
         //
         String documentoIdLocal = ""; //VER
         String url = "URL" + documentoIdLocal; //VER
-        DTMetadatos metadatos = new DTMetadatos(); 
-        metadatos.setPacienteCI(documentoId);
+    DTMetadatos metadatos = new DTMetadatos(); 
+    metadatos.setDocumentoIdPaciente(documentoId);
         metadatos.setDocumentoId(documentoId);
         metadatos.setUrlAcceso(url);
         //seguir

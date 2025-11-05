@@ -1,6 +1,6 @@
 package uy.edu.tse.hcen.service;
 
-import uy.edu.tse.hcen.dto.ConfiguracionPortalDTO;
+import uy.edu.tse.hcen.dto.DTConfiguracionPortal;
 import uy.edu.tse.hcen.model.PortalConfiguracion;
 import uy.edu.tse.hcen.repository.PortalConfiguracionRepository;
 import jakarta.ejb.Stateless;
@@ -23,7 +23,7 @@ public class PortalConfiguracionService {
     /**
      * Actualiza la configuración existente o crea una nueva si no existe.
      */
-    public PortalConfiguracion updateConfiguracion(ConfiguracionPortalDTO dto) {
+    public PortalConfiguracion updateConfiguracion(DTConfiguracionPortal dto) {
         PortalConfiguracion config = configRepository.findCurrentConfig()
             .orElseGet(this::createDefaultConfig);
 
