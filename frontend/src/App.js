@@ -82,6 +82,18 @@ export default function App() {
           } 
         />
 
+        {/* Gestión de Pacientes (Profesional) - Misma funcionalidad que usuarios */}
+        <Route 
+          path="/portal/clinica/:tenantId/pacientes" 
+          element={
+            <TenantProtectedRoute>
+              <Layout>
+                <UsuariosSaludPage />
+              </Layout>
+            </TenantProtectedRoute>
+          } 
+        />
+
         {/* Configuración del Portal (Admin) */}
         <Route 
           path="/portal/clinica/:tenantId/configuracion" 
