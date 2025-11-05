@@ -1,33 +1,21 @@
 #!/bin/bash
-echo "🔧 Configurando módulos globales de WildFly..."
+# Script para configurar módulos de WildFly en el sistema de archivos local
+# Se ejecuta UNA VEZ en la máquina del desarrollador
 
-# Crear directorios
-mkdir -p /opt/jboss/wildfly/modules/system/layers/base/io/jsonwebtoken/main
-mkdir -p /opt/jboss/wildfly/modules/system/layers/base/org/springframework/security/main
-mkdir -p /opt/jboss/wildfly/modules/system/layers/base/org/mongodb/main
+echo "🔧 Configurando módulos locales de WildFly..."
 
-# Copiar JARs desde el EAR
-if [ -f "/deployments/hcen.ear" ]; then
-    cd /tmp
-    unzip -q /deployments/hcen.ear -d /tmp/ear-extract
-    
-    # JWT
-    cp /tmp/ear-extract/lib/jjwt-api.jar /opt/jboss/wildfly/modules/system/layers/base/io/jsonwebtoken/main/
-    cp /tmp/ear-extract/lib/jjwt-impl.jar /opt/jboss/wildfly/modules/system/layers/base/io/jsonwebtoken/main/
-    cp /tmp/ear-extract/lib/jjwt-jackson.jar /opt/jboss/wildfly/modules/system/layers/base/io/jsonwebtoken/main/
-    
-    # Spring Security
-    cp /tmp/ear-extract/lib/spring-security-crypto.jar /opt/jboss/wildfly/modules/system/layers/base/org/springframework/security/main/
-    
-    # MongoDB
-    cp /tmp/ear-extract/lib/mongodb-driver-sync.jar /opt/jboss/wildfly/modules/system/layers/base/org/mongodb/main/
-    cp /tmp/ear-extract/lib/mongodb-driver-core.jar /opt/jboss/wildfly/modules/system/layers/base/org/mongodb/main/
-    cp /tmp/ear-extract/lib/bson.jar /opt/jboss/wildfly/modules/system/layers/base/org/mongodb/main/
-    cp /tmp/ear-extract/lib/bson-record-codec.jar /opt/jboss/wildfly/modules/system/layers/base/org/mongodb/main/
-fi
+# Crear estructura de directorios
+mkdir -p wildfly-modules/io/jsonwebtoken/main
+mkdir -p wildfly-modules/org/springframework/security/main
+mkdir -p wildfly-modules/org/mongodb/main
 
-# Crear module.xml para JWT
-cat > /opt/jboss/wildfly/modules/system/layers/base/io/jsonwebtoken/main/module.xml << 'EOF'
+# Copiar JARs desde el EAR construido
+echo "📦 Copiando JARs de JWT..."
+cp ear/target/hcen/lib/jjwt-api.jar wildfly-modules/io/jsonwebtoken/main/
+cp ear/target/hcen/lib/jjwt-impl.jar wildfly-modules/io/jsonwebtoken/main/
+cp ear/target/hcen/lib/jjwt-jackson.jar wildfly-modules/io/jsonwebtoken/main/
+
+cat > wildfly-modules/io/jsonwebtoken/main/module.xml << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <module xmlns="urn:jboss:module:1.9" name="io.jsonwebtoken">
     <resources>
@@ -36,15 +24,20 @@ cat > /opt/jboss/wildfly/modules/system/layers/base/io/jsonwebtoken/main/module.
         <resource-root path="jjwt-jackson.jar"/>
     </resources>
     <dependencies>
-        <module name="com.fasterxml.jackson.core.jackson-databind"/>
+        <module name="com.fasterxml.jackson.core.jackson-databind" export="true"/>
+        <module name="com.fasterxml.jackson.core.jackson-core" export="true"/>
+        <module name="com.fasterxml.jackson.core.jackson-annotations" export="true"/>
         <module name="java.xml"/>
         <module name="java.logging"/>
+        <module name="java.base"/>
     </dependencies>
 </module>
 EOF
 
-# Crear module.xml para Spring Security
-cat > /opt/jboss/wildfly/modules/system/layers/base/org/springframework/security/main/module.xml << 'EOF'
+echo "🔒 Copiando JARs de Spring Security..."
+cp ear/target/hcen/lib/spring-security-crypto.jar wildfly-modules/org/springframework/security/main/
+
+cat > wildfly-modules/org/springframework/security/main/module.xml << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <module xmlns="urn:jboss:module:1.9" name="org.springframework.security">
     <resources>
@@ -58,8 +51,13 @@ cat > /opt/jboss/wildfly/modules/system/layers/base/org/springframework/security
 </module>
 EOF
 
-# Crear module.xml para MongoDB
-cat > /opt/jboss/wildfly/modules/system/layers/base/org/mongodb/main/module.xml << 'EOF'
+echo "🍃 Copiando JARs de MongoDB..."
+cp ear/target/hcen/lib/mongodb-driver-sync.jar wildfly-modules/org/mongodb/main/
+cp ear/target/hcen/lib/mongodb-driver-core.jar wildfly-modules/org/mongodb/main/
+cp ear/target/hcen/lib/bson.jar wildfly-modules/org/mongodb/main/
+cp ear/target/hcen/lib/bson-record-codec.jar wildfly-modules/org/mongodb/main/
+
+cat > wildfly-modules/org/mongodb/main/module.xml << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <module xmlns="urn:jboss:module:1.9" name="org.mongodb">
     <resources>
@@ -77,5 +75,5 @@ cat > /opt/jboss/wildfly/modules/system/layers/base/org/mongodb/main/module.xml 
 </module>
 EOF
 
-echo "✅ Módulos configurados correctamente"
-
+echo "✅ Módulos configurados en wildfly-modules/"
+echo "💡 Estos módulos se montarán automáticamente en el contenedor de WildFly"

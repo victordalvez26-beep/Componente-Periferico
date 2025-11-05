@@ -66,9 +66,10 @@ services:
       # Deploy ONLY the EAR file (not the whole directory to avoid WildFly deploying extracted contents)
       - ./ear/target/hcen.ear:/opt/jboss/wildfly/standalone/deployments/hcen.ear
       - ./wildfly/configure-wildfly.cli:/opt/jboss/wildfly/configure-wildfly.cli
-      
-    command: 
-      /opt/jboss/wildfly/bin/standalone.sh -c standalone.xml --admin-cli --execute=/opt/jboss/wildfly/configure-wildfly.cli
+      # Módulos globales persistentes (JWT, Spring Security, MongoDB)
+      - ./wildfly-modules/io/jsonwebtoken:/opt/jboss/wildfly/modules/system/layers/base/io/jsonwebtoken:ro
+      - ./wildfly-modules/org/springframework:/opt/jboss/wildfly/modules/system/layers/base/org/springframework:ro
+      - ./wildfly-modules/org/mongodb:/opt/jboss/wildfly/modules/system/layers/base/org/mongodb:ro
     ports:
       - "8081:8080"
       - "9991:9990"

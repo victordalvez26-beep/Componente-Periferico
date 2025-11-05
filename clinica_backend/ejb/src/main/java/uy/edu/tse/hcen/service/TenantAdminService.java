@@ -46,23 +46,105 @@ public class TenantAdminService {
             "INSERT INTO %s.portal_configuracion (id, color_primario, color_secundario, logo_url, nombre_portal) VALUES (1, '%s', '#6c757d', '', '%s') ON CONFLICT (id) DO NOTHING;",
             tenantSchema, escColor, escNombre);
 
-        String createUsuario = String.format(
-            "CREATE TABLE IF NOT EXISTS %s.usuario (id BIGINT PRIMARY KEY, nombre VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL);",
+        // Crear secuencia para IDs auto-incrementables
+        String createSequence = String.format(
+            "CREATE SEQUENCE IF NOT EXISTS %s.usuario_id_seq;",
             tenantSchema);
 
-        String createUsuPer = String.format(
-            "CREATE TABLE IF NOT EXISTS %s.usuarioperiferico (id BIGINT PRIMARY KEY, nickname VARCHAR(255) UNIQUE NOT NULL, password_hash VARCHAR(255) NOT NULL, dtype VARCHAR(31) NOT NULL);",
+        String createUsuario = String.format(
+            "CREATE TABLE IF NOT EXISTS %s.usuario (" +
+            "  id BIGINT PRIMARY KEY DEFAULT nextval('%s.usuario_id_seq'), " +
+            "  nombre VARCHAR(255) NOT NULL, " +
+            "  email VARCHAR(255) NOT NULL, " +
+            "  nickname VARCHAR(255) UNIQUE, " +
+            "  password_hash VARCHAR(255), " +
+            "  dtype VARCHAR(31), " +
+            "  role VARCHAR(50), " +
+            "  tenant_id VARCHAR(50), " +
+            "  especialidad VARCHAR(100), " +
+            "  departamento VARCHAR(50), " +
+            "  direccion VARCHAR(255), " +
+            "  nodo_periferico_id BIGINT" +
+            ");",
+            tenantSchema, tenantSchema);
+        
+        // Vincular la secuencia a la tabla
+        String alterSequence = String.format(
+            "ALTER SEQUENCE %s.usuario_id_seq OWNED BY %s.usuario.id;",
+            tenantSchema, tenantSchema);
+
+        // Crear secuencia para usuarioperiferico
+        String createUsuPerSeq = String.format(
+            "CREATE SEQUENCE IF NOT EXISTS %s.usuarioperiferico_id_seq;",
             tenantSchema);
+
+        // Tabla usuarioperiferico con TODAS las columnas (herencia SINGLE_TABLE)
+        // NOTA: Incluye tenant_id por compatibilidad JPA (aunque sea redundante con el schema)
+        String createUsuPer = String.format(
+            "CREATE TABLE IF NOT EXISTS %s.usuarioperiferico (" +
+            "  id BIGINT PRIMARY KEY DEFAULT nextval('%s.usuarioperiferico_id_seq'), " +
+            "  nickname VARCHAR(255) UNIQUE NOT NULL, " +
+            "  password_hash VARCHAR(255) NOT NULL, " +
+            "  dtype VARCHAR(31) NOT NULL, " +
+            "  nombre VARCHAR(255), " +           // De Usuario
+            "  email VARCHAR(255), " +            // De Usuario  
+            "  role VARCHAR(50), " +              // Para facilitar queries
+            "  tenant_id VARCHAR(50), " +         // Redundante pero necesario para JPA
+            "  especialidad VARCHAR(100), " +     // De ProfesionalSalud
+            "  departamento VARCHAR(50), " +      // De ProfesionalSalud
+            "  direccion VARCHAR(255), " +        // De ProfesionalSalud
+            "  nodo_periferico_id BIGINT" +      // Relación con clínica
+            ");",
+            tenantSchema, tenantSchema);
+        
+        String alterUsuPerSeq = String.format(
+            "ALTER SEQUENCE %s.usuarioperiferico_id_seq OWNED BY %s.usuarioperiferico.id;",
+            tenantSchema, tenantSchema);
 
         String createNodo = String.format(
             "CREATE TABLE IF NOT EXISTS %s.nodoperiferico (id BIGINT PRIMARY KEY, nombre VARCHAR(255), rut VARCHAR(255));",
             tenantSchema);
 
+        // Tablas para herencia JOINED de JPA
+        String createProfesionalSalud = String.format(
+            "CREATE TABLE IF NOT EXISTS %s.profesionalsalud (" +
+            "  id BIGINT PRIMARY KEY, " +
+            "  especialidad VARCHAR(100), " +
+            "  departamento VARCHAR(50), " +
+            "  direccion VARCHAR(255), " +
+            "  nodo_periferico_id BIGINT" +
+            ");",
+            tenantSchema);
+
+        String createAdministradorClinica = String.format(
+            "CREATE TABLE IF NOT EXISTS %s.administradorclinica (" +
+            "  id BIGINT PRIMARY KEY, " +
+            "  nodo_periferico_id BIGINT" +
+            ");",
+            tenantSchema);
+
         try (Connection c = dataSource.getConnection()) {
+            // 1. Crear schema
             try (PreparedStatement s1 = c.prepareStatement(createSchema)) {
                 s1.execute();
             }
 
+            // 2. Crear secuencia ANTES de la tabla usuario
+            try (PreparedStatement s = c.prepareStatement(createSequence)) {
+                s.execute();
+            }
+
+            // 3. Crear tabla usuario con todas las columnas
+            try (PreparedStatement s4 = c.prepareStatement(createUsuario)) { 
+                s4.execute(); 
+            }
+            
+            // 4. Vincular secuencia a la tabla
+            try (PreparedStatement s = c.prepareStatement(alterSequence)) {
+                s.execute();
+            }
+
+            // 5. Crear otras tablas
             try (PreparedStatement s2 = c.prepareStatement(createPortal)) {
                 s2.execute();
             }
@@ -71,9 +153,22 @@ public class TenantAdminService {
                 s3.execute();
             }
 
-            try (PreparedStatement s4 = c.prepareStatement(createUsuario)) { s4.execute(); }
+            // 6. Crear secuencia para usuarioperiferico
+            try (PreparedStatement s = c.prepareStatement(createUsuPerSeq)) {
+                s.execute();
+            }
+
+            // 7. Crear tabla usuarioperiferico
             try (PreparedStatement s5 = c.prepareStatement(createUsuPer)) { s5.execute(); }
+            
+            // 8. Vincular secuencia
+            try (PreparedStatement s = c.prepareStatement(alterUsuPerSeq)) {
+                s.execute();
+            }
+
             try (PreparedStatement s6 = c.prepareStatement(createNodo)) { s6.execute(); }
+            try (PreparedStatement s7 = c.prepareStatement(createProfesionalSalud)) { s7.execute(); }
+            try (PreparedStatement s8 = c.prepareStatement(createAdministradorClinica)) { s8.execute(); }
 
             // using container-managed transactions; let the container handle commit
         } catch (SQLException ex) {
