@@ -123,6 +123,27 @@ public class TenantAdminService {
             ");",
             tenantSchema);
 
+        // Tabla usuario_salud para gestionar pacientes de la clínica
+        String createUsuarioSalud = String.format(
+            "CREATE TABLE IF NOT EXISTS %s.usuario_salud (" +
+            "  id BIGSERIAL PRIMARY KEY, " +
+            "  ci VARCHAR(20) NOT NULL, " +
+            "  nombre VARCHAR(255), " +
+            "  apellido VARCHAR(255), " +
+            "  fecha_nacimiento DATE, " +
+            "  direccion VARCHAR(255), " +
+            "  telefono VARCHAR(50), " +
+            "  email VARCHAR(255), " +
+            "  departamento VARCHAR(100), " +
+            "  localidad VARCHAR(100), " +
+            "  hcen_user_id BIGINT, " +
+            "  tenant_id BIGINT NOT NULL, " +
+            "  fecha_alta TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+            "  fecha_actualizacion TIMESTAMP, " +
+            "  CONSTRAINT uk_ci_tenant UNIQUE (ci, tenant_id)" +
+            ");",
+            tenantSchema);
+
         try (Connection c = dataSource.getConnection()) {
             // 1. Crear schema
             try (PreparedStatement s1 = c.prepareStatement(createSchema)) {
@@ -169,6 +190,12 @@ public class TenantAdminService {
             try (PreparedStatement s6 = c.prepareStatement(createNodo)) { s6.execute(); }
             try (PreparedStatement s7 = c.prepareStatement(createProfesionalSalud)) { s7.execute(); }
             try (PreparedStatement s8 = c.prepareStatement(createAdministradorClinica)) { s8.execute(); }
+            
+            // 9. Crear tabla usuario_salud para gestionar pacientes
+            try (PreparedStatement s9 = c.prepareStatement(createUsuarioSalud)) { 
+                s9.execute(); 
+                LOG.info("Tabla usuario_salud creada para schema: " + tenantSchema);
+            }
 
             // using container-managed transactions; let the container handle commit
         } catch (SQLException ex) {

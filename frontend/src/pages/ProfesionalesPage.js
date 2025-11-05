@@ -18,22 +18,38 @@ function ProfesionalesPage() {
   });
   const [message, setMessage] = useState({ type: '', text: '' });
 
+  // Especialidades médicas (deben coincidir EXACTAMENTE con el enum del backend)
   const especialidades = [
-    'Medicina General',
-    'Pediatría',
-    'Cardiología',
-    'Dermatología',
-    'Ginecología',
-    'Traumatología',
-    'Oftalmología',
-    'Psiquiatría',
-    'Neurología',
-    'Gastroenterología',
-    'Endocrinología',
-    'Urología',
-    'Oncología',
-    'Radiología',
-    'Anestesiología'
+    { value: 'MEDICINA_GENERAL', label: 'Medicina General' },
+    { value: 'MEDICINA_INTERNA', label: 'Medicina Interna' },
+    { value: 'MEDICINA_FAMILIAR', label: 'Medicina Familiar' },
+    { value: 'CARDIOLOGIA', label: 'Cardiología' },
+    { value: 'NEUMOLOGIA', label: 'Neumología' },
+    { value: 'GASTROENTEROLOGIA', label: 'Gastroenterología' },
+    { value: 'NEFROLOGIA', label: 'Nefrología' },
+    { value: 'ENDOCRINOLOGIA', label: 'Endocrinología' },
+    { value: 'HEMATOLOGIA', label: 'Hematología' },
+    { value: 'ONCOLOGIA', label: 'Oncología' },
+    { value: 'NEUROLOGIA', label: 'Neurología' },
+    { value: 'PSIQUIATRIA', label: 'Psiquiatría' },
+    { value: 'PEDIATRIA', label: 'Pediatría' },
+    { value: 'GINECOLOGIA', label: 'Ginecología' },
+    { value: 'OBSTETRICIA', label: 'Obstetricia' },
+    { value: 'DERMATOLOGIA', label: 'Dermatología' },
+    { value: 'OFTALMOLOGIA', label: 'Oftalmología' },
+    { value: 'OTORRINOLARINGOLOGIA', label: 'Otorrinolaringología' },
+    { value: 'UROLOGIA', label: 'Urología' },
+    { value: 'ORTOPEDIA', label: 'Ortopedia' },
+    { value: 'TRAUMATOLOGIA', label: 'Traumatología' },
+    { value: 'CIRUGIA_GENERAL', label: 'Cirugía General' },
+    { value: 'CIRUGIA_PLASTICA', label: 'Cirugía Plástica' },
+    { value: 'ANESTESIOLOGIA', label: 'Anestesiología' },
+    { value: 'RADIOLOGIA', label: 'Radiología' },
+    { value: 'ODONTOLOGIA', label: 'Odontología' },
+    { value: 'FISIATRIA', label: 'Fisiatría' },
+    { value: 'NUTRICION', label: 'Nutrición' },
+    { value: 'PSICOLOGIA_CLINICA', label: 'Psicología Clínica' },
+    { value: 'ENFERMERIA', label: 'Enfermería' }
   ];
 
   useEffect(() => {
@@ -230,7 +246,7 @@ function ProfesionalesPage() {
                 >
                   <option value="">Seleccione...</option>
                   {especialidades.map(esp => (
-                    <option key={esp} value={esp}>{esp}</option>
+                    <option key={esp.value} value={esp.value}>{esp.label}</option>
                   ))}
                 </select>
               </div>

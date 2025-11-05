@@ -6,7 +6,7 @@ import TenantProtectedRoute from './components/TenantProtectedRoute';
 import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import ProfesionalesPage from './pages/ProfesionalesPage';
-import UsuariosPage from './pages/UsuariosPage';
+import UsuariosSaludPage from './pages/UsuariosSaludPage';
 import ConfiguracionPage from './pages/ConfiguracionPage';
 import './index.css';
 
@@ -76,7 +76,19 @@ export default function App() {
           element={
             <TenantProtectedRoute>
               <Layout>
-                <UsuariosPage />
+                <UsuariosSaludPage />
+              </Layout>
+            </TenantProtectedRoute>
+          } 
+        />
+
+        {/* Gestión de Pacientes (Profesional) - Misma funcionalidad que usuarios */}
+        <Route 
+          path="/portal/clinica/:tenantId/pacientes" 
+          element={
+            <TenantProtectedRoute>
+              <Layout>
+                <UsuariosSaludPage />
               </Layout>
             </TenantProtectedRoute>
           } 
