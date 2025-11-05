@@ -158,4 +158,96 @@ public class DocumentoClinicoResource {
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(Map.of("error", "server error", "detail", ex.getMessage())).build();
         }
     }
+
+    /**
+     * GET /api/documentos/paciente/{documentoIdPaciente}/metadatos
+     * 
+     * Obtiene todos los metadatos de documentos de un paciente.
+     * Si los documentos son del mismo tenant, los busca localmente (desde RNDC vía HCEN).
+     * Si son de otros tenants, los consulta desde HCEN central.
+     * 
+     * @param documentoIdPaciente CI o documento de identidad del paciente
+     * @return Lista de metadatos de documentos del paciente
+     */
+    @GET
+    @Path("/paciente/{documentoIdPaciente}/metadatos")
+    @RolesAllowed("PROFESIONAL")
+    public Response obtenerMetadatosPaciente(@PathParam("documentoIdPaciente") String documentoIdPaciente) {
+        if (documentoIdPaciente == null || documentoIdPaciente.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "documentoIdPaciente es requerido"))
+                    .build();
+        }
+
+        try {
+            // Obtener tenantId del contexto actual
+            String currentTenantId = uy.edu.tse.hcen.multitenancy.TenantContext.getCurrentTenant();
+            
+            // Consultar metadatos desde HCEN central (que consulta RNDC)
+            // HCEN central maneja la lógica de filtrar por tenant si es necesario
+            java.util.List<Map<String, Object>> metadatos = hcenClient.consultarMetadatosPaciente(documentoIdPaciente);
+            
+            // Filtrar metadatos del mismo tenant si hay tenantId en el contexto
+            if (currentTenantId != null && !currentTenantId.isBlank()) {
+                java.util.List<Map<String, Object>> metadatosFiltrados = new java.util.ArrayList<>();
+                for (Map<String, Object> meta : metadatos) {
+                    String tenantId = (String) meta.get("tenantId");
+                    // Incluir documentos del mismo tenant
+                    if (currentTenantId.equals(tenantId)) {
+                        metadatosFiltrados.add(meta);
+                    }
+                }
+                return Response.ok(metadatosFiltrados).build();
+            } else {
+                // Si no hay tenantId en contexto, devolver todos los metadatos
+                // (esto puede ser útil para administradores o consultas globales)
+                return Response.ok(metadatos).build();
+            }
+            
+        } catch (uy.edu.tse.hcen.exceptions.HcenUnavailableException ex) {
+            return Response.status(Response.Status.SERVICE_UNAVAILABLE)
+                    .entity(Map.of("error", "HCEN no disponible", "detail", ex.getMessage()))
+                    .build();
+        } catch (Exception ex) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("error", "Error al obtener metadatos", "detail", ex.getMessage()))
+                    .build();
+        }
+    }
+
+    /**
+     * GET /api/documentos/{id}/contenido
+     * 
+     * Endpoint mejorado para descargar el contenido de un documento.
+     * Devuelve el contenido directamente con el Content-Type apropiado.
+     * 
+     * @param id ID del documento (MongoDB _id hex string)
+     * @return El contenido del documento
+     */
+    @GET
+    @Path("/{id}/contenido")
+    public Response obtenerContenido(@PathParam("id") String id) {
+        var doc = documentoService.buscarPorId(id);
+        if (doc == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(Map.of("error", "document not found or invalid id"))
+                    .build();
+        }
+        
+        // Extraer contenido del documento
+        String contenido = doc.getString("contenido");
+        if (contenido == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(Map.of("error", "document has no content"))
+                    .build();
+        }
+        
+        // Determinar Content-Type (puede venir en formato del metadato, pero por ahora usamos text/plain)
+        String contentType = jakarta.ws.rs.core.MediaType.TEXT_PLAIN;
+        
+        // Devolver contenido directamente
+        return Response.ok(contenido, contentType)
+                .header("Content-Disposition", "inline; filename=\"documento_" + id + ".txt\"")
+                .build();
+    }
 }

@@ -29,6 +29,7 @@ public class ConfigResource {
      */
     public static class InitRequest {
         public Long id;
+        public String tenantId; // Alternativa a 'id' para compatibilidad
         public String rut;
         public String nombre;
         public String departamento;
@@ -39,10 +40,15 @@ public class ConfigResource {
         public String nodoPerifericoPassword;
         public String contacto;
         public String url;
+        public String colorPrimario; // Para configuración de portal
+        public String nombrePortal; // Para configuración de portal
+        public String adminEmail; // Email del administrador
         
         // Getters y setters para JSON-B
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
+        public String getTenantId() { return tenantId; }
+        public void setTenantId(String tenantId) { this.tenantId = tenantId; }
         public String getRut() { return rut; }
         public void setRut(String rut) { this.rut = rut; }
         public String getNombre() { return nombre; }
@@ -84,11 +90,23 @@ public class ConfigResource {
                   req.id, req.rut, req.nombre);
         
         try {
-            // Validar datos requeridos
-            if (req.id == null) {
-                LOG.error("Missing required field: id");
+            // Validar datos requeridos - aceptar 'id' o 'tenantId'
+            Long tenantIdLong = null;
+            if (req.id != null) {
+                tenantIdLong = req.id;
+            } else if (req.tenantId != null && !req.tenantId.isBlank()) {
+                try {
+                    tenantIdLong = Long.parseLong(req.tenantId);
+                } catch (NumberFormatException e) {
+                    LOG.error("Invalid tenantId format: " + req.tenantId);
+                    return Response.status(Response.Status.BAD_REQUEST)
+                            .entity(Map.of("error", "Field 'tenantId' must be a valid number"))
+                            .build();
+                }
+            } else {
+                LOG.error("Missing required field: id or tenantId");
                 return Response.status(Response.Status.BAD_REQUEST)
-                        .entity(Map.of("error", "Field 'id' is required"))
+                        .entity(Map.of("error", "Field 'id' or 'tenantId' is required"))
                         .build();
             }
             
@@ -107,26 +125,33 @@ public class ConfigResource {
             }
             
             // 1. Crear schema del tenant
-            String tenantId = String.valueOf(req.id);
+            String tenantId = String.valueOf(tenantIdLong);
             String schemaName = "schema_clinica_" + tenantId;
             
             LOG.infof("Creating tenant schema: %s", schemaName);
             
-            // Usar color primario por defecto si no se especifica
-            String colorPrimario = "#007bff"; // Azul por defecto
+            // Usar color primario del request o por defecto
+            String colorPrimario = (req.colorPrimario != null && !req.colorPrimario.isBlank()) 
+                    ? req.colorPrimario : "#007bff"; // Azul por defecto
             
-            tenantAdminService.createTenantSchema(schemaName, colorPrimario, req.nombre);
+            // Usar nombre del portal del request o el nombre de la clínica
+            String nombrePortal = (req.nombrePortal != null && !req.nombrePortal.isBlank()) 
+                    ? req.nombrePortal : req.nombre;
+            
+            tenantAdminService.createTenantSchema(schemaName, colorPrimario, nombrePortal);
             
             // 2. Registrar nodo en tabla maestra public.nodoperiferico
             LOG.infof("Registering nodo in public schema: id=%s, nombre=%s, rut=%s, schema=%s", 
-                      req.id, req.nombre, req.rut, schemaName);
-            tenantAdminService.registerNodoInPublic(req.id, req.nombre, req.rut, schemaName);
+                      tenantIdLong, req.nombre, req.rut, schemaName);
+            tenantAdminService.registerNodoInPublic(tenantIdLong, req.nombre, req.rut, schemaName);
             
             // 3. Crear usuario administrador inicial de la clínica
             LOG.infof("Creating admin user for tenant %s", tenantId);
             
-            // Extraer email del contacto si está presente
-            String adminEmail = extractEmail(req.contacto);
+            // Usar adminEmail del request, o extraer del contacto, o usar por defecto
+            String adminEmail = (req.adminEmail != null && !req.adminEmail.isBlank()) 
+                    ? req.adminEmail 
+                    : (req.contacto != null ? extractEmail(req.contacto) : null);
             
             // URL base del componente periférico (puede venir en la request o usar la configurada)
             String peripheralBaseUrl = req.nodoPerifericoUrlBase != null ? 
@@ -278,6 +303,45 @@ public class ConfigResource {
         public void setDireccion(String direccion) { this.direccion = direccion; }
         public String getTelefono() { return telefono; }
         public void setTelefono(String telefono) { this.telefono = telefono; }
+    }
+
+    /**
+     * Endpoint simple para activar un usuario admin creado por /init.
+     * Solo requiere tenantId, token y password.
+     * 
+     * @param body Map con tenantId, token y password
+     * @return 200 OK con nickname del usuario activado
+     */
+    @POST
+    @Path("/activate-simple")
+    public Response activateSimple(Map<String, String> body) {
+        if (body == null) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "Request body required")).build();
+        }
+        
+        String tenantId = body.get("tenantId");
+        String token = body.get("token");
+        String password = body.get("password");
+        
+        if (tenantId == null || tenantId.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "tenantId is required")).build();
+        }
+        if (token == null || token.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "token is required")).build();
+        }
+        if (password == null || password.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "password is required")).build();
+        }
+        
+        try {
+            String nickname = tenantAdminService.activateAdminUser(tenantId, token, password);
+            return Response.ok(Map.of("nickname", nickname, "message", "Usuario activado exitosamente")).build();
+        } catch (SecurityException e) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", e.getMessage())).build();
+        } catch (Exception e) {
+            LOG.errorf(e, "Error activating user for tenant %s", tenantId);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(Map.of("error", "Error activando usuario: " + e.getMessage())).build();
+        }
     }
 
     /**

@@ -81,4 +81,51 @@ public class HcenClient {
             }
         }
     }
+
+    /**
+     * Consulta metadatos de un paciente desde HCEN central.
+     * 
+     * @param documentoIdPaciente CI o documento de identidad del paciente
+     * @return Lista de metadatos (Map<String, Object>)
+     * @throws HcenUnavailableException si HCEN no está disponible
+     */
+    @SuppressWarnings("unchecked")
+    public java.util.List<Map<String, Object>> consultarMetadatosPaciente(String documentoIdPaciente) 
+            throws HcenUnavailableException {
+        // URL base de HCEN central para endpoints de paciente
+        // El endpoint es /api/paciente/{id}/metadatos
+        String baseUrl = System.getProperty("HCEN_CENTRAL_BASE_URL",
+                System.getenv().getOrDefault("HCEN_CENTRAL_BASE_URL", "http://localhost:8080/api"));
+        
+        // Construir URL del endpoint de paciente
+        String pacienteUrl = baseUrl + "/paciente/" + documentoIdPaciente + "/metadatos";
+
+        Client client = null;
+        jakarta.ws.rs.core.Response response = null;
+        try {
+            client = ClientBuilder.newClient();
+            response = client.target(pacienteUrl)
+                    .request(MediaType.APPLICATION_JSON)
+                    .get();
+
+            int status = response.getStatus();
+            if (status == 200) {
+                return response.readEntity(java.util.List.class);
+            } else if (status == 404) {
+                return new java.util.ArrayList<>(); // Lista vacía si no hay documentos
+            } else {
+                throw new HcenUnavailableException("Error al consultar metadatos: HTTP " + status);
+            }
+
+        } catch (ProcessingException ex) {
+            throw new HcenUnavailableException("HCEN no disponible", ex);
+        } finally {
+            if (response != null) {
+                response.close();
+            }
+            if (client != null) {
+                client.close();
+            }
+        }
+    }
 }
