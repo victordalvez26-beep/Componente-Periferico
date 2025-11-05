@@ -13,6 +13,8 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.SecurityContext;
 import jakarta.ws.rs.core.UriBuilder;
 import java.net.URI;
+import java.util.List;
+import java.util.Map;
 
 @Path("/admin/tenants")
 public class AdminTenantResource {
@@ -57,7 +59,7 @@ public class AdminTenantResource {
         }
 
         try {
-            java.util.List<java.util.Map<String, Object>> tenants = tenantAdminService.listTenants();
+            List<Map<String, Object>> tenants = tenantAdminService.listTenants();
             return Response.ok(tenants).build();
         } catch (Exception ex) {
             return Response.serverError().entity(ex.getMessage()).build();

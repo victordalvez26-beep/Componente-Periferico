@@ -84,6 +84,7 @@ public class TenantAuthFilter implements ContainerRequestFilter {
             final String userNickname = nickname != null ? nickname : "";
             final SecurityContext previous = requestContext.getSecurityContext();
 
+            // Nuevo SecurityContext personalizado para JAX-RS y @RolesAllowed 
             SecurityContext sc = new SecurityContext() {
                 @Override
                 public Principal getUserPrincipal() {

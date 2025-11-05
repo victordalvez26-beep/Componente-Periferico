@@ -5,7 +5,7 @@ import uy.edu.tse.hcen.model.enums.Especialidad;
 /**
  * DTO ligero para crear/actualizar ProfesionalSalud.
  */
-public class ProfesionalDTO {
+public class DTProfesionalSalud {
     private String nombre;
     private String email;
     private String nickname;
@@ -13,7 +13,7 @@ public class ProfesionalDTO {
     private String direccion;
     private String password;
 
-    public ProfesionalDTO() {
+    public DTProfesionalSalud() {
         // DTO vacío
     }
 

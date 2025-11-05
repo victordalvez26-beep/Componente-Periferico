@@ -1,6 +1,6 @@
 package uy.edu.tse.hcen.resource;
 
-import uy.edu.tse.hcen.dto.ProfesionalDTO;
+import uy.edu.tse.hcen.dto.DTProfesionalSalud;
 import uy.edu.tse.hcen.service.ProfesionalSaludService;
 import uy.edu.tse.hcen.model.ProfesionalSalud;
 import jakarta.annotation.security.RolesAllowed;
@@ -26,7 +26,7 @@ public class ProfesionalResource {
 
     // CREATE (POST /profesionales)
     @POST
-    public Response createProfesional(ProfesionalDTO dto) {
+    public Response createProfesional(DTProfesionalSalud dto) {
         try {
             ProfesionalSalud nuevoProfesional = profesionalService.create(dto);
             return Response.status(Response.Status.CREATED).entity(nuevoProfesional).build();
@@ -46,7 +46,7 @@ public class ProfesionalResource {
     // UPDATE (PUT /profesionales/{id})
     @PUT
     @Path("/{id}")
-    public Response updateProfesional(@PathParam("id") Long id, ProfesionalDTO dto) {
+    public Response updateProfesional(@PathParam("id") Long id, DTProfesionalSalud dto) {
         try {
             ProfesionalSalud updatedProfesional = profesionalService.update(id, dto);
             return Response.ok(updatedProfesional).build();

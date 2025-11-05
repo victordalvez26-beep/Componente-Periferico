@@ -2,16 +2,16 @@ package uy.edu.tse.hcen.dto;
 
 import uy.edu.tse.hcen.model.UsuarioPeriferico;
 
-public class UsuarioPerifericoDTO extends UsuarioDTO {
+public class DTUsuarioPeriferico extends DTUsuario {
 
     private String nickname;
     private String password;
 
-    public UsuarioPerifericoDTO() {
+    public DTUsuarioPeriferico() {
         super();
     }
 
-    public UsuarioPerifericoDTO(Long id, String nombre, String email, String nickname, String password) {
+    public DTUsuarioPeriferico(Long id, String nombre, String email, String nickname, String password) {
         super(id, nombre, email);
         this.nickname = nickname;
         this.password = password;
@@ -36,11 +36,11 @@ public class UsuarioPerifericoDTO extends UsuarioDTO {
     /**
      * Create a DTO from an entity instance.
      */
-    public static UsuarioPerifericoDTO fromEntity(UsuarioPeriferico u) {
+    public static DTUsuarioPeriferico fromEntity(UsuarioPeriferico u) {
         if (u == null) return null;
         // For security reasons the plain password is not available from the entity.
         // We return a DTO without the password field populated.
-        return new UsuarioPerifericoDTO(u.getId(), u.getNombre(), u.getEmail(), u.getNickname(), null);
+        return new DTUsuarioPeriferico(u.getId(), u.getNombre(), u.getEmail(), u.getNickname(), null);
     }
 
     /**
