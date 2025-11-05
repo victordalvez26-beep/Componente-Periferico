@@ -1,26 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <jboss-deployment-structure>
-    <!-- Desactivar aislamiento para que todos los sub-deployments vean los módulos globales -->
+    <!-- Desactivar aislamiento para que todos los sub-deployments vean los módulos globales y las librerías del EAR/lib -->
     <ear-subdeployments-isolated>false</ear-subdeployments-isolated>
     
     <sub-deployment name="hcen-ejb.jar">
         <dependencies>
-            <!-- Módulos globales de WildFly para librerías externas -->
-            <module name="io.jsonwebtoken" export="true"/>
-            <module name="org.springframework.security" export="true"/>
-            <module name="org.mongodb" export="true"/>
-            <module name="com.fasterxml.jackson.core.jackson-databind" export="true"/>
+            <!-- Módulos globales de WildFly disponibles -->
+            <!-- Las librerías JWT, MongoDB, etc. se cargan desde EAR/lib, no desde módulos externos -->
             <module name="javax.xml.bind.api"/>
         </dependencies>
     </sub-deployment>
     
     <sub-deployment name="hcen-web.war">
         <dependencies>
-            <!-- Módulos globales de WildFly para librerías externas -->
-            <module name="io.jsonwebtoken" export="true"/>
-            <module name="org.springframework.security" export="true"/>
-            <module name="org.mongodb" export="true"/>
-            <module name="com.fasterxml.jackson.core.jackson-databind" export="true"/>
+            <!-- Módulos globales de WildFly disponibles -->
+            <!-- Las librerías JWT, MongoDB, etc. se cargan desde EAR/lib, no desde módulos externos -->
             <module name="javax.xml.bind.api"/>
         </dependencies>
     </sub-deployment>

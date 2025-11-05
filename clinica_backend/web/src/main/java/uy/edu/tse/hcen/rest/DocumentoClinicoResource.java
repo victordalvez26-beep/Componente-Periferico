@@ -18,8 +18,10 @@ import java.util.Map;
  * Flujo esperado:
  * 1) El profesional crea los metadatos mediante POST /api/documentos/metadatos (enviarMetadatos) — aún no implementado.
  * 2) Luego sube el contenido del documento mediante POST /api/documentos.
+ * 
+ * Nota: El path base "/api" está definido en RestApplication, por lo que este recurso usa "/documentos"
  */
-@Path("/api/documentos")
+@Path("/documentos")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 @RequestScoped
@@ -27,6 +29,9 @@ public class DocumentoClinicoResource {
 
     @Inject
     private DocumentoService documentoService;
+
+    @jakarta.inject.Inject
+    private uy.edu.tse.hcen.service.HcenClient hcenClient;
 
     public DocumentoClinicoResource() {
     }
@@ -37,9 +42,25 @@ public class DocumentoClinicoResource {
     @POST
     @Path("/metadatos")
     public Response enviarMetadatos(Map<String, Object> datos) {
-        return Response.status(Response.Status.NOT_IMPLEMENTED)
-                .entity(Map.of("error", "enviarMetadatos no implementado aún"))
-                .build();
+        if (datos == null) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "payload required")).build();
+        }
+
+        // Convert map -> DTO using JSON-B for convenience
+        try (jakarta.json.bind.Jsonb jsonb = jakarta.json.bind.JsonbBuilder.create()) {
+            String json = jsonb.toJson(datos);
+            uy.edu.tse.hcen.dto.DTMetadatos dto = jsonb.fromJson(json, uy.edu.tse.hcen.dto.DTMetadatos.class);
+
+            try {
+                hcenClient.registrarMetadatos(dto);
+                return Response.status(Response.Status.CREATED).entity(Map.of("status", "registered", "documentoId", dto.getDocumentoId())).build();
+            } catch (uy.edu.tse.hcen.exceptions.HcenUnavailableException ex) {
+                // Central no disponible -> retry strategy could be implemented
+                return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity(Map.of("error", "HCEN unavailable", "detail", ex.getMessage())).build();
+            }
+        } catch (Exception ex) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(Map.of("error", "failed to map payload", "detail", ex.getMessage())).build();
+        }
     }
 
     /**
@@ -80,12 +101,12 @@ public class DocumentoClinicoResource {
 
     /**
      * Recupera un documento de MongoDB por su id (_id hex string).
+     * Accesible públicamente para lectura (sin autenticación requerida).
      */
     @GET
     @Path("/{id}")
-    @RolesAllowed("PROFESIONAL")
     public Response obtenerPorId(@PathParam("id") String id) {
-    var doc = documentoService.buscarPorId(id);
+        var doc = documentoService.buscarPorId(id);
         if (doc == null) {
             return Response.status(Response.Status.NOT_FOUND).entity(Map.of("error", "document not found or invalid id")).build();
         }
@@ -104,5 +125,37 @@ public class DocumentoClinicoResource {
         }
     List<String> ids = documentoService.buscarIdsPorDocumentoPaciente(documentoId);
         return Response.ok(ids).build();
+    }
+
+    /**
+     * Crea un documento clínico completo: guarda el contenido en MongoDB y envía los metadatos al HCEN central.
+     * Espera un JSON con "contenido" y los campos de metadatos (documentoIdPaciente, especialidad, etc.)
+     * El documentoId se genera automáticamente si no se proporciona.
+     */
+    @POST
+    @Path("/completo")
+    @RolesAllowed("PROFESIONAL")
+    public Response crearDocumentoCompleto(Map<String, Object> body) {
+        if (body == null) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "Request body required")).build();
+        }
+
+        try {
+            var resultado = documentoService.crearDocumentoCompleto(body);
+            URI location = UriBuilder.fromPath("/api/documentos/{documentoId}").build(resultado.get("documentoId"));
+            return Response.created(location).entity(resultado).build();
+        } catch (IllegalArgumentException ex) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", ex.getMessage())).build();
+        } catch (SecurityException ex) {
+            return Response.status(Response.Status.FORBIDDEN).entity(Map.of("error", ex.getMessage())).build();
+        } catch (RuntimeException ex) {
+            // Puede contener HcenUnavailableException envuelta
+            if (ex.getMessage() != null && ex.getMessage().contains("HCEN unavailable")) {
+                return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity(Map.of("error", "HCEN unavailable", "detail", ex.getMessage())).build();
+            }
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(Map.of("error", "server error", "detail", ex.getMessage())).build();
+        } catch (Exception ex) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(Map.of("error", "server error", "detail", ex.getMessage())).build();
+        }
     }
 }

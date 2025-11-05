@@ -52,6 +52,11 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
                 String role = claims.get("role", String.class);
                 String subject = claims.getSubject();
 
+                // Si el tenantId no viene en el token, intentar leerlo del header X-Tenant-Id
+                if ((tenantId == null || tenantId.isBlank()) && requestContext.getHeaderString("X-Tenant-Id") != null) {
+                    tenantId = requestContext.getHeaderString("X-Tenant-Id");
+                }
+
                 if (tenantId != null && !tenantId.isBlank()) {
                     TenantContext.setCurrentTenant(tenantId);
                 }
