@@ -268,13 +268,40 @@ paths:
             type: string
       responses:
         '200':
-          description: Lista de metadatos
+          description: Lista de metadatos de documentos del paciente
           content:
             application/json:
               schema:
                 type: array
+                description: Colección de metadatos de documentos clínicos del paciente
                 items:
-                  type: object
+                  $ref: '#/components/schemas/MetadatosDocumento'
+              example:
+                - documentoId: "dbe1515b-b56d-4f46-8b61-1299c88f5d2e"
+                  documentoIdPaciente: "12345678"
+                  tenantId: "101"
+                  especialidad: "Medicina General"
+                  formato: "text/plain"
+                  autor: "Dr. Juan Pérez"
+                  titulo: "Consulta Médica"
+                  languageCode: "es"
+                  breakingTheGlass: false
+                  urlAcceso: "http://127.0.0.1:8080/hcen-web/api/documentos/690bb94df439e34986bf1ab7"
+                  fechaCreacion: "2025-01-15T10:30:00"
+                  fechaRegistro: "2025-01-15T10:31:00"
+                  descripcion: "Consulta de rutina"
+        '400':
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: HCEN no disponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /profesionales:
     get:
@@ -499,6 +526,86 @@ components:
           type: string
         nombrePortal:
           type: string
+
+    MetadatosDocumento:
+      type: object
+      description: |
+        Metadatos completos de un documento clínico. 
+        Incluye información de identificación, autoría, formato y acceso.
+      properties:
+        documentoId:
+          type: string
+          description: ID único del documento
+          example: "dbe1515b-b56d-4f46-8b61-1299c88f5d2e"
+        documentoIdPaciente:
+          type: string
+          description: CI o documento de identidad del paciente
+          example: "12345678"
+        tenantId:
+          type: string
+          description: ID del tenant (clínica/prestador) que generó el documento
+          example: "101"
+        especialidad:
+          type: string
+          description: Especialidad médica
+          example: "Medicina General"
+        formato:
+          type: string
+          description: MIME type del documento
+          example: "text/plain"
+        autor:
+          type: string
+          description: Nombre del profesional o sistema que generó el documento
+          example: "Dr. Juan Pérez"
+        titulo:
+          type: string
+          description: Título visible del documento
+          example: "Consulta Médica"
+        languageCode:
+          type: string
+          description: Código de idioma del contenido
+          example: "es"
+        breakingTheGlass:
+          type: boolean
+          description: Indica si se rompió el vidrio (acceso de emergencia)
+          example: false
+        urlAcceso:
+          type: string
+          description: URL para acceder al contenido completo del documento en el componente periférico
+          example: "http://127.0.0.1:8080/hcen-web/api/documentos/690bb94df439e34986bf1ab7"
+        fechaCreacion:
+          type: string
+          format: date-time
+          description: Fecha/hora de creación del documento
+          example: "2025-01-15T10:30:00"
+        fechaRegistro:
+          type: string
+          format: date-time
+          description: Fecha/hora de registro en HCEN
+          example: "2025-01-15T10:31:00"
+        aaPrestador:
+          type: string
+          description: Identificador del Prestador (AA)
+          nullable: true
+          example: "AA123456"
+        emisorDocumentoOID:
+          type: string
+          description: OID del emisor del documento
+          nullable: true
+          example: "1.2.840.113619.2.1.1.1"
+        hashDocumento:
+          type: string
+          description: Hash del documento para verificar integridad
+          nullable: true
+          example: "a1b2c3d4e5f6..."
+        descripcion:
+          type: string
+          description: Descripción libre o resumen del documento
+          nullable: true
+          example: "Consulta de rutina"
+      required:
+        - documentoId
+        - documentoIdPaciente
 
     Error:
       type: object
