@@ -140,9 +140,9 @@ public class TenantAdminService {
             "  tenant_id BIGINT NOT NULL, " +
             "  fecha_alta TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
             "  fecha_actualizacion TIMESTAMP, " +
-            "  CONSTRAINT uk_ci_tenant_%s UNIQUE (ci, tenant_id)" +
+            "  CONSTRAINT uk_ci_tenant UNIQUE (ci, tenant_id)" +
             ");",
-            tenantSchema, tenantId);
+            tenantSchema);
 
         try (Connection c = dataSource.getConnection()) {
             // 1. Crear schema
@@ -194,7 +194,7 @@ public class TenantAdminService {
             // 9. Crear tabla usuario_salud para gestionar pacientes
             try (PreparedStatement s9 = c.prepareStatement(createUsuarioSalud)) { 
                 s9.execute(); 
-                LOGGER.info("Tabla usuario_salud creada para tenant: " + tenantId);
+                LOG.info("Tabla usuario_salud creada para schema: " + tenantSchema);
             }
 
             // using container-managed transactions; let the container handle commit

@@ -6,6 +6,7 @@ import jakarta.transaction.Transactional;
 import org.jboss.logging.Logger;
 import uy.edu.tse.hcen.client.HcenUsuarioSaludClient;
 import uy.edu.tse.hcen.model.UsuarioSalud;
+import uy.edu.tse.hcen.multitenancy.TenantContext;
 import uy.edu.tse.hcen.repository.UsuarioSaludRepository;
 
 import java.time.LocalDateTime;
@@ -43,6 +44,16 @@ public class UsuarioSaludService {
     public UsuarioSalud crearUsuarioSalud(Long tenantId, UsuarioSalud usuario) {
         
         LOGGER.info("Creando Usuario de Salud - CI: " + usuario.getCi() + ", Clínica: " + tenantId);
+        
+        // DEBUG: Verificar tenant context
+        String currentTenant = TenantContext.getCurrentTenant();
+        LOGGER.info("🔍 DEBUG - TenantContext actual: " + currentTenant);
+        
+        // Asegurar que el tenant context esté seteado (por si acaso)
+        if (currentTenant == null || !currentTenant.equals(String.valueOf(tenantId))) {
+            LOGGER.warn("⚠️ TenantContext no está seteado correctamente, seteándolo a: " + tenantId);
+            TenantContext.setCurrentTenant(String.valueOf(tenantId));
+        }
         
         // 1. Validar que no exista ya en esta clínica
         UsuarioSalud existing = repository.findByCiAndTenant(usuario.getCi(), tenantId);
@@ -97,8 +108,8 @@ public class UsuarioSaludService {
         LOGGER.info("Actualizando Usuario de Salud ID: " + id + ", Clínica: " + tenantId);
         
         // 1. Buscar el usuario existente
-        UsuarioSalud existing = repository.findById(id);
-        if (existing == null || !existing.getTenantId().equals(tenantId)) {
+        UsuarioSalud existing = repository.findById(id, tenantId);
+        if (existing == null) {
             throw new IllegalArgumentException("Usuario no encontrado en esta clínica");
         }
         
@@ -147,11 +158,7 @@ public class UsuarioSaludService {
      * @return El usuario si existe y pertenece a esta clínica
      */
     public UsuarioSalud obtenerUsuarioSalud(Long id, Long tenantId) {
-        UsuarioSalud usuario = repository.findById(id);
-        if (usuario != null && !usuario.getTenantId().equals(tenantId)) {
-            return null; // No pertenece a esta clínica
-        }
-        return usuario;
+        return repository.findById(id, tenantId);
     }
     
     /**

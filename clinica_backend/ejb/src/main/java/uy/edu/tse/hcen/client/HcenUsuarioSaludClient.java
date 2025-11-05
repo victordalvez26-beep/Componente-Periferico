@@ -47,7 +47,7 @@ public class HcenUsuarioSaludClient {
             
             // Crear request
             HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(HCEN_BASE_URL + "/hcen-web/api/usuarios-salud/crear-modificar"))
+                .uri(URI.create(HCEN_BASE_URL + "/api/usuarios-salud/crear-modificar"))
                 .header("Content-Type", "application/json")
                 .timeout(TIMEOUT)
                 .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
