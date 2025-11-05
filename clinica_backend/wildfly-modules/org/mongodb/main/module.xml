@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="urn:jboss:module:1.9" name="org.mongodb">
+    <resources>
+        <resource-root path="mongodb-driver-sync.jar"/>
+        <resource-root path="mongodb-driver-core.jar"/>
+        <resource-root path="bson.jar"/>
+        <resource-root path="bson-record-codec.jar"/>
+    </resources>
+    <dependencies>
+        <module name="java.logging"/>
+        <module name="java.management"/>
+        <module name="java.naming"/>
+        <module name="javax.api"/>
+    </dependencies>
+</module>

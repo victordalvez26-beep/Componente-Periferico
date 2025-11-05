@@ -16,7 +16,9 @@ public class UsuarioPerifericoRepository {
     private EntityManager em;
 
     /**
-     * Busca un usuario por nickname en el schema/tenant activo.
+     * Busca un usuario por nickname en el schema/tenant activo usando JPA.
+     * ADVERTENCIA: Este método usa herencia JOINED y puede fallar si las tablas
+     * secundarias (profesionalsalud, administradorclinica) no existen o están vacías.
      */
     public UsuarioPeriferico findByNickname(String nickname) {
         try {
@@ -25,6 +27,75 @@ public class UsuarioPerifericoRepository {
                 .setParameter("nickname", nickname)
                 .getSingleResult();
         } catch (NoResultException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Busca un usuario por nickname en el schema activo del tenant usando SQL nativo.
+     * Útil para buscar profesionales en schema_clinica_XXX.usuario sin problemas de herencia.
+     */
+    public UsuarioPeriferico findByNicknameInTenantSchema(String nickname, String schemaName) {
+        System.out.println("=== findByNicknameInTenantSchema: nickname=" + nickname + ", schema=" + schemaName);
+        try {
+            // Query nativa SQL en el schema del tenant - buscar en usuarioperiferico
+            // NOTA: No incluye tenant_id porque el schema YA define el tenant
+            Query query = em.createNativeQuery(
+                "SELECT up.id, up.nickname, up.password_hash, up.role, " +
+                "       up.nombre, up.email, up.especialidad, up.departamento, up.dtype " +
+                "FROM " + schemaName + ".usuarioperiferico up " +
+                "WHERE up.nickname = ?1"
+            );
+            query.setParameter(1, nickname);
+            
+            Object[] row = (Object[]) query.getSingleResult();
+            
+            // Mapear a UsuarioPeriferico
+            UsuarioPeriferico user = new UsuarioPeriferico();
+            
+            Object idObj = row[0];
+            if (idObj instanceof Long) {
+                user.setId((Long) idObj);
+            } else if (idObj instanceof BigInteger) {
+                user.setId(((BigInteger) idObj).longValue());
+            } else if (idObj instanceof Integer) {
+                user.setId(((Integer) idObj).longValue());
+            }
+            
+            user.setNickname((String) row[1]);
+            user.setPasswordHash((String) row[2]);
+            
+            // Role: usar el explícito, o deducirlo del dtype
+            String role = (String) row[3];
+            String dtype = row.length > 8 ? (String) row[8] : null;
+            
+            if (role == null || role.isBlank()) {
+                // Deducir role del dtype
+                if ("ProfesionalSalud".equals(dtype)) {
+                    role = "PROFESIONAL";
+                } else if ("AdministradorClinica".equals(dtype)) {
+                    role = "ADMINISTRADOR";
+                }
+                System.out.println("=== Role deducido del dtype: " + dtype + " → " + role);
+            }
+            user.setRole(role);
+            
+            user.setNombre((String) row[4]);
+            user.setEmail((String) row[5]);
+            
+            // Campos adicionales opcionales
+            if (row.length > 6 && row[6] != null) {
+                System.out.println("=== Especialidad: " + row[6]);
+            }
+            
+            System.out.println("=== Usuario encontrado en tenant schema: " + user.getNickname() + ", role=" + role);
+            return user;
+        } catch (NoResultException e) {
+            System.out.println("=== NoResultException en tenant schema");
+            return null;
+        } catch (Exception e) {
+            System.out.println("=== Exception en findByNicknameInTenantSchema: " + e.getMessage());
+            e.printStackTrace();
             return null;
         }
     }

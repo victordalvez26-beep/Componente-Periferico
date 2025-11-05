@@ -46,8 +46,9 @@ function LoginPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nickname: username,  // Backend espera 'nickname', no 'username'
-          password
+          nickname: username,
+          password,
+          tenantId  // Enviar el tenantId de la URL para saber en qué schema buscar
         }),
         credentials: 'include'
       });
