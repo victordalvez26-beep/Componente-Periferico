@@ -50,7 +50,7 @@ Opciones para desplegar en WildFly:
 
 4) Endpoints relevantes y prueba rápida
 
-  POST http://localhost:8080/hcen-web/api/auth/login
+  POST http://127.0.0.1:8080/hcen-web/api/auth/login
   Body JSON:
   { "nickname": "admin_c1", "password": "password123" }
 
@@ -58,7 +58,7 @@ PowerShell ejemplo:
 
 ```powershell
 $body = '{"nickname":"admin_c1","password":"password123"}'
-$r = Invoke-RestMethod -Method Post -Uri 'http://localhost:8080/hcen-web/api/auth/login' -ContentType 'application/json' -Body $body
+$r = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/hcen-web/api/auth/login' -ContentType 'application/json' -Body $body
 # ver token y rol retornados
 $r.token
 $r.role
@@ -77,16 +77,16 @@ Hay dos endpoints administrativos bajo `/api/admin/tenants` protegidos por la cl
     - Ejemplo (PowerShell):
         ```powershell
         $body = '{"tenantId":"107","nombrePortal":"Clinica Test","colorPrimario":"#00aa88"}'
-        $token = (Invoke-RestMethod -Method Post -Uri 'http://localhost:8080/hcen-web/api/auth/login' -ContentType 'application/json' -Body '{"nickname":"admin_c3","password":"password123"}').token
-        Invoke-RestMethod -Method Post -Uri 'http://localhost:8080/hcen-web/api/admin/tenants' -ContentType 'application/json' -Body $body -Headers @{ Authorization = "Bearer $token" }
+        $token = (Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/hcen-web/api/auth/login' -ContentType 'application/json' -Body '{"nickname":"admin_c3","password":"password123"}').token
+        Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/hcen-web/api/admin/tenants' -ContentType 'application/json' -Body $body -Headers @{ Authorization = "Bearer $token" }
         ```
 
 - GET /api/admin/tenants
     - Devuelve un arreglo JSON con los tenants registrados en `public.nodoperiferico` (id, nombre, rut).
     - Ejemplo (PowerShell):
         ```powershell
-        $token = (Invoke-RestMethod -Method Post -Uri 'http://localhost:8080/hcen-web/api/auth/login' -ContentType 'application/json' -Body '{"nickname":"admin_c3","password":"password123"}').token
-        Invoke-RestMethod -Method Get -Uri 'http://localhost:8080/hcen-web/api/admin/tenants' -Headers @{ Authorization = "Bearer $token" } | ConvertTo-Json
+        $token = (Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/hcen-web/api/auth/login' -ContentType 'application/json' -Body '{"nickname":"admin_c3","password":"password123"}').token
+        Invoke-RestMethod -Method Get -Uri 'http://127.0.0.1:8080/hcen-web/api/admin/tenants' -Headers @{ Authorization = "Bearer $token" } | ConvertTo-Json
         ```
 
 Notas:
@@ -102,7 +102,7 @@ Respuesta esperada (ejemplo):
 
 ```powershell
 $t = $r.token
-Invoke-RestMethod -Uri 'http://localhost:8080/hcen-web/api/portal-configuracion/public' -Headers @{ Authorization = "Bearer $t" } | ConvertTo-Json -Depth 5
+Invoke-RestMethod -Uri 'http://127.0.0.1:8080/hcen-web/api/portal-configuracion/public' -Headers @{ Authorization = "Bearer $t" } | ConvertTo-Json -Depth 5
 ```
 
 Respuesta esperada (para admin_c1 / tenant 101): objeto con `colorPrimario`, `colorSecundario`, `nombrePortal`.
@@ -127,7 +127,7 @@ docker restart hcen-wildfly-app
 
 # probar login (PowerShell)
 $body = '{"nickname":"admin_c1","password":"password123"}'
-$r = Invoke-RestMethod -Method Post -Uri 'http://localhost:8080/hcen-web/api/auth/login' -ContentType 'application/json' -Body $body
+$r = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/hcen-web/api/auth/login' -ContentType 'application/json' -Body $body
 $t = $r.token
-Invoke-RestMethod -Uri 'http://localhost:8080/hcen-web/api/portal-configuracion/public' -Headers @{ Authorization = "Bearer $t" }
+Invoke-RestMethod -Uri 'http://127.0.0.1:8080/hcen-web/api/portal-configuracion/public' -Headers @{ Authorization = "Bearer $t" }
 ```

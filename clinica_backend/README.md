@@ -79,7 +79,7 @@ $initBody = @{
     adminEmail = "admin@test.com"
 } | ConvertTo-Json
 
-$initResponse = Invoke-RestMethod -Uri "http://localhost:8080/hcen-web/api/config/init" `
+$initResponse = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/config/init" `
     -Method POST -Body $initBody -ContentType "application/json"
 
 Write-Host "Tenant creado: $($initResponse.tenantId)"
@@ -96,7 +96,7 @@ $activateBody = @{
     password = "password123"
 } | ConvertTo-Json
 
-$activateResponse = Invoke-RestMethod -Uri "http://localhost:8080/hcen-web/api/config/activate-simple" `
+$activateResponse = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/config/activate-simple" `
     -Method POST -Body $activateBody -ContentType "application/json"
 ```
 
@@ -108,7 +108,7 @@ $loginBody = @{
     password = "password123"
 } | ConvertTo-Json
 
-$loginResponse = Invoke-RestMethod -Uri "http://localhost:8080/hcen-web/api/auth/login" `
+$loginResponse = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/auth/login" `
     -Method POST -Body $loginBody -ContentType "application/json"
 
 $token = $loginResponse.token
@@ -148,7 +148,7 @@ $headers = @{
     "X-Tenant-Id" = "101"
 }
 
-$docResponse = Invoke-RestMethod -Uri "http://localhost:8080/hcen-web/api/documentos/completo" `
+$docResponse = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/completo" `
     -Method POST -Body $docBody -ContentType "application/json" -Headers $headers
 
 Write-Host "Documento creado:"
@@ -161,7 +161,7 @@ Write-Host "  - URL Acceso: $($docResponse.urlAcceso)"
 
 ```powershell
 $mongoId = $docResponse.mongoId
-$doc = Invoke-RestMethod -Uri "http://localhost:8080/hcen-web/api/documentos/$mongoId" -Method GET
+$doc = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/$mongoId" -Method GET
 
 Write-Host "Contenido del documento:"
 Write-Host $doc.contenido
@@ -171,7 +171,7 @@ Write-Host $doc.contenido
 
 ```powershell
 $pacienteId = "12345678"
-$metadatos = Invoke-RestMethod -Uri "http://localhost:8080/hcen-web/api/documentos/paciente/$pacienteId/metadatos" `
+$metadatos = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/paciente/$pacienteId/metadatos" `
     -Method GET -Headers $headers
 
 Write-Host "Metadatos encontrados: $($metadatos.Count)"
@@ -184,7 +184,7 @@ $metadatos | ForEach-Object {
 
 ```powershell
 $mongoId = $docResponse.mongoId
-$contenido = Invoke-RestMethod -Uri "http://localhost:8080/hcen-web/api/documentos/$mongoId/contenido" -Method GET
+$contenido = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/$mongoId/contenido" -Method GET
 
 Write-Host "Contenido descargado:"
 Write-Host $contenido

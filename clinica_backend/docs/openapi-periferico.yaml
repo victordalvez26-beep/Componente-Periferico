@@ -9,8 +9,8 @@ info:
     name: Componente Periférico Development Team
 
 servers:
-  - url: http://localhost:8080/hcen-web/api
-    description: Servidor local de desarrollo
+  - url: http://127.0.0.1:8080/hcen-web/api
+    description: Servidor local de desarrollo (usar 127.0.0.1 en lugar de localhost)
 
 paths:
   /health:
@@ -157,6 +157,9 @@ paths:
       description: |
         Crea un documento completo: guarda el contenido en MongoDB y envía los metadatos al HCEN central.
         Este es el endpoint principal del flujo completo.
+        
+        **Autenticación entre servicios:** El cliente automáticamente genera y envía un token JWT de servicio
+        al HCEN central cuando se envían los metadatos. No se requiere configuración adicional.
       operationId: crearDocumentoCompleto
       tags:
         - Documentos
