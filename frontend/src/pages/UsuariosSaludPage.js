@@ -14,6 +14,14 @@ function UsuariosSaludPage() {
   const [editingId, setEditingId] = useState(null);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
   
+  // Departamentos de Uruguay (deben coincidir con el enum de HCEN)
+  const departamentos = [
+    'ARTIGAS', 'CANELONES', 'CERRO_LARGO', 'COLONIA', 'DURAZNO',
+    'FLORES', 'FLORIDA', 'LAVALLEJA', 'MALDONADO', 'MONTEVIDEO',
+    'PAYSANDU', 'RIO_NEGRO', 'RIVERA', 'ROCHA', 'SALTO',
+    'SAN_JOSE', 'SORIANO', 'TACUAREMBO', 'TREINTA_Y_TRES'
+  ];
+  
   const [formData, setFormData] = useState({
     ci: '',
     nombre: '',
@@ -270,13 +278,18 @@ function UsuariosSaludPage() {
               
               <div className="form-group">
                 <label>Departamento</label>
-                <input
-                  type="text"
+                <select
                   name="departamento"
                   value={formData.departamento}
                   onChange={handleInputChange}
-                  placeholder="Montevideo"
-                />
+                >
+                  <option value="">-- Seleccione --</option>
+                  {departamentos.map(dept => (
+                    <option key={dept} value={dept}>
+                      {dept.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    </option>
+                  ))}
+                </select>
               </div>
               
               <div className="form-group">

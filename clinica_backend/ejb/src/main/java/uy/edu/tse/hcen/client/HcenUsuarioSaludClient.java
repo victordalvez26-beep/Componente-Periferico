@@ -123,8 +123,8 @@ public class HcenUsuarioSaludClient {
             json.append("\"email\":null,");
         }
         
-        // Departamento (puede ser null) - enviar como string
-        if (usuario.getDepartamento() != null) {
+        // Departamento (puede ser null) - enviar como string SOLO si no está vacío
+        if (usuario.getDepartamento() != null && !usuario.getDepartamento().isEmpty()) {
             json.append("\"departamento\":\"").append(usuario.getDepartamento()).append("\",");
         } else {
             json.append("\"departamento\":null,");
