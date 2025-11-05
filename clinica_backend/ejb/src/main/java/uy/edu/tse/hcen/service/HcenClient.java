@@ -24,10 +24,10 @@ public class HcenClient {
 
     // The HCEN central endpoint can be overridden via the HCEN_CENTRAL_URL environment variable
     // URL correcta: /api (ApplicationPath) + /central/api/rndc/metadatos (Path del recurso)
-    private static final String DEFAULT_CENTRAL_URL = "http://localhost:8080/api/central/api/rndc/metadatos";
+    private static final String DEFAULT_CENTRAL_URL = "http://127.0.0.1:8080/api/central/api/rndc/metadatos";
     
     // URL para obtener token de servicio
-    private static final String DEFAULT_SERVICE_AUTH_URL = "http://localhost:8080/api/service-auth/token";
+    private static final String DEFAULT_SERVICE_AUTH_URL = "http://127.0.0.1:8080/api/service-auth/token";
     
     // Cache del token de servicio (para evitar obtener uno nuevo en cada llamada)
     private String cachedServiceToken = null;
@@ -37,11 +37,20 @@ public class HcenClient {
     private static final String SERVICE_ID = "componente-periferico";
     private static final String SERVICE_NAME = "Componente Periférico HCEN";
     
+    // Constantes para evitar duplicación de literales
+    private static final String ENV_HCEN_CENTRAL_URL = "HCEN_CENTRAL_URL";
+    private static final String HEADER_AUTHORIZATION = "Authorization";
+    private static final String BEARER_PREFIX = "Bearer ";
+    private static final String ERROR_UNKNOWN = "Unknown error";
+    private static final String ERROR_MSG_REGISTRAR_METADATOS = "Error al registrar metadatos: HTTP %d - %s";
+    
     /**
      * Obtiene un token de servicio (con cache para evitar múltiples llamadas).
      * Si el token está expirado o no existe, obtiene uno nuevo.
+     * 
+     * @return Token JWT de servicio o null si no se pudo obtener
      */
-    private String getServiceToken() throws HcenUnavailableException {
+    private String getServiceToken() {
         // Verificar si el token cacheado sigue siendo válido (con margen de 5 minutos)
         long now = System.currentTimeMillis();
         if (cachedServiceToken != null && tokenExpiryTime > now + (5 * 60 * 1000)) {
@@ -57,7 +66,7 @@ public class HcenClient {
             LOG.fine("Token de servicio generado localmente");
             return cachedServiceToken;
         } catch (Exception e) {
-            LOG.warning("Error generando token de servicio localmente, intentando obtener desde endpoint: " + e.getMessage());
+            LOG.warning(String.format("Error generando token de servicio localmente, intentando obtener desde endpoint: %s", e.getMessage()));
             
             // Fallback: intentar obtener desde endpoint (requiere serviceSecret configurado)
             String serviceSecret = System.getenv("HCEN_SERVICE_SECRET");
@@ -73,95 +82,88 @@ public class HcenClient {
             String authUrl = System.getProperty("HCEN_SERVICE_AUTH_URL",
                     System.getenv().getOrDefault("HCEN_SERVICE_AUTH_URL", DEFAULT_SERVICE_AUTH_URL));
             
-            Client client = null;
-            jakarta.ws.rs.core.Response response = null;
-            try {
-                client = ClientBuilder.newClient();
-                
+            // Usar try-with-resources para cerrar recursos automáticamente
+            try (Client client = ClientBuilder.newClient()) {
                 Map<String, String> authRequest = Map.of(
                     "serviceId", SERVICE_ID,
                     "serviceSecret", serviceSecret,
                     "serviceName", SERVICE_NAME
                 );
                 
-                response = client.target(authUrl)
+                try (jakarta.ws.rs.core.Response response = client.target(authUrl)
                         .request(MediaType.APPLICATION_JSON)
-                        .post(Entity.json(authRequest));
-                
-                if (response.getStatus() == 200) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> authResponse = response.readEntity(Map.class);
-                    cachedServiceToken = (String) authResponse.get("token");
-                    tokenExpiryTime = now + (24 * 60 * 60 * 1000);
-                    LOG.info("Token de servicio obtenido desde endpoint");
-                    return cachedServiceToken;
-                } else {
-                    LOG.warning("Error obteniendo token de servicio: HTTP " + response.getStatus());
-                    return null;
+                        .post(Entity.json(authRequest))) {
+                    
+                    if (response.getStatus() == 200) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> authResponse = response.readEntity(Map.class);
+                        cachedServiceToken = (String) authResponse.get("token");
+                        tokenExpiryTime = now + (24 * 60 * 60 * 1000);
+                        LOG.info("Token de servicio obtenido desde endpoint");
+                        return cachedServiceToken;
+                    } else {
+                        LOG.warning(String.format("Error obteniendo token de servicio: HTTP %d", response.getStatus()));
+                        return null;
+                    }
                 }
-            } catch (Exception ex) {
-                LOG.warning("Error obteniendo token de servicio desde endpoint: " + ex.getMessage());
+            } catch (ProcessingException ex) {
+                LOG.warning(String.format("Error obteniendo token de servicio desde endpoint: %s", ex.getMessage()));
                 return null;
-            } finally {
-                if (response != null) response.close();
-                if (client != null) client.close();
             }
         }
     }
 
     public void registrarMetadatos(DTMetadatos dto) throws HcenUnavailableException {
-        String centralUrl = System.getProperty("HCEN_CENTRAL_URL",
-                System.getenv().getOrDefault("HCEN_CENTRAL_URL", DEFAULT_CENTRAL_URL));
+        String centralUrl = System.getProperty(ENV_HCEN_CENTRAL_URL,
+                System.getenv().getOrDefault(ENV_HCEN_CENTRAL_URL, DEFAULT_CENTRAL_URL));
 
         // Obtener token de servicio
         String serviceToken = getServiceToken();
 
-        Client client = null;
-        jakarta.ws.rs.core.Response response = null;
-        try {
-            client = ClientBuilder.newClient();
+        // Usar try-with-resources para cerrar recursos automáticamente
+        try (Client client = ClientBuilder.newClient()) {
             jakarta.ws.rs.client.Invocation.Builder requestBuilder = client.target(centralUrl)
                     .request(MediaType.APPLICATION_JSON);
             
             // Agregar token de servicio si está disponible
             if (serviceToken != null) {
-                requestBuilder.header("Authorization", "Bearer " + serviceToken);
+                requestBuilder.header(HEADER_AUTHORIZATION, BEARER_PREFIX + serviceToken);
             }
             
-            response = requestBuilder.post(Entity.json(dto));
-
-            int status = response.getStatus();
-            if (status == 401 || status == 403) {
-                // Token inválido o expirado, limpiar cache y reintentar una vez
-                LOG.warning("Token de servicio rechazado, limpiando cache");
-                cachedServiceToken = null;
-                tokenExpiryTime = 0;
-                
-                // Reintentar con nuevo token
-                serviceToken = getServiceToken();
-                if (serviceToken != null) {
-                    requestBuilder = client.target(centralUrl)
-                            .request(MediaType.APPLICATION_JSON)
-                            .header("Authorization", "Bearer " + serviceToken);
-                    response.close();
-                    response = requestBuilder.post(Entity.json(dto));
-                    status = response.getStatus();
+            try (jakarta.ws.rs.core.Response response = requestBuilder.post(Entity.json(dto))) {
+                int status = response.getStatus();
+                if (status == 401 || status == 403) {
+                    // Token inválido o expirado, limpiar cache y reintentar una vez
+                    handleTokenRejection(client, centralUrl, dto);
+                } else if (status != 200 && status != 201 && status != 202) {
+                    String errorMsg = response.hasEntity() ? response.readEntity(String.class) : ERROR_UNKNOWN;
+                    throw new HcenUnavailableException(
+                        String.format(ERROR_MSG_REGISTRAR_METADATOS, status, errorMsg));
                 }
             }
-            
-            if (status != 200 && status != 201 && status != 202) {
-                String errorMsg = response.hasEntity() ? response.readEntity(String.class) : "Unknown error";
-                throw new HcenUnavailableException("Error al registrar metadatos: HTTP " + status + " - " + errorMsg);
-            }
-
         } catch (ProcessingException ex) {
             throw new HcenUnavailableException("HCEN no disponible", ex);
-        } finally {
-            if (response != null) {
-                response.close();
-            }
-            if (client != null) {
-                client.close();
+        }
+    }
+    
+    private void handleTokenRejection(Client client, String centralUrl, Object payload) throws HcenUnavailableException {
+        LOG.warning("Token de servicio rechazado, limpiando cache");
+        cachedServiceToken = null;
+        tokenExpiryTime = 0;
+        
+        // Reintentar con nuevo token
+        String newToken = getServiceToken();
+        if (newToken != null) {
+            jakarta.ws.rs.client.Invocation.Builder retryBuilder = client.target(centralUrl)
+                    .request(MediaType.APPLICATION_JSON)
+                    .header(HEADER_AUTHORIZATION, BEARER_PREFIX + newToken);
+            try (jakarta.ws.rs.core.Response retryResponse = retryBuilder.post(Entity.json(payload))) {
+                int retryStatus = retryResponse.getStatus();
+                if (retryStatus != 200 && retryStatus != 201 && retryStatus != 202) {
+                    String errorMsg = retryResponse.hasEntity() ? retryResponse.readEntity(String.class) : ERROR_UNKNOWN;
+                    throw new HcenUnavailableException(
+                        String.format(ERROR_MSG_REGISTRAR_METADATOS, retryStatus, errorMsg));
+                }
             }
         }
     }
@@ -170,59 +172,35 @@ public class HcenClient {
      * Envía el payload completo (incluyendo datosPatronimicos) al central.
      */
     public void registrarMetadatosCompleto(Map<String, Object> payload) throws HcenUnavailableException {
-        String centralUrl = System.getProperty("HCEN_CENTRAL_URL",
-                System.getenv().getOrDefault("HCEN_CENTRAL_URL", DEFAULT_CENTRAL_URL));
+        String centralUrl = System.getProperty(ENV_HCEN_CENTRAL_URL,
+                System.getenv().getOrDefault(ENV_HCEN_CENTRAL_URL, DEFAULT_CENTRAL_URL));
 
         // Obtener token de servicio
         String serviceToken = getServiceToken();
 
-        Client client = null;
-        jakarta.ws.rs.core.Response response = null;
-        try {
-            client = ClientBuilder.newClient();
+        // Usar try-with-resources para cerrar recursos automáticamente
+        try (Client client = ClientBuilder.newClient()) {
             jakarta.ws.rs.client.Invocation.Builder requestBuilder = client.target(centralUrl)
                     .request(MediaType.APPLICATION_JSON);
             
             // Agregar token de servicio si está disponible
             if (serviceToken != null) {
-                requestBuilder.header("Authorization", "Bearer " + serviceToken);
+                requestBuilder.header(HEADER_AUTHORIZATION, BEARER_PREFIX + serviceToken);
             }
             
-            response = requestBuilder.post(Entity.json(payload));
-
-            int status = response.getStatus();
-            if (status == 401 || status == 403) {
-                // Token inválido o expirado, limpiar cache y reintentar una vez
-                LOG.warning("Token de servicio rechazado, limpiando cache");
-                cachedServiceToken = null;
-                tokenExpiryTime = 0;
-                
-                // Reintentar con nuevo token
-                serviceToken = getServiceToken();
-                if (serviceToken != null) {
-                    requestBuilder = client.target(centralUrl)
-                            .request(MediaType.APPLICATION_JSON)
-                            .header("Authorization", "Bearer " + serviceToken);
-                    response.close();
-                    response = requestBuilder.post(Entity.json(payload));
-                    status = response.getStatus();
+            try (jakarta.ws.rs.core.Response response = requestBuilder.post(Entity.json(payload))) {
+                int status = response.getStatus();
+                if (status == 401 || status == 403) {
+                    // Token inválido o expirado, limpiar cache y reintentar una vez
+                    handleTokenRejection(client, centralUrl, payload);
+                } else if (status != 200 && status != 201 && status != 202) {
+                    String errorMsg = response.hasEntity() ? response.readEntity(String.class) : ERROR_UNKNOWN;
+                    throw new HcenUnavailableException(
+                        String.format(ERROR_MSG_REGISTRAR_METADATOS, status, errorMsg));
                 }
             }
-            
-            if (status != 200 && status != 201 && status != 202) {
-                String errorMsg = response.hasEntity() ? response.readEntity(String.class) : "Unknown error";
-                throw new HcenUnavailableException("Error al registrar metadatos: HTTP " + status + " - " + errorMsg);
-            }
-
         } catch (ProcessingException ex) {
             throw new HcenUnavailableException("HCEN no disponible", ex);
-        } finally {
-            if (response != null) {
-                response.close();
-            }
-            if (client != null) {
-                client.close();
-            }
         }
     }
 
@@ -230,7 +208,7 @@ public class HcenClient {
      * Consulta metadatos de un paciente desde HCEN central.
      * 
      * @param documentoIdPaciente CI o documento de identidad del paciente
-     * @return Lista de metadatos (Map<String, Object>)
+     * @return Lista de metadatos (Map&lt;String, Object&gt;)
      * @throws HcenUnavailableException si HCEN no está disponible
      */
     @SuppressWarnings("unchecked")
@@ -239,18 +217,16 @@ public class HcenClient {
         // URL base de HCEN central para endpoints de paciente
         // El endpoint es /api/paciente/{id}/metadatos
         String baseUrl = System.getProperty("HCEN_CENTRAL_BASE_URL",
-                System.getenv().getOrDefault("HCEN_CENTRAL_BASE_URL", "http://localhost:8080/api"));
+                System.getenv().getOrDefault("HCEN_CENTRAL_BASE_URL", "http://127.0.0.1:8080/api"));
         
         // Construir URL del endpoint de paciente
         String pacienteUrl = baseUrl + "/paciente/" + documentoIdPaciente + "/metadatos";
 
-        Client client = null;
-        jakarta.ws.rs.core.Response response = null;
-        try {
-            client = ClientBuilder.newClient();
-            response = client.target(pacienteUrl)
+        // Usar try-with-resources para cerrar recursos automáticamente
+        try (Client client = ClientBuilder.newClient();
+             jakarta.ws.rs.core.Response response = client.target(pacienteUrl)
                     .request(MediaType.APPLICATION_JSON)
-                    .get();
+                    .get()) {
 
             int status = response.getStatus();
             if (status == 200) {
@@ -258,18 +234,12 @@ public class HcenClient {
             } else if (status == 404) {
                 return new java.util.ArrayList<>(); // Lista vacía si no hay documentos
             } else {
-                throw new HcenUnavailableException("Error al consultar metadatos: HTTP " + status);
+                throw new HcenUnavailableException(
+                    String.format("Error al consultar metadatos: HTTP %d", status));
             }
 
         } catch (ProcessingException ex) {
             throw new HcenUnavailableException("HCEN no disponible", ex);
-        } finally {
-            if (response != null) {
-                response.close();
-            }
-            if (client != null) {
-                client.close();
-            }
         }
     }
 }

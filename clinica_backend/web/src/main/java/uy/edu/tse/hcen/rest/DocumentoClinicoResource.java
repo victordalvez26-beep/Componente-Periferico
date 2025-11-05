@@ -4,13 +4,21 @@ import uy.edu.tse.hcen.service.DocumentoService;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
+import jakarta.json.bind.Jsonb;
+import jakarta.json.bind.JsonbBuilder;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.net.URI;
 import java.util.Map;
+import uy.edu.tse.hcen.service.HcenClient;
+import uy.edu.tse.hcen.dto.DTMetadatos;
+import uy.edu.tse.hcen.exceptions.HcenUnavailableException;
+
 
 /**
  * Recurso REST para manejo básico de documentos clínicos en MongoDB.
@@ -30,8 +38,8 @@ public class DocumentoClinicoResource {
     @Inject
     private DocumentoService documentoService;
 
-    @jakarta.inject.Inject
-    private uy.edu.tse.hcen.service.HcenClient hcenClient;
+    @Inject
+    private HcenClient hcenClient;
 
     public DocumentoClinicoResource() {
     }
@@ -46,15 +54,19 @@ public class DocumentoClinicoResource {
             return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "payload required")).build();
         }
 
+        if (datos.get("documentIdPaciente") == null) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "documentIdPaciente required")).build();
+        }
+        
         // Convert map -> DTO using JSON-B for convenience
-        try (jakarta.json.bind.Jsonb jsonb = jakarta.json.bind.JsonbBuilder.create()) {
+        try (Jsonb jsonb = JsonbBuilder.create()) {
             String json = jsonb.toJson(datos);
-            uy.edu.tse.hcen.dto.DTMetadatos dto = jsonb.fromJson(json, uy.edu.tse.hcen.dto.DTMetadatos.class);
+            DTMetadatos dto = jsonb.fromJson(json, DTMetadatos.class);
 
             try {
                 hcenClient.registrarMetadatos(dto);
                 return Response.status(Response.Status.CREATED).entity(Map.of("status", "registered", "documentoId", dto.getDocumentoId())).build();
-            } catch (uy.edu.tse.hcen.exceptions.HcenUnavailableException ex) {
+            } catch (HcenUnavailableException ex) {
                 // Central no disponible -> retry strategy could be implemented
                 return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity(Map.of("error", "HCEN unavailable", "detail", ex.getMessage())).build();
             }
@@ -123,7 +135,10 @@ public class DocumentoClinicoResource {
         if (documentoId == null || documentoId.isBlank()) {
             return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "documentoId required")).build();
         }
-    List<String> ids = documentoService.buscarIdsPorDocumentoPaciente(documentoId);
+        List<String> ids = documentoService.buscarIdsPorDocumentoPaciente(documentoId);
+        if (ids == null || ids.isEmpty()) {
+            return Response.status(Response.Status.NOT_FOUND).entity(Map.of("error", "no documents found for the given documentoId")).build();
+        }
         return Response.ok(ids).build();
     }
 
@@ -138,6 +153,9 @@ public class DocumentoClinicoResource {
     public Response crearDocumentoCompleto(Map<String, Object> body) {
         if (body == null) {
             return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "Request body required")).build();
+        }
+        if (body.get("documentoIdPaciente") == null) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "documentoIdPaciente required")).build();
         }
 
         try {
@@ -185,11 +203,11 @@ public class DocumentoClinicoResource {
             
             // Consultar metadatos desde HCEN central (que consulta RNDC)
             // HCEN central maneja la lógica de filtrar por tenant si es necesario
-            java.util.List<Map<String, Object>> metadatos = hcenClient.consultarMetadatosPaciente(documentoIdPaciente);
+            List<Map<String, Object>> metadatos = hcenClient.consultarMetadatosPaciente(documentoIdPaciente);
             
             // Filtrar metadatos del mismo tenant si hay tenantId en el contexto
             if (currentTenantId != null && !currentTenantId.isBlank()) {
-                java.util.List<Map<String, Object>> metadatosFiltrados = new java.util.ArrayList<>();
+                List<Map<String, Object>> metadatosFiltrados = new ArrayList<>();
                 for (Map<String, Object> meta : metadatos) {
                     String tenantId = (String) meta.get("tenantId");
                     // Incluir documentos del mismo tenant
@@ -227,6 +245,12 @@ public class DocumentoClinicoResource {
     @GET
     @Path("/{id}/contenido")
     public Response obtenerContenido(@PathParam("id") String id) {
+
+
+        if (id == null || id.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "id required")).build();
+        }
+
         var doc = documentoService.buscarPorId(id);
         if (doc == null) {
             return Response.status(Response.Status.NOT_FOUND)
@@ -243,7 +267,7 @@ public class DocumentoClinicoResource {
         }
         
         // Determinar Content-Type (puede venir en formato del metadato, pero por ahora usamos text/plain)
-        String contentType = jakarta.ws.rs.core.MediaType.TEXT_PLAIN;
+        String contentType = MediaType.TEXT_PLAIN;
         
         // Devolver contenido directamente
         return Response.ok(contenido, contentType)

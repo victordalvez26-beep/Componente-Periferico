@@ -49,7 +49,7 @@ public class DocumentoService {
     public Document guardarContenido(String documentoId, String contenido) {
         // 1) Verificar existencia de metadatos llamando al RNDC o Central
         String rndcBase = System.getProperty("RNDC_METADATOS_URL",
-                System.getenv().getOrDefault("RNDC_METADATOS_URL", "http://localhost:8080/api/metadatos"));
+                System.getenv().getOrDefault("RNDC_METADATOS_URL", "http://127.0.0.1:8080/api/metadatos"));
 
         DTMetadatos metadatos = null;
         Client client = null;
@@ -99,7 +99,7 @@ public class DocumentoService {
         Document saved = repo.guardarContenido(documentoId, contenido);
         Object id = saved.get("_id");
         String documentoIdLocal = (id != null) ? id.toString() : "";
-        String nodoBase = System.getProperty("NODO_BASE_URL", System.getenv().getOrDefault("NODO_BASE_URL", "http://localhost:8080"));
+        String nodoBase = System.getProperty("NODO_BASE_URL", System.getenv().getOrDefault("NODO_BASE_URL", "http://127.0.0.1:8080"));
         String url = nodoBase + "/api/documentos/" + documentoIdLocal;
 
         // 4) Actualizar metadatos si es necesario (best-effort): intentar notificar al central con urlAcceso
@@ -171,7 +171,7 @@ public class DocumentoService {
         String documentoIdLocal = (id != null) ? id.toString() : "";
 
         // 5) Construir URL de acceso (incluir context root /hcen-web)
-        String nodoBase = System.getProperty("NODO_BASE_URL", System.getenv().getOrDefault("NODO_BASE_URL", "http://localhost:8080"));
+        String nodoBase = System.getProperty("NODO_BASE_URL", System.getenv().getOrDefault("NODO_BASE_URL", "http://127.0.0.1:8080"));
         String urlAcceso = nodoBase + "/hcen-web/api/documentos/" + documentoIdLocal;
 
         // 6) Construir DTO de metadatos
