@@ -33,7 +33,7 @@ function UsuariosSaludPage() {
   const cargarUsuarios = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('jwt');
+      const token = localStorage.getItem('token');
       const response = await fetch(
         `/hcen-web/api/clinica/${tenantId}/usuarios-salud`,
         {
@@ -75,7 +75,7 @@ function UsuariosSaludPage() {
     }
     
     try {
-      const token = localStorage.getItem('jwt');
+      const token = localStorage.getItem('token');
       const url = editingId 
         ? `/hcen-web/api/clinica/${tenantId}/usuarios-salud/${editingId}`
         : `/hcen-web/api/clinica/${tenantId}/usuarios-salud`;
