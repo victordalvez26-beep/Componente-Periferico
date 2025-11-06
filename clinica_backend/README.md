@@ -201,8 +201,9 @@ Write-Host $contenido
 - `POST /api/documentos/completo` - Crear documento completo (contenido + metadatos)
 - `POST /api/documentos` - Guardar solo contenido (requiere metadatos previos)
 - `GET /api/documentos/{id}` - Obtener documento por MongoDB ID
-- `GET /api/documentos/{id}/contenido` - Descargar contenido del documento
+- `GET /api/documentos/{id}/contenido` - Descargar contenido del documento (con verificación de permisos)
 - `GET /api/documentos/paciente/{documentoIdPaciente}/metadatos` - Metadatos de documentos del paciente
+- `POST /api/documentos/solicitar-acceso` - Solicitar acceso a documentos de un paciente
 
 ### Profesionales
 - `GET /api/profesionales` - Listar profesionales (requiere rol ADMINISTRADOR)
@@ -223,6 +224,140 @@ Para verificar que todo el flujo funciona correctamente:
 5. ✅ **Consultar metadatos en RNDC** → Metadatos encontrados
 6. ✅ **Consultar metadatos desde HCEN central** → Paciente puede ver sus documentos
 7. ✅ **Descargar documento desde HCEN central** → Contenido descargado correctamente
+
+## Pruebas de Políticas de Acceso
+
+El componente periférico ahora integra verificación de permisos y solicitudes de acceso.
+
+### 1. Crear Política de Acceso
+
+Primero, crear una política que permita al profesional acceder a documentos del paciente:
+
+```powershell
+# Desde el servicio de políticas
+$politicaBody = @{
+    alcance = "TODOS_LOS_DOCUMENTOS"
+    duracion = "INDEFINIDA"
+    gestion = "AUTOMATICA"
+    codDocumPaciente = "12345678"
+    profesionalAutorizado = "prof_001"  # Nickname del profesional
+    tipoDocumento = $null
+    fechaVencimiento = $null
+    referencia = "Política de acceso para pruebas"
+} | ConvertTo-Json
+
+$politica = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-politicas-service/api/politicas" `
+    -Method POST -Body $politicaBody -ContentType "application/json"
+
+Write-Host "Política creada: ID $($politica.id)"
+```
+
+### 2. Acceder a Documento con Verificación de Permisos
+
+Al intentar acceder a un documento, el sistema verifica automáticamente los permisos:
+
+```powershell
+# Login como profesional
+$loginBody = @{
+    nickname = "prof_001"
+    password = "password123"
+} | ConvertTo-Json
+
+$loginResponse = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/auth/login" `
+    -Method POST -Body $loginBody -ContentType "application/json"
+
+$token = $loginResponse.token
+
+# Intentar acceder al documento
+$headers = @{
+    "Authorization" = "Bearer $token"
+}
+
+# Si tiene permiso: retorna 200 con el contenido
+# Si no tiene permiso: retorna 403 Forbidden
+try {
+    $contenido = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/$mongoId/contenido" `
+        -Method GET -Headers $headers
+    Write-Host "✓ Acceso permitido - Contenido obtenido"
+} catch {
+    if ($_.Exception.Response.StatusCode -eq 403) {
+        Write-Host "✗ Acceso denegado - No tiene permisos"
+    }
+}
+```
+
+**Nota:** Todos los intentos de acceso (exitosos y denegados) se registran automáticamente en el servicio de políticas.
+
+### 3. Solicitar Acceso desde el Componente Periférico
+
+Un profesional puede solicitar acceso a documentos de un paciente:
+
+```powershell
+$solicitudBody = @{
+    codDocumPaciente = "12345678"
+    tipoDocumento = "text/plain"  # Opcional
+    documentoId = "doc-123"       # Opcional - para un documento específico
+    razonSolicitud = "Necesito revisar el historial del paciente para una consulta"
+    especialidad = "Cardiología"  # Opcional
+} | ConvertTo-Json
+
+$solicitud = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/solicitar-acceso" `
+    -Method POST -Body $solicitudBody -ContentType "application/json" -Headers $headers
+
+Write-Host "Solicitud creada: ID $($solicitud.solicitudId)"
+Write-Host "Estado: $($solicitud.estado)"  # PENDIENTE
+```
+
+La solicitud queda en estado `PENDIENTE` y debe ser aprobada por el paciente a través del servicio de políticas:
+
+```powershell
+# El paciente aprueba la solicitud (desde el servicio de políticas)
+$aprobarBody = @{
+    resueltoPor = "paciente_12345678"
+    comentario = "Aprobado por el paciente"
+} | ConvertTo-Json
+
+$solicitudAprobada = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-politicas-service/api/solicitudes/$($solicitud.solicitudId)/aprobar" `
+    -Method POST -Body $aprobarBody -ContentType "application/json"
+
+Write-Host "Solicitud aprobada: Estado $($solicitudAprobada.estado)"
+```
+
+### 4. Verificar Registros de Acceso
+
+Para ver todos los accesos registrados:
+
+```powershell
+# Ver registros de un paciente
+$registros = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-politicas-service/api/registros/paciente/12345678" `
+    -Method GET
+
+Write-Host "Registros encontrados: $($registros.Count)"
+foreach ($registro in $registros) {
+    Write-Host "  - Fecha: $($registro.fecha), Referencia: $($registro.referencia)"
+}
+```
+
+## Características de Seguridad
+
+### Verificación Automática de Permisos
+
+- ✅ **Al acceder a un documento**: El sistema verifica automáticamente si el profesional tiene permiso
+- ✅ **Registro de accesos**: Todos los accesos se registran (exitosos y denegados)
+- ✅ **Auditoría completa**: Se puede consultar quién accedió a qué documentos y cuándo
+
+### Flujo de Solicitud de Acceso
+
+1. **Profesional solicita acceso** → Estado: `PENDIENTE`
+2. **Paciente revisa solicitud** → Puede aprobar o rechazar
+3. **Si se aprueba** → Se puede crear una política de acceso automática
+4. **Profesional puede acceder** → Si tiene política activa
+
+### Integración con Servicio de Políticas
+
+El componente periférico se comunica con el servicio de políticas en:
+- **URL por defecto**: `http://127.0.0.1:8080/hcen-politicas-service/api`
+- **Configurable**: Variable de entorno `POLITICAS_SERVICE_URL`
 
 ## Creación Automática de Pacientes
 

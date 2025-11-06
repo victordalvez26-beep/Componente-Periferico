@@ -1,25 +1,27 @@
 # Documentación Componente Periférico
 
-Esta carpeta contiene documentación adicional del componente periférico (backend de clínica).
+Esta carpeta contiene documentación adicional del componente periférico.
 
 ## 📚 Contenido
 
-- **`openapi-periferico.yaml`**: Especificación OpenAPI 3.0 de la API del componente periférico
-  - Incluye todos los endpoints REST
-  - Documenta autenticación JWT de usuarios
-  - Endpoint `/documentos/completo` con autenticación automática entre servicios
-  - Endpoints de consulta y descarga de documentos
+### APIs REST
 
-- **`README-TESTING.md`**: Documentación de testing (si existe)
+- **`openapi-periferico.yaml`**: Especificación OpenAPI 3.0 completa de la API del componente periférico
+  - Incluye todos los endpoints REST
+  - Documenta autenticación JWT
+  - Endpoints de documentos con verificación de permisos
+  - Endpoint de solicitud de acceso
+
+### Guías de Uso
+
+- **`README-POLITICAS.md`**: Guía completa de integración con políticas de acceso
+  - Verificación automática de permisos
+  - Solicitud de acceso desde el componente periférico
+  - Registro de accesos para auditoría
+  - Ejemplos de uso con PowerShell
+  - Flujos completos paso a paso
 
 **⚠️ Nota:** Usar `127.0.0.1:8080` en lugar de `localhost:8080` para las pruebas.
-
-**🔐 Autenticación:** El componente periférico incluye autenticación JWT automática cuando se comunica con el HCEN central. Ver [`../../../GUIA-AUTENTICACION-SERVICIOS.md`](../../../GUIA-AUTENTICACION-SERVICIOS.md) para más detalles.
-
-## Archivos
-
-- **`openapi-periferico.yaml`** - Especificación OpenAPI 3.0 completa de la API REST del componente periférico
-- **`README-TESTING.md`** - Guía de testing y pruebas adicionales
 
 ## Uso de la Documentación OpenAPI
 
@@ -38,11 +40,30 @@ Para visualizar la documentación OpenAPI, puedes usar:
 
 3. **Editor Online**: Usar [Swagger Editor](https://editor.swagger.io/) para ver y editar
 
-## Verificación del Flujo
+## Endpoints Principales
 
-Ver el README principal (`../README.md`) para instrucciones completas sobre cómo probar el flujo end-to-end, incluyendo:
-- Creación de tenant y usuario admin
-- Login y obtención de token JWT
-- Creación de documentos completos
-- Verificación de creación automática de pacientes
+### Documentos
 
+- `GET /api/documentos/{id}/contenido` - Descarga contenido con verificación de permisos
+- `POST /api/documentos/solicitar-acceso` - Solicitar acceso a documentos de un paciente
+- `POST /api/documentos/completo` - Crear documento completo
+- `GET /api/documentos/paciente/{documentoIdPaciente}/metadatos` - Metadatos del paciente
+
+### Autenticación
+
+- `POST /api/auth/login` - Login y obtención de token JWT
+- `POST /api/config/init` - Crear tenant y usuario admin
+- `POST /api/config/activate-simple` - Activar usuario admin
+
+## Integración con Servicios
+
+El componente periférico se integra con:
+
+- **HCEN Central**: Para envío de metadatos y consulta de información
+- **Servicio de Políticas**: Para verificación de permisos y solicitudes de acceso
+- **MongoDB**: Para almacenamiento de contenido de documentos
+
+## Referencias
+
+- [README Principal](../README.md) - Guía completa del componente periférico
+- [Guía de Compilación y Despliegue](../../../GUIA-COMPILACION-DESPLIEGUE.md) - Instrucciones detalladas

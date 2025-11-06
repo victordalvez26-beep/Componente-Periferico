@@ -1,18 +1,21 @@
 package uy.edu.tse.hcen.service;
 
-import uy.edu.tse.hcen.repository.DocumentoClinicoRepository;
-import uy.edu.tse.hcen.context.TenantContext;
-import uy.edu.tse.hcen.dto.DTMetadatos;
-import jakarta.ejb.Stateless;
+import com.mongodb.client.result.InsertOneResult;
+import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
-import org.bson.Document;
-import jakarta.json.bind.Jsonb;
-import jakarta.json.bind.JsonbBuilder;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.core.Response;
+import jakarta.json.bind.Jsonb;
+import jakarta.json.bind.JsonbBuilder;
+import org.bson.Document;
+import uy.edu.tse.hcen.dto.DTMetadatos;
+import uy.edu.tse.hcen.multitenancy.TenantContext;
+import uy.edu.tse.hcen.repository.DocumentoClinicoRepository;
+import uy.edu.tse.hcen.exceptions.HcenUnavailableException;
+
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -27,7 +30,7 @@ import java.util.UUID;
  * Se expone como EJB Stateless para facilidad de integración y posibles necesidades
  * transaccionales en el futuro.
  */
-@Stateless
+@RequestScoped
 public class DocumentoService {
 
     @Inject
@@ -90,7 +93,7 @@ public class DocumentoService {
 
         // 2) Validar tenant
         String metaTenant = metadatos != null ? metadatos.getTenantId() : null;
-        String currentTenant = tenantContext.getTenantId();
+        String currentTenant = uy.edu.tse.hcen.multitenancy.TenantContext.getCurrentTenant();
         if (currentTenant == null || metaTenant == null || !currentTenant.equals(metaTenant)) {
             throw new SecurityException("Tenant mismatch: usuario no autorizado para subir este contenido");
         }
@@ -123,6 +126,41 @@ public class DocumentoService {
     }
 
     /**
+     * Obtiene los metadatos de un documento por su documentoId.
+     * Consulta RNDC vía HCEN central.
+     * 
+     * @param documentoId ID del documento (UUID)
+     * @return Metadatos del documento o null si no se encuentra
+     */
+    public Map<String, Object> obtenerMetadatosPorDocumentoId(String documentoId) {
+        try {
+            // Consultar RNDC directamente o vía HCEN central
+            String rndcBase = System.getProperty("RNDC_METADATOS_URL",
+                    System.getenv().getOrDefault("RNDC_METADATOS_URL", "http://127.0.0.1:8080/rndc/api"));
+            
+            String url = rndcBase + "/metadatos/" + documentoId;
+            
+            try (Client client = ClientBuilder.newClient();
+                 Response response = client.target(url)
+                        .request(MediaType.APPLICATION_JSON)
+                        .get()) {
+                
+                if (response.getStatus() == 200) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> metadatos = response.readEntity(Map.class);
+                    return metadatos;
+                } else if (response.getStatus() == 404) {
+                    return null;
+                } else {
+                    return null;
+                }
+            }
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    /**
      * Crea un documento clínico completo: guarda el contenido en MongoDB y envía los metadatos al HCEN central.
      * @param body Map con "contenido" (requerido), "documentoIdPaciente" (requerido) y otros campos opcionales de metadatos
      * @return Map con el resultado incluyendo documentoId, urlAcceso, etc.
@@ -152,14 +190,14 @@ public class DocumentoService {
         }
 
         // 3) Obtener tenantId del contexto
-        String tenantId = tenantContext.getTenantId();
+        String tenantId = uy.edu.tse.hcen.multitenancy.TenantContext.getCurrentTenant();
         if (tenantId == null) {
             // Intentar obtener desde el body si está disponible
             Object bodyTenantId = body.get("tenantId");
             if (bodyTenantId != null) {
                 tenantId = bodyTenantId.toString();
                 // Establecer en el contexto para uso posterior
-                tenantContext.setTenantId(tenantId);
+                uy.edu.tse.hcen.multitenancy.TenantContext.setCurrentTenant(tenantId);
             } else {
                 throw new SecurityException("No hay tenantId en el contexto de la solicitud ni en el body");
             }

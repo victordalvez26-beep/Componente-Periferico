@@ -231,25 +231,79 @@ paths:
   /documentos/{id}/contenido:
     get:
       summary: Descargar contenido del documento
-      description: Descarga el contenido de un documento
+      description: |
+        Descarga el contenido de un documento clínico.
+        
+        **⚠️ Verificación de Permisos:** Este endpoint verifica automáticamente si el profesional autenticado
+        tiene permisos para acceder al documento antes de devolverlo. Si no tiene permisos, retorna 403 Forbidden.
+        
+        **📝 Registro de Acceso:** Todos los accesos (exitosos y denegados) se registran automáticamente
+        en el servicio de políticas para auditoría.
       operationId: descargarContenido
       tags:
         - Documentos
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
           required: true
+          description: ID del documento (MongoDB _id hex string)
           schema:
             type: string
+            example: "690bb94df439e34986bf1ab7"
       responses:
         '200':
-          description: Contenido del documento
+          description: Contenido del documento (acceso permitido)
           content:
             text/plain:
               schema:
                 type: string
+                example: "Este es el contenido del documento clínico..."
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+              description: Si el formato es PDF, se devuelve como binario
+          headers:
+            Content-Disposition:
+              description: Header para indicar el nombre del archivo
+              schema:
+                type: string
+                example: 'inline; filename="documento_690bb94df439e34986bf1ab7.txt"'
+        '400':
+          description: ID inválido o faltante
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "id required"
+        '401':
+          description: No autenticado o profesional no identificado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Autenticación requerida"
+        '403':
+          description: Acceso denegado - No tiene permisos para acceder a este documento
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "No tiene permisos para acceder a este documento"
+                detail: "No tiene permisos para acceder a este documento"
         '404':
-          description: Documento no encontrado
+          description: Documento no encontrado o sin contenido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "document not found or invalid id"
 
   /documentos/paciente/{documentoIdPaciente}/metadatos:
     get:
@@ -302,6 +356,121 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  /documentos/solicitar-acceso:
+    post:
+      summary: Solicitar acceso a documentos de un paciente
+      description: |
+        Permite a un profesional solicitar acceso a documentos clínicos de un paciente.
+        
+        La solicitud se crea con estado `PENDIENTE` y debe ser aprobada o rechazada por el paciente
+        a través del servicio de políticas (`/hcen-politicas-service/api/solicitudes/{id}/aprobar` o `/rechazar`).
+        
+        Una vez aprobada, se puede crear una política de acceso automática que permita al profesional
+        acceder a los documentos del paciente.
+      operationId: solicitarAcceso
+      tags:
+        - Documentos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - codDocumPaciente
+              properties:
+                codDocumPaciente:
+                  type: string
+                  description: CI o documento de identidad del paciente
+                  example: "12345678"
+                tipoDocumento:
+                  type: string
+                  description: Tipo de documento específico (opcional). Si no se especifica, se solicita acceso a todos los documentos.
+                  example: "text/plain"
+                  nullable: true
+                documentoId:
+                  type: string
+                  description: ID específico del documento (opcional). Si se especifica, se solicita acceso solo a ese documento.
+                  example: "dbe1515b-b56d-4f46-8b61-1299c88f5d2e"
+                  nullable: true
+                razonSolicitud:
+                  type: string
+                  description: Razón por la cual se solicita acceso (opcional)
+                  example: "Necesito revisar el historial del paciente para una consulta"
+                  nullable: true
+                especialidad:
+                  type: string
+                  description: Especialidad del profesional (opcional, se puede obtener del contexto si no se envía)
+                  example: "Cardiología"
+                  nullable: true
+            example:
+              codDocumPaciente: "12345678"
+              tipoDocumento: "text/plain"
+              documentoId: "dbe1515b-b56d-4f46-8b61-1299c88f5d2e"
+              razonSolicitud: "Necesito revisar el historial del paciente para una consulta"
+              especialidad: "Cardiología"
+      responses:
+        '201':
+          description: Solicitud de acceso creada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  solicitudId:
+                    type: integer
+                    format: int64
+                    description: ID de la solicitud creada
+                    example: 1
+                  profesionalId:
+                    type: string
+                    description: ID del profesional que solicitó acceso (obtenido del token)
+                    example: "prof_001"
+                  codDocumPaciente:
+                    type: string
+                    description: CI del paciente
+                    example: "12345678"
+                  estado:
+                    type: string
+                    description: Estado de la solicitud
+                    example: "PENDIENTE"
+                  mensaje:
+                    type: string
+                    description: Mensaje de confirmación
+                    example: "Solicitud de acceso creada exitosamente"
+              example:
+                solicitudId: 1
+                profesionalId: "prof_001"
+                codDocumPaciente: "12345678"
+                estado: "PENDIENTE"
+                mensaje: "Solicitud de acceso creada exitosamente"
+        '400':
+          description: Error de validación - campos requeridos faltantes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "codDocumPaciente es requerido"
+        '401':
+          description: No autenticado o profesional no identificado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Autenticación requerida"
+        '500':
+          description: Error interno al crear la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Error al crear solicitud de acceso"
 
   /profesionales:
     get:
