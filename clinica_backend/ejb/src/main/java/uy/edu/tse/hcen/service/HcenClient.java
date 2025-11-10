@@ -8,7 +8,10 @@ import uy.edu.tse.hcen.exceptions.HcenUnavailableException;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.client.Entity;
+import jakarta.ws.rs.client.Invocation.Builder;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+
 import java.util.Map;
 import java.util.logging.Logger;
 // response type is referenced fully-qualified in code to avoid unused import warnings
@@ -90,7 +93,7 @@ public class HcenClient {
                     "serviceName", SERVICE_NAME
                 );
                 
-                try (jakarta.ws.rs.core.Response response = client.target(authUrl)
+                try (Response response = client.target(authUrl)
                         .request(MediaType.APPLICATION_JSON)
                         .post(Entity.json(authRequest))) {
                     
@@ -122,7 +125,7 @@ public class HcenClient {
 
         // Usar try-with-resources para cerrar recursos automáticamente
         try (Client client = ClientBuilder.newClient()) {
-            jakarta.ws.rs.client.Invocation.Builder requestBuilder = client.target(centralUrl)
+            Builder requestBuilder = client.target(centralUrl)
                     .request(MediaType.APPLICATION_JSON);
             
             // Agregar token de servicio si está disponible
@@ -130,7 +133,7 @@ public class HcenClient {
                 requestBuilder.header(HEADER_AUTHORIZATION, BEARER_PREFIX + serviceToken);
             }
             
-            try (jakarta.ws.rs.core.Response response = requestBuilder.post(Entity.json(dto))) {
+            try (Response response = requestBuilder.post(Entity.json(dto))) {
                 int status = response.getStatus();
                 if (status == 401 || status == 403) {
                     // Token inválido o expirado, limpiar cache y reintentar una vez
@@ -154,10 +157,10 @@ public class HcenClient {
         // Reintentar con nuevo token
         String newToken = getServiceToken();
         if (newToken != null) {
-            jakarta.ws.rs.client.Invocation.Builder retryBuilder = client.target(centralUrl)
+            Builder retryBuilder = client.target(centralUrl)
                     .request(MediaType.APPLICATION_JSON)
                     .header(HEADER_AUTHORIZATION, BEARER_PREFIX + newToken);
-            try (jakarta.ws.rs.core.Response retryResponse = retryBuilder.post(Entity.json(payload))) {
+            try (Response retryResponse = retryBuilder.post(Entity.json(payload))) {
                 int retryStatus = retryResponse.getStatus();
                 if (retryStatus != 200 && retryStatus != 201 && retryStatus != 202) {
                     String errorMsg = retryResponse.hasEntity() ? retryResponse.readEntity(String.class) : ERROR_UNKNOWN;
