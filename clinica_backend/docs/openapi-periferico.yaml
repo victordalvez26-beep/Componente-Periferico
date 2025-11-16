@@ -785,6 +785,438 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /documentos/politicas:
+    post:
+      summary: Crear política de acceso
+      description: |
+        Crea una política de acceso para un profesional específico y un paciente.
+        
+        Permite definir qué profesional puede acceder a qué documentos de qué paciente,
+        con diferentes alcances, duraciones y tipos de gestión.
+      operationId: crearPolitica
+      tags:
+        - Políticas
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - profesionalAutorizado
+              properties:
+                alcance:
+                  type: string
+                  enum: [TODOS_LOS_DOCUMENTOS, DOCUMENTOS_POR_TIPO, UN_DOCUMENTO_ESPECIFICO]
+                  default: TODOS_LOS_DOCUMENTOS
+                  description: Alcance de la política
+                duracion:
+                  type: string
+                  enum: [INDEFINIDA, TEMPORAL]
+                  default: INDEFINIDA
+                  description: Duración de la política
+                gestion:
+                  type: string
+                  enum: [AUTOMATICA, MANUAL]
+                  default: AUTOMATICA
+                  description: Tipo de gestión de acceso
+                codDocumPaciente:
+                  type: string
+                  description: CI del paciente (opcional)
+                  example: "12345678"
+                profesionalAutorizado:
+                  type: string
+                  description: ID o nickname del profesional autorizado
+                  example: "admin_c101"
+                tipoDocumento:
+                  type: string
+                  description: Tipo de documento (opcional, requerido si alcance es DOCUMENTOS_POR_TIPO)
+                  example: "text/plain"
+                fechaVencimiento:
+                  type: string
+                  format: date-time
+                  description: Fecha de vencimiento (opcional, requerida si duracion es TEMPORAL)
+                  example: "2025-12-31T23:59:59Z"
+                referencia:
+                  type: string
+                  description: Referencia o descripción de la política
+                  example: "Política de acceso para consulta"
+            example:
+              alcance: "TODOS_LOS_DOCUMENTOS"
+              duracion: "INDEFINIDA"
+              gestion: "AUTOMATICA"
+              codDocumPaciente: "12345678"
+              profesionalAutorizado: "admin_c101"
+              referencia: "Política de acceso para consulta"
+      responses:
+        '201':
+          description: Política creada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  politicaId:
+                    type: integer
+                    format: int64
+                    description: ID de la política creada
+                    example: 1
+                  mensaje:
+                    type: string
+                    example: "Política creada exitosamente"
+                  alcance:
+                    type: string
+                    example: "TODOS_LOS_DOCUMENTOS"
+                  duracion:
+                    type: string
+                    example: "INDEFINIDA"
+                  gestion:
+                    type: string
+                    example: "AUTOMATICA"
+        '400':
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Error interno al crear la política
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      summary: Listar todas las políticas
+      description: Obtiene todas las políticas de acceso registradas
+      operationId: listarPoliticas
+      tags:
+        - Políticas
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de políticas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PoliticaAcceso'
+
+  /documentos/politicas/global:
+    post:
+      summary: Crear política global
+      description: |
+        Crea una política global que permite a un profesional acceder a TODOS los pacientes.
+        
+        Este tipo de política es útil para administradores o profesionales que necesitan
+        acceso amplio al sistema. Solo puede ser creada por administradores.
+      operationId: crearPoliticaGlobal
+      tags:
+        - Políticas
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - profesionalAutorizado
+              properties:
+                alcance:
+                  type: string
+                  enum: [TODOS_LOS_DOCUMENTOS, DOCUMENTOS_POR_TIPO, UN_DOCUMENTO_ESPECIFICO]
+                  default: TODOS_LOS_DOCUMENTOS
+                duracion:
+                  type: string
+                  enum: [INDEFINIDA, TEMPORAL]
+                  default: INDEFINIDA
+                gestion:
+                  type: string
+                  enum: [AUTOMATICA, MANUAL]
+                  default: AUTOMATICA
+                profesionalAutorizado:
+                  type: string
+                  description: ID o nickname del profesional autorizado
+                  example: "admin_c101"
+                tipoDocumento:
+                  type: string
+                  description: Tipo de documento (opcional)
+                fechaVencimiento:
+                  type: string
+                  format: date-time
+                  description: Fecha de vencimiento (opcional)
+                referencia:
+                  type: string
+                  description: Referencia o descripción
+                  default: "Política global"
+            example:
+              alcance: "TODOS_LOS_DOCUMENTOS"
+              duracion: "INDEFINIDA"
+              gestion: "AUTOMATICA"
+              profesionalAutorizado: "admin_c101"
+              referencia: "Política global de prueba"
+      responses:
+        '201':
+          description: Política global creada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  politicaId:
+                    type: integer
+                    format: int64
+                    example: 2
+                  mensaje:
+                    type: string
+                    example: "Política global creada exitosamente"
+                  tipo:
+                    type: string
+                    example: "GLOBAL"
+                  profesionalAutorizado:
+                    type: string
+                    example: "admin_c101"
+                  alcance:
+                    type: string
+                    example: "TODOS_LOS_DOCUMENTOS"
+        '400':
+          description: Error de validación
+        '401':
+          description: No autenticado
+        '403':
+          description: Solo administradores pueden crear políticas globales
+        '500':
+          description: Error interno
+
+  /documentos/politicas/especialidad:
+    post:
+      summary: Crear políticas por especialidad
+      description: |
+        Crea políticas de acceso para todos los profesionales de una especialidad específica
+        y un paciente. Crea una política por cada profesional de esa especialidad.
+        
+        Útil para otorgar acceso masivo a un grupo de profesionales con la misma especialidad.
+      operationId: crearPoliticasPorEspecialidad
+      tags:
+        - Políticas
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - especialidad
+                - codDocumPaciente
+              properties:
+                especialidad:
+                  type: string
+                  description: Especialidad médica (nombre del enum, ej: "MEDICINA_GENERAL", "CARDIOLOGIA")
+                  example: "MEDICINA_GENERAL"
+                codDocumPaciente:
+                  type: string
+                  description: CI del paciente
+                  example: "12345678"
+                alcance:
+                  type: string
+                  enum: [TODOS_LOS_DOCUMENTOS, DOCUMENTOS_POR_TIPO, UN_DOCUMENTO_ESPECIFICO]
+                  default: TODOS_LOS_DOCUMENTOS
+                duracion:
+                  type: string
+                  enum: [INDEFINIDA, TEMPORAL]
+                  default: INDEFINIDA
+                gestion:
+                  type: string
+                  enum: [AUTOMATICA, MANUAL]
+                  default: AUTOMATICA
+                tipoDocumento:
+                  type: string
+                  description: Tipo de documento (opcional)
+                fechaVencimiento:
+                  type: string
+                  format: date-time
+                  description: Fecha de vencimiento (opcional)
+                referencia:
+                  type: string
+                  description: Referencia o descripción
+            example:
+              especialidad: "MEDICINA_GENERAL"
+              codDocumPaciente: "12345678"
+              alcance: "TODOS_LOS_DOCUMENTOS"
+              duracion: "INDEFINIDA"
+              gestion: "AUTOMATICA"
+              referencia: "Política por especialidad MEDICINA_GENERAL"
+      responses:
+        '201':
+          description: Políticas creadas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mensaje:
+                    type: string
+                    example: "Políticas creadas por especialidad"
+                  especialidad:
+                    type: string
+                    example: "MEDICINA_GENERAL"
+                  codDocumPaciente:
+                    type: string
+                    example: "12345678"
+                  totalProfesionales:
+                    type: integer
+                    description: Total de profesionales encontrados con esa especialidad
+                    example: 3
+                  politicasExitosas:
+                    type: integer
+                    description: Número de políticas creadas exitosamente
+                    example: 3
+                  politicasFallidas:
+                    type: integer
+                    description: Número de políticas que fallaron al crearse
+                    example: 0
+                  politicas:
+                    type: array
+                    description: Lista de políticas creadas
+                    items:
+                      type: object
+                      properties:
+                        politicaId:
+                          type: integer
+                          format: int64
+                        profesionalId:
+                          type: string
+                        profesionalNombre:
+                          type: string
+        '400':
+          description: Error de validación
+        '401':
+          description: No autenticado
+        '403':
+          description: Solo administradores pueden crear políticas por especialidad
+        '404':
+          description: No se encontraron profesionales con esa especialidad
+        '500':
+          description: Error interno
+
+  /documentos/politicas/paciente/{ci}:
+    get:
+      summary: Listar políticas por paciente
+      description: Obtiene todas las políticas de acceso activas para un paciente específico
+      operationId: listarPoliticasPorPaciente
+      tags:
+        - Políticas
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ci
+          in: path
+          required: true
+          description: CI o documento de identidad del paciente
+          schema:
+            type: string
+            example: "12345678"
+      responses:
+        '200':
+          description: Lista de políticas del paciente
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PoliticaAcceso'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+
+  /documentos/politicas/profesional/{id}:
+    get:
+      summary: Listar políticas por profesional
+      description: Obtiene todas las políticas de acceso de un profesional específico
+      operationId: listarPoliticasPorProfesional
+      tags:
+        - Políticas
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID o nickname del profesional
+          schema:
+            type: string
+            example: "admin_c101"
+      responses:
+        '200':
+          description: Lista de políticas del profesional
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PoliticaAcceso'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+
+  /documentos/politicas/{id}:
+    delete:
+      summary: Eliminar política
+      description: Elimina una política de acceso
+      operationId: eliminarPolitica
+      tags:
+        - Políticas
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID de la política a eliminar
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        '200':
+          description: Política eliminada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  politicaId:
+                    type: integer
+                    format: int64
+                    example: 1
+                  mensaje:
+                    type: string
+                    example: "Política eliminada exitosamente"
+        '401':
+          description: No autenticado
+        '403':
+          description: Solo administradores pueden eliminar políticas
+        '404':
+          description: Política no encontrada
+        '500':
+          description: Error interno
+
   /profesionales:
     get:
       summary: Listar profesionales
@@ -1097,6 +1529,73 @@ components:
         detail:
           type: string
 
+    PoliticaAcceso:
+      type: object
+      description: |
+        Política de acceso a documentos clínicos. Define qué profesional puede acceder
+        a qué documentos de qué paciente, con diferentes alcances, duraciones y tipos de gestión.
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: ID único de la política
+          example: 1
+        alcance:
+          type: string
+          enum: [TODOS_LOS_DOCUMENTOS, DOCUMENTOS_POR_TIPO, UN_DOCUMENTO_ESPECIFICO]
+          description: Alcance de la política
+          example: "TODOS_LOS_DOCUMENTOS"
+        duracion:
+          type: string
+          enum: [INDEFINIDA, TEMPORAL]
+          description: Duración de la política
+          example: "INDEFINIDA"
+        gestion:
+          type: string
+          enum: [AUTOMATICA, MANUAL]
+          description: Tipo de gestión de acceso
+          example: "AUTOMATICA"
+        fechaCreacion:
+          type: string
+          format: date-time
+          description: Fecha de creación de la política
+          example: "2025-01-15T10:30:00Z"
+        codDocumPaciente:
+          type: string
+          description: CI o documento de identidad del paciente
+          example: "12345678"
+          nullable: true
+        profesionalAutorizado:
+          type: string
+          description: ID o nickname del profesional autorizado
+          example: "admin_c101"
+        tipoDocumento:
+          type: string
+          description: Tipo de documento (opcional)
+          example: "text/plain"
+          nullable: true
+        fechaVencimiento:
+          type: string
+          format: date-time
+          description: Fecha de vencimiento (opcional, requerida si duracion es TEMPORAL)
+          example: "2025-12-31T23:59:59Z"
+          nullable: true
+        referencia:
+          type: string
+          description: Referencia o descripción de la política
+          example: "Política de acceso para consulta"
+          nullable: true
+        activa:
+          type: boolean
+          description: Indica si la política está activa
+          example: true
+      required:
+        - id
+        - alcance
+        - duracion
+        - gestion
+        - profesionalAutorizado
+
 tags:
   - name: Health
     description: Endpoints de salud del servicio
@@ -1106,6 +1605,8 @@ tags:
     description: Configuración de tenants y usuarios
   - name: Documentos
     description: Gestión de documentos clínicos
+  - name: Políticas
+    description: Configuración de políticas de acceso a documentos
   - name: Profesionales
     description: Gestión de profesionales de salud
   - name: Portal

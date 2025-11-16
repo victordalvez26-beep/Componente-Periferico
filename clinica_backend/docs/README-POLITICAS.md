@@ -464,6 +464,177 @@ Write-Host "Accesos del profesional: $($registrosProf.Count)"
    - `/documentos/solicitudes/{id}/rechazar`: Para rechazar solicitudes (desde componente periférico)
 7. **Aprobación/Rechazo**: Los endpoints de aprobar y rechazar están disponibles tanto en el componente periférico como en el servicio de políticas. Ambos funcionan de la misma manera.
 
+## Configuración de Políticas
+
+### Endpoints de Configuración
+
+El componente periférico proporciona endpoints adicionales para configurar políticas de acceso de manera más conveniente:
+
+#### 1. Crear Política Específica
+
+**Endpoint:** `POST /api/documentos/politicas`
+
+**Descripción:** Crea una política de acceso para un profesional específico y un paciente.
+
+**Autenticación:** Requerida (Bearer Token)
+
+**Request Body:**
+```json
+{
+  "alcance": "TODOS_LOS_DOCUMENTOS",
+  "duracion": "INDEFINIDA",
+  "gestion": "AUTOMATICA",
+  "codDocumPaciente": "12345678",
+  "profesionalAutorizado": "admin_c101",
+  "referencia": "Política de acceso para consulta"
+}
+```
+
+**Ejemplo:**
+```powershell
+$politicaBody = @{
+    alcance = "TODOS_LOS_DOCUMENTOS"
+    duracion = "INDEFINIDA"
+    gestion = "AUTOMATICA"
+    codDocumPaciente = "12345678"
+    profesionalAutorizado = "admin_c101"
+    referencia = "Política de acceso para consulta"
+} | ConvertTo-Json
+
+$politica = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/politicas" `
+    -Method POST -Body $politicaBody -ContentType "application/json" -Headers $headers
+
+Write-Host "Política creada. ID: $($politica.politicaId)"
+```
+
+#### 2. Crear Política Global
+
+**Endpoint:** `POST /api/documentos/politicas/global`
+
+**Descripción:** Crea una política global que permite a un profesional acceder a TODOS los pacientes. Solo administradores.
+
+**Autenticación:** Requerida (Bearer Token, rol ADMINISTRADOR)
+
+**Request Body:**
+```json
+{
+  "alcance": "TODOS_LOS_DOCUMENTOS",
+  "duracion": "INDEFINIDA",
+  "gestion": "AUTOMATICA",
+  "profesionalAutorizado": "admin_c101",
+  "referencia": "Política global"
+}
+```
+
+**Ejemplo:**
+```powershell
+$globalBody = @{
+    alcance = "TODOS_LOS_DOCUMENTOS"
+    duracion = "INDEFINIDA"
+    gestion = "AUTOMATICA"
+    profesionalAutorizado = "admin_c101"
+    referencia = "Política global"
+} | ConvertTo-Json
+
+$global = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/politicas/global" `
+    -Method POST -Body $globalBody -ContentType "application/json" -Headers $headers
+
+Write-Host "Política global creada. ID: $($global.politicaId)"
+```
+
+#### 3. Crear Políticas por Especialidad
+
+**Endpoint:** `POST /api/documentos/politicas/especialidad`
+
+**Descripción:** Crea políticas de acceso para todos los profesionales de una especialidad específica y un paciente. Solo administradores.
+
+**Autenticación:** Requerida (Bearer Token, rol ADMINISTRADOR)
+
+**Request Body:**
+```json
+{
+  "especialidad": "MEDICINA_GENERAL",
+  "codDocumPaciente": "12345678",
+  "alcance": "TODOS_LOS_DOCUMENTOS",
+  "duracion": "INDEFINIDA",
+  "gestion": "AUTOMATICA",
+  "referencia": "Política por especialidad"
+}
+```
+
+**Ejemplo:**
+```powershell
+$espBody = @{
+    especialidad = "MEDICINA_GENERAL"
+    codDocumPaciente = "12345678"
+    alcance = "TODOS_LOS_DOCUMENTOS"
+    duracion = "INDEFINIDA"
+    gestion = "AUTOMATICA"
+    referencia = "Política por especialidad MEDICINA_GENERAL"
+} | ConvertTo-Json
+
+$esp = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/politicas/especialidad" `
+    -Method POST -Body $espBody -ContentType "application/json" -Headers $headers
+
+Write-Host "Políticas creadas. Exitosas: $($esp.politicasExitosas), Total profesionales: $($esp.totalProfesionales)"
+```
+
+#### 4. Listar Todas las Políticas
+
+**Endpoint:** `GET /api/documentos/politicas`
+
+**Descripción:** Obtiene todas las políticas de acceso registradas.
+
+**Ejemplo:**
+```powershell
+$politicas = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/politicas" `
+    -Method GET -Headers $headers
+
+Write-Host "Total de políticas: $($politicas.Count)"
+```
+
+#### 5. Listar Políticas por Paciente
+
+**Endpoint:** `GET /api/documentos/politicas/paciente/{ci}`
+
+**Descripción:** Obtiene todas las políticas de acceso activas para un paciente específico.
+
+**Ejemplo:**
+```powershell
+$politicas = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/politicas/paciente/12345678" `
+    -Method GET -Headers $headers
+
+Write-Host "Políticas del paciente: $($politicas.Count)"
+```
+
+#### 6. Listar Políticas por Profesional
+
+**Endpoint:** `GET /api/documentos/politicas/profesional/{id}`
+
+**Descripción:** Obtiene todas las políticas de acceso de un profesional específico.
+
+**Ejemplo:**
+```powershell
+$politicas = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/politicas/profesional/admin_c101" `
+    -Method GET -Headers $headers
+
+Write-Host "Políticas del profesional: $($politicas.Count)"
+```
+
+#### 7. Eliminar Política
+
+**Endpoint:** `DELETE /api/documentos/politicas/{id}`
+
+**Descripción:** Elimina una política de acceso. Solo administradores.
+
+**Ejemplo:**
+```powershell
+$delete = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/politicas/1" `
+    -Method DELETE -Headers $headers
+
+Write-Host "Política eliminada: $($delete.mensaje)"
+```
+
 ## Referencias
 
 - [Documentación OpenAPI del Componente Periférico](openapi-periferico.yaml)

@@ -52,6 +52,16 @@ Para visualizar la documentación OpenAPI, puedes usar:
 - `POST /api/documentos/completo` - Crear documento completo
 - `GET /api/documentos/paciente/{documentoIdPaciente}/metadatos` - Metadatos del paciente
 
+### Políticas de Acceso
+
+- `POST /api/documentos/politicas` - Crear política de acceso para un profesional específico
+- `POST /api/documentos/politicas/global` - Crear política global (acceso a todos los pacientes)
+- `POST /api/documentos/politicas/especialidad` - Crear políticas por especialidad (masivo)
+- `GET /api/documentos/politicas` - Listar todas las políticas
+- `GET /api/documentos/politicas/paciente/{ci}` - Listar políticas por paciente
+- `GET /api/documentos/politicas/profesional/{id}` - Listar políticas por profesional
+- `DELETE /api/documentos/politicas/{id}` - Eliminar política
+
 ### Autenticación
 
 - `POST /api/auth/login` - Login y obtención de token JWT

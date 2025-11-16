@@ -46,6 +46,9 @@ public class DocumentoClinicoResource {
     @Inject
     private uy.edu.tse.hcen.service.PoliticasClient politicasClient;
 
+    @Inject
+    private uy.edu.tse.hcen.service.ProfesionalSaludService profesionalSaludService;
+
     @Context
     private jakarta.ws.rs.core.SecurityContext securityContext;
 
@@ -579,5 +582,326 @@ public class DocumentoClinicoResource {
             "resueltoPor", resueltoPor,
             "mensaje", "Solicitud rechazada exitosamente"
         )).build();
+    }
+
+    // ==================== ENDPOINTS DE CONFIGURACIÓN DE POLÍTICAS ====================
+
+    /**
+     * POST /api/documentos/politicas
+     * 
+     * Crea una política de acceso para un profesional específico y un paciente.
+     * 
+     * @param body JSON con los parámetros de la política
+     * @return Política creada
+     */
+    @POST
+    @Path("/politicas")
+    @RolesAllowed({"ADMINISTRADOR", "PROFESIONAL"})
+    public Response crearPolitica(Map<String, Object> body) {
+        try {
+            String alcance = (String) body.getOrDefault("alcance", "TODOS_LOS_DOCUMENTOS");
+            String duracion = (String) body.getOrDefault("duracion", "INDEFINIDA");
+            String gestion = (String) body.getOrDefault("gestion", "AUTOMATICA");
+            String codDocumPaciente = (String) body.get("codDocumPaciente");
+            String profesionalAutorizado = (String) body.get("profesionalAutorizado");
+            String tipoDocumento = (String) body.get("tipoDocumento");
+            String fechaVencimiento = (String) body.get("fechaVencimiento");
+            String referencia = (String) body.get("referencia");
+
+            if (profesionalAutorizado == null || profesionalAutorizado.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "profesionalAutorizado es requerido"))
+                        .build();
+            }
+
+            Long politicaId = politicasClient.crearPolitica(
+                    alcance, duracion, gestion,
+                    codDocumPaciente, profesionalAutorizado,
+                    tipoDocumento, fechaVencimiento, referencia);
+
+            if (politicaId == null) {
+                return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                        .entity(Map.of("error", "Error al crear la política"))
+                        .build();
+            }
+
+            return Response.status(Response.Status.CREATED)
+                    .entity(Map.of(
+                            "politicaId", politicaId,
+                            "mensaje", "Política creada exitosamente",
+                            "alcance", alcance,
+                            "duracion", duracion,
+                            "gestion", gestion
+                    ))
+                    .build();
+        } catch (Exception e) {
+            LOG.error("Error creando política", e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("error", "Error al crear la política: " + e.getMessage()))
+                    .build();
+        }
+    }
+
+    /**
+     * POST /api/documentos/politicas/global
+     * 
+     * Crea una política global que permite a un profesional acceder a TODOS los pacientes.
+     * Nota: Para políticas globales, codDocumPaciente debe ser null o "*".
+     * 
+     * @param body JSON con los parámetros de la política global
+     * @return Política creada
+     */
+    @POST
+    @Path("/politicas/global")
+    @RolesAllowed("ADMINISTRADOR")
+    public Response crearPoliticaGlobal(Map<String, Object> body) {
+        try {
+            String alcance = (String) body.getOrDefault("alcance", "TODOS_LOS_DOCUMENTOS");
+            String duracion = (String) body.getOrDefault("duracion", "INDEFINIDA");
+            String gestion = (String) body.getOrDefault("gestion", "AUTOMATICA");
+            String profesionalAutorizado = (String) body.get("profesionalAutorizado");
+            String tipoDocumento = (String) body.get("tipoDocumento");
+            String fechaVencimiento = (String) body.get("fechaVencimiento");
+            String referencia = (String) body.getOrDefault("referencia", "Política global");
+
+            if (profesionalAutorizado == null || profesionalAutorizado.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "profesionalAutorizado es requerido"))
+                        .build();
+            }
+
+            // Para políticas globales, codDocumPaciente es null
+            // Nota: El servicio de políticas puede requerir un valor especial para políticas globales
+            // Por ahora, usamos un valor especial "*" que el servicio puede interpretar
+            Long politicaId = politicasClient.crearPolitica(
+                    alcance, duracion, gestion,
+                    "*", // Valor especial para políticas globales
+                    profesionalAutorizado,
+                    tipoDocumento, fechaVencimiento, referencia);
+
+            if (politicaId == null) {
+                return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                        .entity(Map.of("error", "Error al crear la política global"))
+                        .build();
+            }
+
+            return Response.status(Response.Status.CREATED)
+                    .entity(Map.of(
+                            "politicaId", politicaId,
+                            "mensaje", "Política global creada exitosamente",
+                            "tipo", "GLOBAL",
+                            "profesionalAutorizado", profesionalAutorizado,
+                            "alcance", alcance
+                    ))
+                    .build();
+        } catch (Exception e) {
+            LOG.error("Error creando política global", e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("error", "Error al crear la política global: " + e.getMessage()))
+                    .build();
+        }
+    }
+
+    /**
+     * POST /api/documentos/politicas/especialidad
+     * 
+     * Crea políticas de acceso para todos los profesionales de una especialidad específica
+     * y un paciente. Crea una política por cada profesional de esa especialidad.
+     * 
+     * @param body JSON con los parámetros
+     * @return Resumen de políticas creadas
+     */
+    @POST
+    @Path("/politicas/especialidad")
+    @RolesAllowed("ADMINISTRADOR")
+    public Response crearPoliticasPorEspecialidad(Map<String, Object> body) {
+        try {
+            String especialidad = (String) body.get("especialidad");
+            String codDocumPaciente = (String) body.get("codDocumPaciente");
+            String alcance = (String) body.getOrDefault("alcance", "TODOS_LOS_DOCUMENTOS");
+            String duracion = (String) body.getOrDefault("duracion", "INDEFINIDA");
+            String gestion = (String) body.getOrDefault("gestion", "AUTOMATICA");
+            String tipoDocumento = (String) body.get("tipoDocumento");
+            String fechaVencimiento = (String) body.get("fechaVencimiento");
+            String referencia = (String) body.getOrDefault("referencia", 
+                    "Política por especialidad: " + especialidad);
+
+            if (especialidad == null || especialidad.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "especialidad es requerida"))
+                        .build();
+            }
+
+            if (codDocumPaciente == null || codDocumPaciente.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "codDocumPaciente es requerido"))
+                        .build();
+            }
+
+            // Buscar todos los profesionales de esa especialidad
+            List<uy.edu.tse.hcen.model.ProfesionalSalud> profesionales = 
+                    profesionalSaludService.findByEspecialidad(especialidad);
+
+            if (profesionales.isEmpty()) {
+                return Response.status(Response.Status.NOT_FOUND)
+                        .entity(Map.of("error", "No se encontraron profesionales con la especialidad: " + especialidad))
+                        .build();
+            }
+
+            // Crear una política para cada profesional
+            List<Map<String, Object>> politicasCreadas = new ArrayList<>();
+            int exitosas = 0;
+            int fallidas = 0;
+
+            for (uy.edu.tse.hcen.model.ProfesionalSalud profesional : profesionales) {
+                String profesionalNickname = profesional.getNickname();
+                Long politicaId = politicasClient.crearPolitica(
+                        alcance, duracion, gestion,
+                        codDocumPaciente, profesionalNickname,
+                        tipoDocumento, fechaVencimiento, referencia);
+
+                if (politicaId != null) {
+                    exitosas++;
+                    politicasCreadas.add(Map.of(
+                            "politicaId", politicaId,
+                            "profesionalId", profesionalNickname,
+                            "profesionalNombre", profesional.getNombre()
+                    ));
+                } else {
+                    fallidas++;
+                }
+            }
+
+            return Response.status(Response.Status.CREATED)
+                    .entity(Map.of(
+                            "mensaje", "Políticas creadas por especialidad",
+                            "especialidad", especialidad,
+                            "codDocumPaciente", codDocumPaciente,
+                            "totalProfesionales", profesionales.size(),
+                            "politicasExitosas", exitosas,
+                            "politicasFallidas", fallidas,
+                            "politicas", politicasCreadas
+                    ))
+                    .build();
+        } catch (Exception e) {
+            LOG.error("Error creando políticas por especialidad", e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("error", "Error al crear políticas por especialidad: " + e.getMessage()))
+                    .build();
+        }
+    }
+
+    /**
+     * GET /api/documentos/politicas
+     * 
+     * Lista todas las políticas de acceso.
+     * 
+     * @return Lista de políticas
+     */
+    @GET
+    @Path("/politicas")
+    @RolesAllowed({"ADMINISTRADOR", "PROFESIONAL"})
+    public Response listarPoliticas() {
+        try {
+            List<Map<String, Object>> politicas = politicasClient.listarPoliticas();
+            if (politicas == null) {
+                return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                        .entity(Map.of("error", "Error al listar políticas"))
+                        .build();
+            }
+            return Response.ok(politicas).build();
+        } catch (Exception e) {
+            LOG.error("Error listando políticas", e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("error", "Error al listar políticas: " + e.getMessage()))
+                    .build();
+        }
+    }
+
+    /**
+     * GET /api/documentos/politicas/paciente/{ci}
+     * 
+     * Lista las políticas de acceso de un paciente específico.
+     * 
+     * @param ci CI del paciente
+     * @return Lista de políticas del paciente
+     */
+    @GET
+    @Path("/politicas/paciente/{ci}")
+    @RolesAllowed({"ADMINISTRADOR", "PROFESIONAL"})
+    public Response listarPoliticasPorPaciente(@PathParam("ci") String ci) {
+        try {
+            List<Map<String, Object>> politicas = politicasClient.listarPoliticasPorPaciente(ci);
+            if (politicas == null) {
+                return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                        .entity(Map.of("error", "Error al listar políticas del paciente"))
+                        .build();
+            }
+            return Response.ok(politicas).build();
+        } catch (Exception e) {
+            LOG.error("Error listando políticas por paciente", e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("error", "Error al listar políticas del paciente: " + e.getMessage()))
+                    .build();
+        }
+    }
+
+    /**
+     * GET /api/documentos/politicas/profesional/{id}
+     * 
+     * Lista las políticas de acceso de un profesional específico.
+     * 
+     * @param id ID o nickname del profesional
+     * @return Lista de políticas del profesional
+     */
+    @GET
+    @Path("/politicas/profesional/{id}")
+    @RolesAllowed({"ADMINISTRADOR", "PROFESIONAL"})
+    public Response listarPoliticasPorProfesional(@PathParam("id") String id) {
+        try {
+            List<Map<String, Object>> politicas = politicasClient.listarPoliticasPorProfesional(id);
+            if (politicas == null) {
+                return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                        .entity(Map.of("error", "Error al listar políticas del profesional"))
+                        .build();
+            }
+            return Response.ok(politicas).build();
+        } catch (Exception e) {
+            LOG.error("Error listando políticas por profesional", e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("error", "Error al listar políticas del profesional: " + e.getMessage()))
+                    .build();
+        }
+    }
+
+    /**
+     * DELETE /api/documentos/politicas/{id}
+     * 
+     * Elimina una política de acceso.
+     * 
+     * @param id ID de la política a eliminar
+     * @return Respuesta de eliminación
+     */
+    @DELETE
+    @Path("/politicas/{id}")
+    @RolesAllowed("ADMINISTRADOR")
+    public Response eliminarPolitica(@PathParam("id") Long id) {
+        try {
+            boolean exito = politicasClient.eliminarPolitica(id);
+            if (!exito) {
+                return Response.status(Response.Status.NOT_FOUND)
+                        .entity(Map.of("error", "Política no encontrada o error al eliminar"))
+                        .build();
+            }
+            return Response.ok(Map.of(
+                    "politicaId", id,
+                    "mensaje", "Política eliminada exitosamente"
+            )).build();
+        } catch (Exception e) {
+            LOG.error("Error eliminando política", e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("error", "Error al eliminar la política: " + e.getMessage()))
+                    .build();
+        }
     }
 }

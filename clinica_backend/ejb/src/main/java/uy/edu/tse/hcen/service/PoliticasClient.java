@@ -8,6 +8,7 @@ import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.core.MediaType;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
 import java.util.logging.Logger;
 
 /**
@@ -234,6 +235,196 @@ public class PoliticasClient {
             }
         } catch (ProcessingException ex) {
             LOG.warning(String.format("Error registrando acceso: %s", ex.getMessage()));
+        }
+    }
+
+    /**
+     * Crea una política de acceso.
+     * 
+     * @param alcance Alcance de la política (TODOS_LOS_DOCUMENTOS, DOCUMENTOS_POR_TIPO, UN_DOCUMENTO_ESPECIFICO)
+     * @param duracion Duración (INDEFINIDA, TEMPORAL)
+     * @param gestion Gestión (AUTOMATICA, MANUAL)
+     * @param codDocumPaciente CI del paciente (null para políticas globales)
+     * @param profesionalAutorizado ID del profesional autorizado
+     * @param tipoDocumento Tipo de documento (opcional)
+     * @param fechaVencimiento Fecha de vencimiento (opcional, requerida si duracion es TEMPORAL)
+     * @param referencia Referencia o descripción de la política
+     * @return ID de la política creada o null si falló
+     */
+    public Long crearPolitica(String alcance, String duracion, String gestion,
+                              String codDocumPaciente, String profesionalAutorizado,
+                              String tipoDocumento, String fechaVencimiento, String referencia) {
+        String politicasUrl = System.getProperty(ENV_POLITICAS_URL,
+                System.getenv().getOrDefault(ENV_POLITICAS_URL, DEFAULT_POLITICAS_URL));
+        
+        String url = politicasUrl + "/politicas";
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("alcance", alcance != null ? alcance : "TODOS_LOS_DOCUMENTOS");
+        body.put("duracion", duracion != null ? duracion : "INDEFINIDA");
+        body.put("gestion", gestion != null ? gestion : "AUTOMATICA");
+        if (codDocumPaciente != null && !codDocumPaciente.isBlank()) {
+            body.put("codDocumPaciente", codDocumPaciente);
+        }
+        body.put("profesionalAutorizado", profesionalAutorizado != null ? profesionalAutorizado : "");
+        if (tipoDocumento != null && !tipoDocumento.isBlank()) {
+            body.put("tipoDocumento", tipoDocumento);
+        }
+        if (fechaVencimiento != null && !fechaVencimiento.isBlank()) {
+            body.put("fechaVencimiento", fechaVencimiento);
+        }
+        if (referencia != null && !referencia.isBlank()) {
+            body.put("referencia", referencia);
+        }
+
+        try (Client client = ClientBuilder.newClient();
+             jakarta.ws.rs.core.Response response = client.target(url)
+                    .request(MediaType.APPLICATION_JSON)
+                    .post(Entity.json(body))) {
+
+            int status = response.getStatus();
+            if (status == 201) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> result = response.readEntity(Map.class);
+                Object idObj = result.get("id");
+                if (idObj instanceof Number) {
+                    return ((Number) idObj).longValue();
+                }
+                return null;
+            } else {
+                String errorMsg = response.hasEntity() ? response.readEntity(String.class) : ERROR_UNKNOWN;
+                LOG.warning(String.format("Error creando política: HTTP %d - %s", status, errorMsg));
+                return null;
+            }
+        } catch (ProcessingException ex) {
+            LOG.warning(String.format("Error creando política: %s", ex.getMessage()));
+            return null;
+        }
+    }
+
+    /**
+     * Obtiene todas las políticas de acceso.
+     * 
+     * @return Lista de políticas o null si falló
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> listarPoliticas() {
+        String politicasUrl = System.getProperty(ENV_POLITICAS_URL,
+                System.getenv().getOrDefault(ENV_POLITICAS_URL, DEFAULT_POLITICAS_URL));
+        
+        String url = politicasUrl + "/politicas/listar";
+
+        try (Client client = ClientBuilder.newClient();
+             jakarta.ws.rs.core.Response response = client.target(url)
+                    .request(MediaType.APPLICATION_JSON)
+                    .get()) {
+
+            int status = response.getStatus();
+            if (status == 200) {
+                return response.readEntity(List.class);
+            } else {
+                String errorMsg = response.hasEntity() ? response.readEntity(String.class) : ERROR_UNKNOWN;
+                LOG.warning(String.format("Error listando políticas: HTTP %d - %s", status, errorMsg));
+                return null;
+            }
+        } catch (ProcessingException ex) {
+            LOG.warning(String.format("Error listando políticas: %s", ex.getMessage()));
+            return null;
+        }
+    }
+
+    /**
+     * Obtiene políticas por paciente.
+     * 
+     * @param codDocumPaciente CI del paciente
+     * @return Lista de políticas o null si falló
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> listarPoliticasPorPaciente(String codDocumPaciente) {
+        String politicasUrl = System.getProperty(ENV_POLITICAS_URL,
+                System.getenv().getOrDefault(ENV_POLITICAS_URL, DEFAULT_POLITICAS_URL));
+        
+        String url = politicasUrl + "/politicas/paciente/" + codDocumPaciente;
+
+        try (Client client = ClientBuilder.newClient();
+             jakarta.ws.rs.core.Response response = client.target(url)
+                    .request(MediaType.APPLICATION_JSON)
+                    .get()) {
+
+            int status = response.getStatus();
+            if (status == 200) {
+                return response.readEntity(List.class);
+            } else {
+                String errorMsg = response.hasEntity() ? response.readEntity(String.class) : ERROR_UNKNOWN;
+                LOG.warning(String.format("Error listando políticas por paciente: HTTP %d - %s", status, errorMsg));
+                return null;
+            }
+        } catch (ProcessingException ex) {
+            LOG.warning(String.format("Error listando políticas por paciente: %s", ex.getMessage()));
+            return null;
+        }
+    }
+
+    /**
+     * Obtiene políticas por profesional.
+     * 
+     * @param profesionalId ID del profesional
+     * @return Lista de políticas o null si falló
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> listarPoliticasPorProfesional(String profesionalId) {
+        String politicasUrl = System.getProperty(ENV_POLITICAS_URL,
+                System.getenv().getOrDefault(ENV_POLITICAS_URL, DEFAULT_POLITICAS_URL));
+        
+        String url = politicasUrl + "/politicas/profesional/" + profesionalId;
+
+        try (Client client = ClientBuilder.newClient();
+             jakarta.ws.rs.core.Response response = client.target(url)
+                    .request(MediaType.APPLICATION_JSON)
+                    .get()) {
+
+            int status = response.getStatus();
+            if (status == 200) {
+                return response.readEntity(List.class);
+            } else {
+                String errorMsg = response.hasEntity() ? response.readEntity(String.class) : ERROR_UNKNOWN;
+                LOG.warning(String.format("Error listando políticas por profesional: HTTP %d - %s", status, errorMsg));
+                return null;
+            }
+        } catch (ProcessingException ex) {
+            LOG.warning(String.format("Error listando políticas por profesional: %s", ex.getMessage()));
+            return null;
+        }
+    }
+
+    /**
+     * Elimina una política de acceso.
+     * 
+     * @param politicaId ID de la política a eliminar
+     * @return true si se eliminó exitosamente, false en caso contrario
+     */
+    public boolean eliminarPolitica(Long politicaId) {
+        String politicasUrl = System.getProperty(ENV_POLITICAS_URL,
+                System.getenv().getOrDefault(ENV_POLITICAS_URL, DEFAULT_POLITICAS_URL));
+        
+        String url = politicasUrl + "/politicas/" + politicaId;
+
+        try (Client client = ClientBuilder.newClient();
+             jakarta.ws.rs.core.Response response = client.target(url)
+                    .request(MediaType.APPLICATION_JSON)
+                    .delete()) {
+
+            int status = response.getStatus();
+            if (status == 204 || status == 200) {
+                return true;
+            } else {
+                String errorMsg = response.hasEntity() ? response.readEntity(String.class) : ERROR_UNKNOWN;
+                LOG.warning(String.format("Error eliminando política: HTTP %d - %s", status, errorMsg));
+                return false;
+            }
+        } catch (ProcessingException ex) {
+            LOG.warning(String.format("Error eliminando política: %s", ex.getMessage()));
+            return false;
         }
     }
 }

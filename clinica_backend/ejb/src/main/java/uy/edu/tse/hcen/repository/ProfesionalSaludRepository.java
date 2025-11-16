@@ -42,6 +42,28 @@ public class ProfesionalSaludRepository {
                 .getResultList();
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
     }
+
+    /**
+     * Busca profesionales por especialidad.
+     * 
+     * @param especialidad Especialidad a buscar (nombre del enum como String, ej: "MEDICINA_GENERAL")
+     * @return Lista de profesionales con esa especialidad
+     */
+    public List<ProfesionalSalud> findByEspecialidad(String especialidad) {
+        try {
+            // Convertir String a enum
+            uy.edu.tse.hcen.model.enums.Especialidad especialidadEnum = 
+                    uy.edu.tse.hcen.model.enums.Especialidad.valueOf(especialidad);
+            return em.createQuery(
+                    "SELECT p FROM ProfesionalSalud p WHERE p.especialidad = :especialidad", 
+                    ProfesionalSalud.class)
+                    .setParameter("especialidad", especialidadEnum)
+                    .getResultList();
+        } catch (IllegalArgumentException e) {
+            // Si el valor no es válido, retornar lista vacía
+            return java.util.Collections.emptyList();
+        }
+    }
     
     public ProfesionalSalud save(ProfesionalSalud profesional) {
         if (profesional.getId() == null) {

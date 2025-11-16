@@ -80,6 +80,16 @@ public class ProfesionalSaludService {
     public List<ProfesionalSalud> findAllInCurrentTenant() {
         return profesionalRepository.findAll();
     }
+
+    /**
+     * Busca profesionales por especialidad.
+     * 
+     * @param especialidad Especialidad a buscar (nombre del enum, ej: "MEDICINA_GENERAL")
+     * @return Lista de profesionales con esa especialidad
+     */
+    public List<ProfesionalSalud> findByEspecialidad(String especialidad) {
+        return profesionalRepository.findByEspecialidad(especialidad);
+    }
     
     public ProfesionalSalud update(Long id, DTProfesionalSalud dto) {
         ProfesionalSalud profesional = profesionalRepository.findById(id)
