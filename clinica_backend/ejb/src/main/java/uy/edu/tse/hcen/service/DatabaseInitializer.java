@@ -4,11 +4,14 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import jakarta.ejb.Singleton;
 import jakarta.ejb.Startup;
+import uy.edu.tse.hcen.exceptions.DatabaseInitializationException;
+
 import org.jboss.logging.Logger;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.SQLException;
 
 /**
  * Singleton EJB que se ejecuta al inicio del despliegue para crear las tablas maestras
@@ -93,9 +96,9 @@ public class DatabaseInitializer {
                 LOG.info("  ✅ Table public.administradorclinica ready");
             }
             
-        } catch (Exception e) {
+        } catch (SQLException e) {
             LOG.error("Error creating public master tables: " + e.getMessage(), e);
-            throw new RuntimeException("Failed to initialize master tables", e);
+            throw new DatabaseInitializationException("Failed to initialize master tables", e);
         }
     }
 }

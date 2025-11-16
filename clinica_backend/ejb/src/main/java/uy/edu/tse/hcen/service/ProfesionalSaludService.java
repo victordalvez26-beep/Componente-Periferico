@@ -56,14 +56,6 @@ public class ProfesionalSaludService {
 
         String tenantId = tenantContext.getTenantId();
         String schema = (tenantId != null && !tenantId.isBlank()) ? "schema_clinica_" + tenantId : "public";
-        Long currentTenantId = null;
-        if (tenantId != null && !tenantId.isBlank()) {
-            try {
-                currentTenantId = Long.parseLong(tenantId);
-            } catch (NumberFormatException nfe) {
-                LOGGER.log(Level.WARNING, "Invalid tenant id format: {0}", tenantId);
-            }
-        }
 
         // Build entity without touching DB (validations that don't need DB can go here)
         ProfesionalSalud profesional = new ProfesionalSalud();

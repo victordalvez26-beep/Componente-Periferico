@@ -45,7 +45,10 @@ Para visualizar la documentación OpenAPI, puedes usar:
 ### Documentos
 
 - `GET /api/documentos/{id}/contenido` - Descarga contenido con verificación de permisos
-- `POST /api/documentos/solicitar-acceso` - Solicitar acceso a documentos de un paciente
+- `POST /api/documentos/solicitar-acceso` - Solicitar acceso a documentos específicos de un paciente
+- `POST /api/documentos/solicitar-acceso-historia-clinica` - Solicitar acceso a toda la historia clínica de un paciente
+- `POST /api/documentos/solicitudes/{id}/aprobar` - Aprobar una solicitud de acceso
+- `POST /api/documentos/solicitudes/{id}/rechazar` - Rechazar una solicitud de acceso
 - `POST /api/documentos/completo` - Crear documento completo
 - `GET /api/documentos/paciente/{documentoIdPaciente}/metadatos` - Metadatos del paciente
 

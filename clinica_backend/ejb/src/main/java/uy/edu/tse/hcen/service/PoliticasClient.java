@@ -6,8 +6,8 @@ import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.core.MediaType;
-import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.logging.Logger;
 
 /**
@@ -120,6 +120,80 @@ public class PoliticasClient {
     }
 
     /**
+     * Aprueba una solicitud de acceso.
+     * 
+     * @param solicitudId ID de la solicitud a aprobar
+     * @param resueltoPor ID de quien resuelve la solicitud (normalmente el paciente)
+     * @param comentario Comentario opcional
+     * @return true si se aprobó exitosamente, false en caso contrario
+     */
+    public boolean aprobarSolicitud(Long solicitudId, String resueltoPor, String comentario) {
+        String politicasUrl = System.getProperty(ENV_POLITICAS_URL,
+                System.getenv().getOrDefault(ENV_POLITICAS_URL, DEFAULT_POLITICAS_URL));
+        
+        String url = politicasUrl + "/solicitudes/" + solicitudId + "/aprobar";
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("resueltoPor", resueltoPor != null ? resueltoPor : "");
+        body.put("comentario", comentario != null ? comentario : "");
+
+        try (Client client = ClientBuilder.newClient();
+             jakarta.ws.rs.core.Response response = client.target(url)
+                    .request(MediaType.APPLICATION_JSON)
+                    .post(Entity.json(body))) {
+
+            int status = response.getStatus();
+            if (status == 200) {
+                return true;
+            } else {
+                String errorMsg = response.hasEntity() ? response.readEntity(String.class) : ERROR_UNKNOWN;
+                LOG.warning(String.format("Error aprobando solicitud: HTTP %d - %s", status, errorMsg));
+                return false;
+            }
+        } catch (ProcessingException ex) {
+            LOG.warning(String.format("Error aprobando solicitud: %s", ex.getMessage()));
+            return false;
+        }
+    }
+
+    /**
+     * Rechaza una solicitud de acceso.
+     * 
+     * @param solicitudId ID de la solicitud a rechazar
+     * @param resueltoPor ID de quien resuelve la solicitud (normalmente el paciente)
+     * @param comentario Comentario opcional
+     * @return true si se rechazó exitosamente, false en caso contrario
+     */
+    public boolean rechazarSolicitud(Long solicitudId, String resueltoPor, String comentario) {
+        String politicasUrl = System.getProperty(ENV_POLITICAS_URL,
+                System.getenv().getOrDefault(ENV_POLITICAS_URL, DEFAULT_POLITICAS_URL));
+        
+        String url = politicasUrl + "/solicitudes/" + solicitudId + "/rechazar";
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("resueltoPor", resueltoPor != null ? resueltoPor : "");
+        body.put("comentario", comentario != null ? comentario : "");
+
+        try (Client client = ClientBuilder.newClient();
+             jakarta.ws.rs.core.Response response = client.target(url)
+                    .request(MediaType.APPLICATION_JSON)
+                    .post(Entity.json(body))) {
+
+            int status = response.getStatus();
+            if (status == 200) {
+                return true;
+            } else {
+                String errorMsg = response.hasEntity() ? response.readEntity(String.class) : ERROR_UNKNOWN;
+                LOG.warning(String.format("Error rechazando solicitud: HTTP %d - %s", status, errorMsg));
+                return false;
+            }
+        } catch (ProcessingException ex) {
+            LOG.warning(String.format("Error rechazando solicitud: %s", ex.getMessage()));
+            return false;
+        }
+    }
+
+    /**
      * Registra un acceso a un documento para auditoría.
      * 
      * @param profesionalId ID del profesional
@@ -163,6 +237,9 @@ public class PoliticasClient {
         }
     }
 }
+
+
+
 
 
 

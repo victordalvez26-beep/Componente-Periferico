@@ -361,7 +361,7 @@ paths:
     post:
       summary: Solicitar acceso a documentos de un paciente
       description: |
-        Permite a un profesional solicitar acceso a documentos clínicos de un paciente.
+        Permite a un profesional solicitar acceso a documentos clínicos específicos de un paciente.
         
         La solicitud se crea con estado `PENDIENTE` y debe ser aprobada o rechazada por el paciente
         a través del servicio de políticas (`/hcen-politicas-service/api/solicitudes/{id}/aprobar` o `/rechazar`).
@@ -471,6 +471,319 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: "Error al crear solicitud de acceso"
+
+  /documentos/solicitar-acceso-historia-clinica:
+    post:
+      summary: Solicitar acceso a toda la historia clínica de un paciente
+      description: |
+        Permite a un profesional solicitar acceso a **todos los documentos** de un paciente (su historia clínica completa).
+        
+        Este endpoint es similar a `/documentos/solicitar-acceso`, pero específicamente diseñado para solicitar
+        acceso a toda la historia clínica del paciente, no solo a documentos específicos.
+        
+        La solicitud se crea con estado `PENDIENTE` y tipo `HISTORIA_CLINICA_COMPLETA`. Debe ser aprobada o rechazada
+        por el paciente a través de los endpoints `/documentos/solicitudes/{id}/aprobar` o `/documentos/solicitudes/{id}/rechazar`.
+        
+        **Diferencia con `/documentos/solicitar-acceso`**: Este endpoint siempre crea una solicitud para toda la historia clínica,
+        mientras que el otro permite especificar documentos o tipos de documentos específicos.
+      operationId: solicitarAccesoHistoriaClinica
+      tags:
+        - Documentos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - codDocumPaciente
+              properties:
+                codDocumPaciente:
+                  type: string
+                  description: CI o documento de identidad del paciente
+                  example: "12345678"
+                razonSolicitud:
+                  type: string
+                  description: Razón por la cual se solicita acceso a la historia clínica completa (opcional)
+                  example: "Necesito revisar toda la historia clínica del paciente para una evaluación completa"
+                  nullable: true
+                especialidad:
+                  type: string
+                  description: Especialidad del profesional (opcional, se puede obtener del contexto si no se envía)
+                  example: "Medicina General"
+                  nullable: true
+            example:
+              codDocumPaciente: "12345678"
+              razonSolicitud: "Necesito revisar toda la historia clínica del paciente para una evaluación completa"
+              especialidad: "Medicina General"
+      responses:
+        '201':
+          description: Solicitud de acceso a historia clínica creada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  solicitudId:
+                    type: integer
+                    format: int64
+                    description: ID de la solicitud creada
+                    example: 1
+                  profesionalId:
+                    type: string
+                    description: ID del profesional que solicitó acceso (obtenido del token)
+                    example: "admin_c101"
+                  codDocumPaciente:
+                    type: string
+                    description: CI del paciente
+                    example: "12345678"
+                  estado:
+                    type: string
+                    description: Estado de la solicitud
+                    example: "PENDIENTE"
+                  tipoSolicitud:
+                    type: string
+                    description: Tipo de solicitud
+                    example: "HISTORIA_CLINICA_COMPLETA"
+                  mensaje:
+                    type: string
+                    description: Mensaje de confirmación
+                    example: "Solicitud de acceso a historia clínica creada exitosamente"
+              example:
+                solicitudId: 1
+                profesionalId: "admin_c101"
+                codDocumPaciente: "12345678"
+                estado: "PENDIENTE"
+                tipoSolicitud: "HISTORIA_CLINICA_COMPLETA"
+                mensaje: "Solicitud de acceso a historia clínica creada exitosamente"
+        '400':
+          description: Error de validación - campos requeridos faltantes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "codDocumPaciente es requerido"
+        '401':
+          description: No autenticado o profesional no identificado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Autenticación requerida"
+        '500':
+          description: Error interno al crear la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Error al crear solicitud de acceso"
+
+  /documentos/solicitudes/{id}/aprobar:
+    post:
+      summary: Aprobar una solicitud de acceso
+      description: |
+        Aprueba una solicitud de acceso a documentos o historia clínica de un paciente.
+        
+        Este endpoint permite aprobar solicitudes creadas a través de `/documentos/solicitar-acceso` o
+        `/documentos/solicitar-acceso-historia-clinica`. Una vez aprobada, el profesional puede acceder
+        a los documentos según el alcance de la solicitud.
+        
+        **Nota**: El servicio de políticas valida que quien aprueba sea el paciente correspondiente.
+        Este endpoint delega la aprobación al servicio de políticas.
+      operationId: aprobarSolicitud
+      tags:
+        - Documentos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID de la solicitud a aprobar
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resueltoPor:
+                  type: string
+                  description: Identificador de quien resuelve la solicitud (opcional)
+                  example: "paciente_12345678"
+                  nullable: true
+                comentario:
+                  type: string
+                  description: Comentario sobre la aprobación (opcional)
+                  example: "Aprobado por el paciente"
+                  nullable: true
+            example:
+              resueltoPor: "paciente_12345678"
+              comentario: "Aprobado por el paciente"
+      responses:
+        '200':
+          description: Solicitud aprobada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  solicitudId:
+                    type: integer
+                    format: int64
+                    description: ID de la solicitud
+                    example: 1
+                  estado:
+                    type: string
+                    description: Nuevo estado de la solicitud
+                    example: "APROBADA"
+                  resueltoPor:
+                    type: string
+                    description: Quien resolvió la solicitud
+                    example: "paciente_12345678"
+                  mensaje:
+                    type: string
+                    description: Mensaje de confirmación
+                    example: "Solicitud aprobada exitosamente"
+              example:
+                solicitudId: 1
+                estado: "APROBADA"
+                resueltoPor: "paciente_12345678"
+                mensaje: "Solicitud aprobada exitosamente"
+        '400':
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Solicitud no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Error interno al aprobar la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /documentos/solicitudes/{id}/rechazar:
+    post:
+      summary: Rechazar una solicitud de acceso
+      description: |
+        Rechaza una solicitud de acceso a documentos o historia clínica de un paciente.
+        
+        Este endpoint permite rechazar solicitudes creadas a través de `/documentos/solicitar-acceso` o
+        `/documentos/solicitar-acceso-historia-clinica`. Una vez rechazada, el profesional no podrá
+        acceder a los documentos solicitados.
+        
+        **Nota**: El servicio de políticas valida que quien rechaza sea el paciente correspondiente.
+        Este endpoint delega el rechazo al servicio de políticas.
+      operationId: rechazarSolicitud
+      tags:
+        - Documentos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID de la solicitud a rechazar
+          schema:
+            type: integer
+            format: int64
+            example: 2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resueltoPor:
+                  type: string
+                  description: Identificador de quien resuelve la solicitud (opcional)
+                  example: "paciente_12345678"
+                  nullable: true
+                comentario:
+                  type: string
+                  description: Comentario sobre el rechazo (opcional)
+                  example: "Rechazado por el paciente"
+                  nullable: true
+            example:
+              resueltoPor: "paciente_12345678"
+              comentario: "Rechazado por el paciente"
+      responses:
+        '200':
+          description: Solicitud rechazada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  solicitudId:
+                    type: integer
+                    format: int64
+                    description: ID de la solicitud
+                    example: 2
+                  estado:
+                    type: string
+                    description: Nuevo estado de la solicitud
+                    example: "RECHAZADA"
+                  resueltoPor:
+                    type: string
+                    description: Quien resolvió la solicitud
+                    example: "paciente_12345678"
+                  mensaje:
+                    type: string
+                    description: Mensaje de confirmación
+                    example: "Solicitud rechazada exitosamente"
+              example:
+                solicitudId: 2
+                estado: "RECHAZADA"
+                resueltoPor: "paciente_12345678"
+                mensaje: "Solicitud rechazada exitosamente"
+        '400':
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Solicitud no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Error interno al rechazar la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /profesionales:
     get:

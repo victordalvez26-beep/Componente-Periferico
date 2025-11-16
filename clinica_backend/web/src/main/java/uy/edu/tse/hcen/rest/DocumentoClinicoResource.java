@@ -412,4 +412,172 @@ public class DocumentoClinicoResource {
                 ))
                 .build();
     }
+
+    /**
+     * POST /api/documentos/solicitar-acceso-historia-clinica
+     * 
+     * Permite a un profesional solicitar acceso a toda la historia clínica de un paciente.
+     * Este endpoint es diferente de /solicitar-acceso porque no requiere documentoId ni tipoDocumento,
+     * indicando que se solicita acceso a todos los documentos del paciente.
+     * 
+     * @param body JSON con codDocumPaciente, razonSolicitud (opcional), especialidad (opcional)
+     * @return ID de la solicitud creada
+     */
+    @POST
+    @Path("/solicitar-acceso-historia-clinica")
+    @RolesAllowed("PROFESIONAL")
+    public Response solicitarAccesoHistoriaClinica(Map<String, Object> body) {
+        // 1) Obtener información del profesional desde el token
+        String profesionalId = null;
+        if (securityContext != null && securityContext.getUserPrincipal() != null) {
+            profesionalId = securityContext.getUserPrincipal().getName();
+        }
+        
+        if (profesionalId == null || profesionalId.isBlank()) {
+            return Response.status(Response.Status.UNAUTHORIZED)
+                    .entity(Map.of("error", "Autenticación requerida"))
+                    .build();
+        }
+        
+        // 2) Validar campos requeridos
+        String codDocumPaciente = (String) body.get("codDocumPaciente");
+        if (codDocumPaciente == null || codDocumPaciente.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "codDocumPaciente es requerido"))
+                    .build();
+        }
+        
+        // 3) Para solicitud de historia clínica completa, no se especifica documentoId ni tipoDocumento
+        String razonSolicitud = (String) body.get("razonSolicitud");
+        if (razonSolicitud == null || razonSolicitud.isBlank()) {
+            razonSolicitud = "Solicitud de acceso a toda la historia clínica del paciente";
+        }
+        
+        // 4) Obtener especialidad del profesional (opcional)
+        String especialidad = (String) body.get("especialidad");
+        if (especialidad == null || especialidad.isBlank()) {
+            especialidad = "General"; // Default
+        }
+        
+        // 5) Crear solicitud de acceso a toda la historia clínica
+        // tipoDocumento y documentoId son null para indicar acceso a todos los documentos
+        Long solicitudId = politicasClient.crearSolicitudAcceso(
+                profesionalId, especialidad, codDocumPaciente,
+                null, // tipoDocumento = null indica todos los tipos
+                null, // documentoId = null indica todos los documentos
+                razonSolicitud);
+        
+        if (solicitudId == null) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("error", "Error al crear solicitud de acceso"))
+                    .build();
+        }
+        
+        return Response.status(Response.Status.CREATED)
+                .entity(Map.of(
+                    "solicitudId", solicitudId,
+                    "profesionalId", profesionalId,
+                    "codDocumPaciente", codDocumPaciente,
+                    "tipoSolicitud", "HISTORIA_CLINICA_COMPLETA",
+                    "estado", "PENDIENTE",
+                    "mensaje", "Solicitud de acceso a historia clínica completa creada exitosamente"
+                ))
+                .build();
+    }
+
+    /**
+     * POST /api/documentos/solicitudes/{id}/aprobar
+     * 
+     * Permite a un paciente o administrador aprobar una solicitud de acceso pendiente.
+     * Nota: El servicio de políticas validará que el usuario tenga permisos para aprobar la solicitud.
+     * 
+     * @param id ID de la solicitud a aprobar
+     * @param body JSON con resueltoPor (opcional), comentario (opcional)
+     * @return Solicitud aprobada
+     */
+    @POST
+    @Path("/solicitudes/{id}/aprobar")
+    @RolesAllowed({"PROFESIONAL", "ADMINISTRADOR"})
+    public Response aprobarSolicitud(@PathParam("id") Long id, Map<String, Object> body) {
+        // 1) Obtener información del usuario desde el token
+        String resueltoPor = null;
+        if (securityContext != null && securityContext.getUserPrincipal() != null) {
+            resueltoPor = securityContext.getUserPrincipal().getName();
+        }
+        
+        // Si viene en el body, usar ese valor
+        if (body != null && body.containsKey("resueltoPor")) {
+            resueltoPor = (String) body.get("resueltoPor");
+        }
+        
+        if (resueltoPor == null || resueltoPor.isBlank()) {
+            resueltoPor = "paciente"; // Default
+        }
+        
+        String comentario = body != null ? (String) body.get("comentario") : null;
+        
+        // 2) Aprobar la solicitud
+        boolean exito = politicasClient.aprobarSolicitud(id, resueltoPor, comentario);
+        
+        if (!exito) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("error", "Error al aprobar la solicitud"))
+                    .build();
+        }
+        
+        return Response.ok(Map.of(
+            "solicitudId", id,
+            "estado", "APROBADA",
+            "resueltoPor", resueltoPor,
+            "mensaje", "Solicitud aprobada exitosamente"
+        )).build();
+    }
+
+    /**
+     * POST /api/documentos/solicitudes/{id}/rechazar
+     * 
+     * Permite a un paciente o administrador rechazar una solicitud de acceso pendiente.
+     * Nota: El servicio de políticas validará que el usuario tenga permisos para rechazar la solicitud.
+     * 
+     * @param id ID de la solicitud a rechazar
+     * @param body JSON con resueltoPor (opcional), comentario (opcional)
+     * @return Solicitud rechazada
+     */
+    @POST
+    @Path("/solicitudes/{id}/rechazar")
+    @RolesAllowed({"PROFESIONAL", "ADMINISTRADOR"})
+    public Response rechazarSolicitud(@PathParam("id") Long id, Map<String, Object> body) {
+        // 1) Obtener información del usuario desde el token
+        String resueltoPor = null;
+        if (securityContext != null && securityContext.getUserPrincipal() != null) {
+            resueltoPor = securityContext.getUserPrincipal().getName();
+        }
+        
+        // Si viene en el body, usar ese valor
+        if (body != null && body.containsKey("resueltoPor")) {
+            resueltoPor = (String) body.get("resueltoPor");
+        }
+        
+        if (resueltoPor == null || resueltoPor.isBlank()) {
+            resueltoPor = "paciente"; // Default
+        }
+        
+        String comentario = body != null ? (String) body.get("comentario") : null;
+        
+        // 2) Rechazar la solicitud
+        boolean exito = politicasClient.rechazarSolicitud(id, resueltoPor, comentario);
+        
+        if (!exito) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("error", "Error al rechazar la solicitud"))
+                    .build();
+        }
+        
+        return Response.ok(Map.of(
+            "solicitudId", id,
+            "estado", "RECHAZADA",
+            "resueltoPor", resueltoPor,
+            "mensaje", "Solicitud rechazada exitosamente"
+        )).build();
+    }
 }

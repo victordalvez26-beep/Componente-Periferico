@@ -47,11 +47,11 @@ $contenido = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/document
     -Method GET -Headers $headers
 ```
 
-### 2. Solicitar Acceso
+### 2. Solicitar Acceso a Documentos Específicos
 
 **Endpoint:** `POST /api/documentos/solicitar-acceso`
 
-**Descripción:** Permite a un profesional solicitar acceso a documentos de un paciente.
+**Descripción:** Permite a un profesional solicitar acceso a documentos específicos de un paciente.
 
 **Autenticación:** Requerida (Bearer Token)
 
@@ -85,6 +85,123 @@ $solicitud = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/document
 
 Write-Host "Solicitud ID: $($solicitud.solicitudId)"
 Write-Host "Estado: $($solicitud.estado)"  # PENDIENTE
+```
+
+### 3. Solicitar Acceso a Historia Clínica Completa
+
+**Endpoint:** `POST /api/documentos/solicitar-acceso-historia-clinica`
+
+**Descripción:** Permite a un profesional solicitar acceso a **todos los documentos** de un paciente (su historia clínica completa).
+
+**Autenticación:** Requerida (Bearer Token)
+
+**Request Body:**
+```json
+{
+  "codDocumPaciente": "12345678",  // Requerido
+  "razonSolicitud": "Necesito revisar toda la historia clínica",  // Opcional
+  "especialidad": "Medicina General"  // Opcional
+}
+```
+
+**Respuestas:**
+- `201 Created`: Solicitud creada exitosamente
+- `400 Bad Request`: Campos requeridos faltantes
+- `401 Unauthorized`: No autenticado
+- `500 Internal Server Error`: Error al crear la solicitud
+
+**Ejemplo:**
+```powershell
+$solicitudBody = @{
+    codDocumPaciente = "12345678"
+    razonSolicitud = "Necesito revisar toda la historia clínica del paciente para una evaluación completa"
+    especialidad = "Medicina General"
+} | ConvertTo-Json
+
+$solicitud = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/solicitar-acceso-historia-clinica" `
+    -Method POST -Body $solicitudBody -ContentType "application/json" -Headers $headers
+
+Write-Host "Solicitud ID: $($solicitud.solicitudId)"
+Write-Host "Estado: $($solicitud.estado)"  # PENDIENTE
+Write-Host "Tipo: $($solicitud.tipoSolicitud)"  # HISTORIA_CLINICA_COMPLETA
+```
+
+### 4. Aprobar Solicitud de Acceso
+
+**Endpoint:** `POST /api/documentos/solicitudes/{id}/aprobar`
+
+**Descripción:** Aprueba una solicitud de acceso a documentos o historia clínica de un paciente.
+
+**Autenticación:** Requerida (Bearer Token)
+
+**Parámetros:**
+- `id` (path): ID de la solicitud a aprobar
+
+**Request Body:**
+```json
+{
+  "resueltoPor": "paciente_12345678",  // Opcional
+  "comentario": "Aprobado por el paciente"  // Opcional
+}
+```
+
+**Respuestas:**
+- `200 OK`: Solicitud aprobada exitosamente
+- `400 Bad Request`: Error de validación
+- `401 Unauthorized`: No autenticado
+- `404 Not Found`: Solicitud no encontrada
+- `500 Internal Server Error`: Error al aprobar la solicitud
+
+**Ejemplo:**
+```powershell
+$aprobarBody = @{
+    resueltoPor = "paciente_12345678"
+    comentario = "Aprobado por el paciente"
+} | ConvertTo-Json
+
+$solicitudAprobada = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/solicitudes/$solicitudId/aprobar" `
+    -Method POST -Body $aprobarBody -ContentType "application/json" -Headers $headers
+
+Write-Host "Solicitud aprobada: Estado $($solicitudAprobada.estado)"  # APROBADA
+```
+
+### 5. Rechazar Solicitud de Acceso
+
+**Endpoint:** `POST /api/documentos/solicitudes/{id}/rechazar`
+
+**Descripción:** Rechaza una solicitud de acceso a documentos o historia clínica de un paciente.
+
+**Autenticación:** Requerida (Bearer Token)
+
+**Parámetros:**
+- `id` (path): ID de la solicitud a rechazar
+
+**Request Body:**
+```json
+{
+  "resueltoPor": "paciente_12345678",  // Opcional
+  "comentario": "Rechazado por el paciente"  // Opcional
+}
+```
+
+**Respuestas:**
+- `200 OK`: Solicitud rechazada exitosamente
+- `400 Bad Request`: Error de validación
+- `401 Unauthorized`: No autenticado
+- `404 Not Found`: Solicitud no encontrada
+- `500 Internal Server Error`: Error al rechazar la solicitud
+
+**Ejemplo:**
+```powershell
+$rechazarBody = @{
+    resueltoPor = "paciente_12345678"
+    comentario = "Rechazado por el paciente"
+} | ConvertTo-Json
+
+$solicitudRechazada = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/solicitudes/$solicitudId/rechazar" `
+    -Method POST -Body $rechazarBody -ContentType "application/json" -Headers $headers
+
+Write-Host "Solicitud rechazada: Estado $($solicitudRechazada.estado)"  # RECHAZADA
 ```
 
 ## Ejemplos de Uso
@@ -139,12 +256,13 @@ try {
 }
 ```
 
-### Escenario 3: Solicitar Acceso y Aprobar
+### Escenario 3: Solicitar Acceso a Documentos Específicos y Aprobar
 
 ```powershell
-# 1. Profesional solicita acceso
+# 1. Profesional solicita acceso a documentos específicos
 $solicitudBody = @{
     codDocumPaciente = "12345678"
+    tipoDocumento = "text/plain"
     razonSolicitud = "Necesito revisar el historial para una consulta"
 } | ConvertTo-Json
 
@@ -159,16 +277,81 @@ $pendientes = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-politicas-servi
 
 Write-Host "Solicitudes pendientes: $($pendientes.Count)"
 
-# 3. Paciente aprueba la solicitud (desde servicio de políticas)
+# 3. Paciente aprueba la solicitud (desde componente periférico)
 $aprobarBody = @{
     resueltoPor = "paciente_12345678"
     comentario = "Aprobado"
 } | ConvertTo-Json
 
-$solicitudAprobada = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-politicas-service/api/solicitudes/$($solicitud.solicitudId)/aprobar" `
-    -Method POST -Body $aprobarBody -ContentType "application/json"
+$solicitudAprobada = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/solicitudes/$($solicitud.solicitudId)/aprobar" `
+    -Method POST -Body $aprobarBody -ContentType "application/json" -Headers $headers
 
 Write-Host "Solicitud aprobada: Estado $($solicitudAprobada.estado)"
+```
+
+### Escenario 4: Solicitar Acceso a Historia Clínica Completa y Aprobar
+
+```powershell
+# 1. Profesional solicita acceso a toda la historia clínica
+$solicitudBody = @{
+    codDocumPaciente = "12345678"
+    razonSolicitud = "Necesito revisar toda la historia clínica del paciente para una evaluación completa"
+    especialidad = "Medicina General"
+} | ConvertTo-Json
+
+$solicitud = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/solicitar-acceso-historia-clinica" `
+    -Method POST -Body $solicitudBody -ContentType "application/json" -Headers $headers
+
+Write-Host "Solicitud creada: ID $($solicitud.solicitudId)"
+Write-Host "Tipo: $($solicitud.tipoSolicitud)"  # HISTORIA_CLINICA_COMPLETA
+
+# 2. Verificar solicitud en servicio de políticas
+$solicitudVerificada = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-politicas-service/api/solicitudes/$($solicitud.solicitudId)" `
+    -Method GET
+
+Write-Host "Estado: $($solicitudVerificada.estado)"  # PENDIENTE
+
+# 3. Paciente aprueba la solicitud (desde componente periférico)
+$aprobarBody = @{
+    resueltoPor = "paciente_12345678"
+    comentario = "Aprobado por el paciente"
+} | ConvertTo-Json
+
+$solicitudAprobada = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/solicitudes/$($solicitud.solicitudId)/aprobar" `
+    -Method POST -Body $aprobarBody -ContentType "application/json" -Headers $headers
+
+Write-Host "Solicitud aprobada: Estado $($solicitudAprobada.estado)"  # APROBADA
+
+# 4. Verificar estado final
+$solicitudFinal = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-politicas-service/api/solicitudes/$($solicitud.solicitudId)" `
+    -Method GET
+
+Write-Host "Estado final: $($solicitudFinal.estado)"  # APROBADA
+```
+
+### Escenario 5: Rechazar Solicitud
+
+```powershell
+# 1. Crear solicitud
+$solicitudBody = @{
+    codDocumPaciente = "12345678"
+    razonSolicitud = "Solicitud para probar rechazo"
+} | ConvertTo-Json
+
+$solicitud = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/solicitar-acceso-historia-clinica" `
+    -Method POST -Body $solicitudBody -ContentType "application/json" -Headers $headers
+
+# 2. Rechazar la solicitud
+$rechazarBody = @{
+    resueltoPor = "paciente_12345678"
+    comentario = "Rechazado por el paciente"
+} | ConvertTo-Json
+
+$solicitudRechazada = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/solicitudes/$($solicitud.solicitudId)/rechazar" `
+    -Method POST -Body $rechazarBody -ContentType "application/json" -Headers $headers
+
+Write-Host "Solicitud rechazada: Estado $($solicitudRechazada.estado)"  # RECHAZADA
+```
 
 # 4. Crear política de acceso automática (opcional, desde servicio de políticas)
 $politicaAuto = @{
@@ -200,10 +383,13 @@ Write-Host "✓ Acceso permitido después de aprobación"
 └────────┬────────┘
          │
          │ 1. Solicita acceso
+         │    POST /documentos/solicitar-acceso
+         │    o
+         │    POST /documentos/solicitar-acceso-historia-clinica
          ▼
 ┌─────────────────────────────────┐
 │ Componente Periférico           │
-│ POST /documentos/solicitar-acceso│
+│ Crea solicitud                  │
 └────────┬────────────────────────┘
          │
          │ 2. Crea solicitud
@@ -217,7 +403,11 @@ Write-Host "✓ Acceso permitido después de aprobación"
          ▼
 ┌─────────────────────────────────┐
 │ Paciente aprueba/rechaza        │
-│ POST /solicitudes/{id}/aprobar  │
+│ POST /documentos/solicitudes/   │
+│      {id}/aprobar               │
+│ o                               │
+│ POST /documentos/solicitudes/   │
+│      {id}/rechazar              │
 └────────┬────────────────────────┘
          │
          │ 4. Crear política (opcional)
@@ -262,17 +452,26 @@ Write-Host "Accesos del profesional: $($registrosProf.Count)"
 
 ## Notas Importantes
 
-1. **Autenticación Requerida**: Ambos endpoints requieren autenticación JWT
+1. **Autenticación Requerida**: Todos los endpoints requieren autenticación JWT
 2. **Verificación Automática**: La verificación de permisos es automática, no requiere llamadas adicionales
 3. **Registro Automático**: Todos los accesos se registran automáticamente (exitosos y denegados)
 4. **Servicio de Políticas**: El servicio de políticas debe estar desplegado y accesible
 5. **Políticas vs Solicitudes**: Las políticas permiten acceso directo, las solicitudes requieren aprobación
+6. **Endpoints Separados**: 
+   - `/documentos/solicitar-acceso`: Para solicitar acceso a documentos específicos
+   - `/documentos/solicitar-acceso-historia-clinica`: Para solicitar acceso a toda la historia clínica
+   - `/documentos/solicitudes/{id}/aprobar`: Para aprobar solicitudes (desde componente periférico)
+   - `/documentos/solicitudes/{id}/rechazar`: Para rechazar solicitudes (desde componente periférico)
+7. **Aprobación/Rechazo**: Los endpoints de aprobar y rechazar están disponibles tanto en el componente periférico como en el servicio de políticas. Ambos funcionan de la misma manera.
 
 ## Referencias
 
 - [Documentación OpenAPI del Componente Periférico](openapi-periferico.yaml)
 - [Documentación del Servicio de Políticas](../../hcen/docs/README-POLITICAS.md)
 - [OpenAPI del Servicio de Políticas](../../hcen/docs/openapi-politicas.yaml)
+
+
+
 
 
 

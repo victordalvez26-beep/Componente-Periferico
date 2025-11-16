@@ -12,9 +12,10 @@ import jakarta.ws.rs.client.Invocation.Builder;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
-// response type is referenced fully-qualified in code to avoid unused import warnings
 
 /**
  * Simple client used to register metadatos in HCEN Central.
@@ -61,7 +62,7 @@ public class HcenClient {
         }
         
         // Generar token localmente (más eficiente que llamar al endpoint)
-        // En producción, esto debería usar el secret compartido
+        // TODO: esto debería usar el secret compartido
         try {
             cachedServiceToken = ServiceAuthUtil.generateServiceToken(SERVICE_ID, SERVICE_NAME);
             // Tokens de servicio duran 24 horas
@@ -191,7 +192,7 @@ public class HcenClient {
                 requestBuilder.header(HEADER_AUTHORIZATION, BEARER_PREFIX + serviceToken);
             }
             
-            try (jakarta.ws.rs.core.Response response = requestBuilder.post(Entity.json(payload))) {
+            try (Response response = requestBuilder.post(Entity.json(payload))) {
                 int status = response.getStatus();
                 if (status == 401 || status == 403) {
                     // Token inválido o expirado, limpiar cache y reintentar una vez
@@ -215,7 +216,7 @@ public class HcenClient {
      * @throws HcenUnavailableException si HCEN no está disponible
      */
     @SuppressWarnings("unchecked")
-    public java.util.List<Map<String, Object>> consultarMetadatosPaciente(String documentoIdPaciente) 
+    public List<Map<String, Object>> consultarMetadatosPaciente(String documentoIdPaciente) 
             throws HcenUnavailableException {
         // URL base de HCEN central para endpoints de paciente
         // El endpoint es /api/paciente/{id}/metadatos
@@ -227,15 +228,15 @@ public class HcenClient {
 
         // Usar try-with-resources para cerrar recursos automáticamente
         try (Client client = ClientBuilder.newClient();
-             jakarta.ws.rs.core.Response response = client.target(pacienteUrl)
+             Response response = client.target(pacienteUrl)
                     .request(MediaType.APPLICATION_JSON)
                     .get()) {
 
             int status = response.getStatus();
             if (status == 200) {
-                return response.readEntity(java.util.List.class);
+                return response.readEntity(List.class);
             } else if (status == 404) {
-                return new java.util.ArrayList<>(); // Lista vacía si no hay documentos
+                return new ArrayList<>(); // Lista vacía si no hay documentos
             } else {
                 throw new HcenUnavailableException(
                     String.format("Error al consultar metadatos: HTTP %d", status));
