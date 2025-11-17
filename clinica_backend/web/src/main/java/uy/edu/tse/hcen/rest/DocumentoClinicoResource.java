@@ -49,6 +49,9 @@ public class DocumentoClinicoResource {
     @Inject
     private uy.edu.tse.hcen.service.ProfesionalSaludService profesionalSaludService;
 
+    @Inject
+    private uy.edu.tse.hcen.service.OpenAIService openAIService;
+
     @Context
     private jakarta.ws.rs.core.SecurityContext securityContext;
 
@@ -179,6 +182,30 @@ public class DocumentoClinicoResource {
             return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", ex.getMessage())).build();
         } catch (SecurityException ex) {
             return Response.status(Response.Status.FORBIDDEN).entity(Map.of("error", ex.getMessage())).build();
+        } catch (uy.edu.tse.hcen.exceptions.MetadatosSyncException ex) {
+            // El documento se guardó localmente pero no se sincronizó con HCEN
+            // Retornar éxito con advertencia
+            LOG.warnf("Documento guardado localmente pero sin sincronización en HCEN: %s", ex.getMessage());
+            // Intentar obtener el resultado del documento guardado
+            try {
+                // El documento ya está guardado, intentar construir respuesta básica
+                String documentoId = (String) body.get("documentoId");
+                if (documentoId == null || documentoId.isBlank()) {
+                    documentoId = java.util.UUID.randomUUID().toString();
+                }
+                String documentoIdPaciente = (String) body.get("documentoIdPaciente");
+                Map<String, Object> resultado = Map.of(
+                    "documentoId", documentoId,
+                    "documentoIdPaciente", documentoIdPaciente != null ? documentoIdPaciente : "",
+                    "warning", "Documento guardado localmente pero sin sincronización en HCEN"
+                );
+                URI location = UriBuilder.fromPath("/api/documentos/{documentoId}").build(documentoId);
+                return Response.status(Response.Status.CREATED).entity(resultado).location(location).build();
+            } catch (Exception e) {
+                return Response.status(Response.Status.SERVICE_UNAVAILABLE)
+                        .entity(Map.of("error", "Documento guardado localmente pero sin sincronización en HCEN", "detail", ex.getMessage()))
+                        .build();
+            }
         } catch (RuntimeException ex) {
             // Puede contener HcenUnavailableException envuelta
             if (ex.getMessage() != null && ex.getMessage().contains("HCEN unavailable")) {
@@ -310,9 +337,18 @@ public class DocumentoClinicoResource {
         
         // 4) Verificar permisos si tenemos información del paciente
         if (codDocumPaciente != null && !codDocumPaciente.isBlank()) {
-            accesoPermitido = politicasClient.verificarPermiso(profesionalId, codDocumPaciente, tipoDocumento);
+            // Obtener tenantId del contexto para políticas por clínica
+            String tenantId = uy.edu.tse.hcen.multitenancy.TenantContext.getCurrentTenant();
+            accesoPermitido = politicasClient.verificarPermiso(profesionalId, codDocumPaciente, tipoDocumento, tenantId);
             if (!accesoPermitido) {
                 motivoRechazo = "No tiene permisos para acceder a este documento";
+                // Logging de auditoría para acceso denegado
+                uy.edu.tse.hcen.common.security.SecurityAuditLogger.logFailedAccess(
+                    profesionalId, "/api/documentos/" + id, motivoRechazo);
+            } else {
+                // Logging de auditoría para acceso exitoso a documento sensible
+                uy.edu.tse.hcen.common.security.SecurityAuditLogger.logSensitiveAccess(
+                    profesionalId, "/api/documentos/" + id);
             }
         } else {
             // Si no podemos determinar el paciente, permitir acceso pero registrar advertencia
@@ -901,6 +937,103 @@ public class DocumentoClinicoResource {
             LOG.error("Error eliminando política", e);
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                     .entity(Map.of("error", "Error al eliminar la política: " + e.getMessage()))
+                    .build();
+        }
+    }
+
+    /**
+     * GET /api/documentos/paciente/{documentoIdPaciente}/resumen
+     * 
+     * Genera un resumen de la historia clínica completa del paciente usando IA.
+     * Requiere que el profesional tenga permisos para acceder a TODA la historia clínica.
+     * 
+     * @param documentoIdPaciente CI o documento de identidad del paciente
+     * @return Resumen generado por IA de la historia clínica
+     */
+    @GET
+    @Path("/paciente/{documentoIdPaciente}/resumen")
+    @RolesAllowed("PROFESIONAL")
+    public Response generarResumenHistoriaClinica(@PathParam("documentoIdPaciente") String documentoIdPaciente) {
+        if (documentoIdPaciente == null || documentoIdPaciente.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "documentoIdPaciente es requerido"))
+                    .build();
+        }
+
+        try {
+            // 1) Obtener información del profesional desde el token
+            String profesionalId = null;
+            if (securityContext != null && securityContext.getUserPrincipal() != null) {
+                profesionalId = securityContext.getUserPrincipal().getName();
+            }
+            
+            if (profesionalId == null || profesionalId.isBlank()) {
+                return Response.status(Response.Status.UNAUTHORIZED)
+                        .entity(Map.of("error", "Autenticación requerida"))
+                        .build();
+            }
+
+            // 2) Verificar permisos para acceder a TODA la historia clínica
+            // Verificar sin tipoDocumento específico para verificar acceso general
+            String tenantId = uy.edu.tse.hcen.multitenancy.TenantContext.getCurrentTenant();
+            boolean tienePermiso = politicasClient.verificarPermiso(profesionalId, documentoIdPaciente, null, tenantId);
+            
+            if (!tienePermiso) {
+                // Registrar acceso denegado
+                uy.edu.tse.hcen.common.security.SecurityAuditLogger.logFailedAccess(
+                    profesionalId, 
+                    "/api/documentos/paciente/" + documentoIdPaciente + "/resumen",
+                    "No tiene permisos para acceder a la historia clínica completa");
+                
+                return Response.status(Response.Status.FORBIDDEN)
+                        .entity(Map.of("error", "No tiene permisos para acceder a la historia clínica completa del paciente"))
+                        .build();
+            }
+
+            // 3) Obtener todos los contenidos de documentos del paciente
+            List<String> contenidos = documentoService.obtenerContenidosPorPaciente(documentoIdPaciente);
+            
+            if (contenidos == null || contenidos.isEmpty()) {
+                return Response.status(Response.Status.NOT_FOUND)
+                        .entity(Map.of("error", "No se encontraron documentos para el paciente"))
+                        .build();
+            }
+
+            // 4) Combinar todos los contenidos en un solo texto
+            StringBuilder historiaClinicaCompleta = new StringBuilder();
+            for (int i = 0; i < contenidos.size(); i++) {
+                historiaClinicaCompleta.append("=== Documento ").append(i + 1).append(" ===\n");
+                historiaClinicaCompleta.append(contenidos.get(i));
+                historiaClinicaCompleta.append("\n\n");
+            }
+
+            // 5) Generar resumen usando OpenAI
+            String resumen = openAIService.generarResumenHistoriaClinica(historiaClinicaCompleta.toString());
+
+            // 6) Registrar acceso exitoso
+            uy.edu.tse.hcen.common.security.SecurityAuditLogger.logSensitiveAccess(
+                profesionalId, 
+                "/api/documentos/paciente/" + documentoIdPaciente + "/resumen");
+
+            return Response.ok(Map.of(
+                "paciente", documentoIdPaciente,
+                "resumen", resumen,
+                "documentosProcesados", contenidos.size()
+            )).build();
+
+        } catch (IllegalArgumentException ex) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", ex.getMessage()))
+                    .build();
+        } catch (RuntimeException ex) {
+            LOG.error("Error generando resumen de historia clínica", ex);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("error", "Error al generar resumen: " + ex.getMessage()))
+                    .build();
+        } catch (Exception ex) {
+            LOG.error("Error inesperado generando resumen", ex);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("error", "Error inesperado al generar resumen"))
                     .build();
         }
     }

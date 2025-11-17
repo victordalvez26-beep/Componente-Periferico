@@ -357,6 +357,144 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /documentos/paciente/{documentoIdPaciente}/resumen:
+    get:
+      summary: Generar resumen de historia clínica con IA
+      description: |
+        Genera un resumen estructurado de la historia clínica completa del paciente usando inteligencia artificial (OpenAI o3).
+        
+        Este endpoint:
+        - Verifica que el profesional tenga permisos para acceder a TODA la historia clínica del paciente
+        - Obtiene todos los documentos clínicos del paciente desde MongoDB
+        - Genera un resumen médico profesional y estructurado usando OpenAI o3 a través de GitHub Models API
+        - Incluye: diagnóstico principal, tratamientos realizados, medicamentos prescritos, evolución del paciente, y recomendaciones
+        
+        **Requisitos**:
+        - El profesional debe tener permisos para acceder a toda la historia clínica del paciente
+        - Debe existir al menos un documento clínico del paciente
+        - El servicio de OpenAI debe estar disponible (configurado mediante variable de entorno `GITHUB_TOKEN`)
+        
+        **Nota**: Este endpoint registra el acceso en el sistema de auditoría de seguridad.
+      operationId: generarResumenHistoriaClinica
+      tags:
+        - Documentos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: documentoIdPaciente
+          in: path
+          required: true
+          description: CI o documento de identidad del paciente
+          schema:
+            type: string
+            example: "12345678"
+      responses:
+        '200':
+          description: Resumen generado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  paciente:
+                    type: string
+                    description: CI o documento de identidad del paciente
+                    example: "12345678"
+                  resumen:
+                    type: string
+                    description: Resumen médico estructurado generado por IA
+                    example: |
+                      Resumen médico estructurado
+
+                      1. Diagnóstico principal
+                         • Gripe estacional (diagnosticada el 15/01/2024).
+
+                      2. Tratamientos realizados
+                         • Tratamiento sintomático inicial: reposo domiciliario, hidratación abundante...
+                         
+                      3. Medicamentos prescritos
+                         • Paracetamol 500 mg VO cada 8 h...
+                         
+                      4. Evolución del paciente
+                         • 15/01/2024: cuadro gripal febril...
+                         
+                      5. Recomendaciones
+                         • Mantener adecuada hidratación...
+                  documentosProcesados:
+                    type: integer
+                    description: Número de documentos procesados para generar el resumen
+                    example: 5
+              example:
+                paciente: "12345678"
+                resumen: |
+                  Resumen médico estructurado
+
+                  1. Diagnóstico principal
+                     • Gripe estacional (diagnosticada el 15/01/2024).
+
+                  2. Tratamientos realizados
+                     • Tratamiento sintomático inicial: reposo domiciliario, hidratación abundante y control clínico programado.
+                     • Farmacoterapia: Paracetamol 500 mg VO cada 8 h desde el 15/01/2024 hasta el 01/02/2024.
+                     • Evaluaciones complementarias:
+                       - Análítica sanguínea (20/01/2024): parámetros hematológicos, glucémicos y lipídicos dentro de la normalidad.
+                       - Radiografía de tórax (25/01/2024): sin alteraciones.
+                       - Electrocardiograma + valoración cardiológica (10/02/2024): ritmo sinusal normal, sin hallazgos patológicos.
+
+                  3. Medicamentos prescritos
+                     • Paracetamol 500 mg VO cada 8 h (indicaciones: control de fiebre y malestar; duración: 15/01-01/02/2024).
+
+                  4. Evolución del paciente
+                     • 15/01/2024: cuadro gripal febril, tos y congestión nasal.
+                     • 20-25/01/2024: estudios complementarios sin hallazgos relevantes.
+                     • 01/02/2024: resolución de la fiebre, tos residual leve; exploración pulmonar normal; suspensión de paracetamol.
+                     • 10/02/2024: paciente asintomático; evaluación cardiológica y constantes vitales dentro de rangos normales. Pronóstico favorable.
+
+                  5. Recomendaciones
+                     • Mantener adecuada hidratación y reposo relativo mientras persista la tos residual.
+                     • Vigilar aparición de nuevos síntomas respiratorios (disnea, fiebre >38 °C, esputo purulento); acudir a consulta si se presentan.
+                     • Continuar controles cardiovasculares de rutina: próximo chequeo cardiológico en 6 meses o antes si se desarrollan síntomas.
+                documentosProcesados: 5
+        '400':
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "documentoIdPaciente es requerido"
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Autenticación requerida"
+        '403':
+          description: No tiene permisos para acceder a la historia clínica completa del paciente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "No tiene permisos para acceder a la historia clínica completa del paciente"
+        '404':
+          description: No se encontraron documentos para el paciente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "No se encontraron documentos para el paciente"
+        '500':
+          description: Error al generar resumen (puede ser error de conexión con OpenAI o error interno)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Error al generar resumen: Error de conexión con OpenAI"
+
   /documentos/solicitar-acceso:
     post:
       summary: Solicitar acceso a documentos de un paciente

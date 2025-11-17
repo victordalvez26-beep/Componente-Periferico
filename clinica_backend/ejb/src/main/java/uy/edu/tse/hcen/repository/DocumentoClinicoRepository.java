@@ -48,7 +48,6 @@ public class DocumentoClinicoRepository {
     }
 
   
-
     public Document buscarPorDocumentoPaciente(String documento) {
         return getCollection().find(new Document("pacienteDoc", documento)).first();
     }
@@ -66,6 +65,26 @@ public class DocumentoClinicoRepository {
         documento.append("documentoId", documentoId);
         documento.append("contenido", contenido);
         // Puede añadirse metadatos adicionales si están disponibles
+        guardarDocumento(documento);
+        return documento;
+    }
+
+    /**
+     * Guarda el contenido asociado a un documento con información del paciente.
+     * 
+     * @param documentoId identificador del documento (UUID)
+     * @param contenido contenido binario/texto representado como String
+     * @param documentoIdPaciente CI o documento de identidad del paciente
+     * @return el Document insertado
+     */
+    public Document guardarContenidoConPaciente(String documentoId, String contenido, String documentoIdPaciente) {
+        Document documento = new Document();
+        documento.append("documentoId", documentoId);
+        documento.append("contenido", contenido);
+        if (documentoIdPaciente != null && !documentoIdPaciente.isBlank()) {
+            documento.append("documentoIdPaciente", documentoIdPaciente);
+            documento.append("pacienteDoc", documentoIdPaciente); // También para compatibilidad
+        }
         guardarDocumento(documento);
         return documento;
     }

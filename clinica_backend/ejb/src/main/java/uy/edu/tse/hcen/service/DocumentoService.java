@@ -76,7 +76,7 @@ public class DocumentoService {
      * Lanza IllegalArgumentException si no hay metadatos o si el tenant difiere.
      */
     public Document guardarContenido(String documentoId, String contenido) {
-        // 1) Verificar existencia de metadatos llamando al RNDC o Central
+        // Verificar existencia de metadatos llamando al RNDC o Central
         String rndcBase = resolveConfiguredValue(PROP_RNDC_METADATOS_URL, DEFAULT_RNDC_METADATOS_URL);
 
         DTMetadatos metadatos;
@@ -88,27 +88,27 @@ public class DocumentoService {
             return repo.guardarContenido(documentoId, contenido);
         }
 
-        // 2) Validar tenant
+        // Validar tenant
         String metaTenant = metadatos != null ? metadatos.getTenantId() : null;
         String currentTenant = TenantContext.getCurrentTenant();
         if (currentTenant == null || metaTenant == null || !currentTenant.equals(metaTenant)) {
             throw new SecurityException("Tenant mismatch: usuario no autorizado para subir este contenido");
         }
 
-        // 3) Persistir contenido localmente y construir URL de acceso
+        // Persistir contenido localmente y construir URL de acceso
         Document saved = repo.guardarContenido(documentoId, contenido);
         Object id = saved.get("_id");
         String documentoIdLocal = (id != null) ? id.toString() : "";
         String nodoBase = resolveConfiguredValue(PROP_NODO_BASE_URL, DEFAULT_NODO_BASE_URL);
         String url = nodoBase + "/api/documentos/" + documentoIdLocal;
 
-        // 4) Actualizar metadatos si es necesario (best-effort): intentar notificar al central con urlAcceso
+        // Actualizar metadatos si es necesario (best-effort): intentar notificar al central con urlAcceso
         try {
             metadatos.setUrlAcceso(url);
-            // use injected HcenClient to notify central about updated access URL
+            // Usar HcenClient para notificar al central sobre la URL de acceso actualizada
             hcenClient.registrarMetadatos(metadatos);
         } catch (Exception e) {
-            // If notification fails, continue (could enqueue for retry via outbox)
+            // Si la notificación falla, continuar (se podría encolar para reintento via outbox)
         }
 
         return saved;
@@ -123,6 +123,51 @@ public class DocumentoService {
     }
 
     /**
+     * Obtiene todos los contenidos de documentos de un paciente.
+     * Busca documentos por pacienteDoc, documentoIdPaciente o documentoId.
+     * 
+     * @param documentoIdPaciente CI o documento de identidad del paciente
+     * @return Lista de contenidos de documentos del paciente
+     */
+    public List<String> obtenerContenidosPorPaciente(String documentoIdPaciente) {
+        if (documentoIdPaciente == null || documentoIdPaciente.isBlank()) {
+            throw new IllegalArgumentException("documentoIdPaciente is required");
+        }
+        List<String> contenidos = new java.util.ArrayList<>();
+        var collection = repo.getCollection();
+        
+        // Buscar por pacienteDoc (campo antiguo)
+        var cursor1 = collection.find(new Document("pacienteDoc", documentoIdPaciente)).iterator();
+        try {
+            while (cursor1.hasNext()) {
+                Document doc = cursor1.next();
+                String contenido = doc.getString(KEY_CONTENIDO);
+                if (contenido != null && !contenido.isBlank() && !contenidos.contains(contenido)) {
+                    contenidos.add(contenido);
+                }
+            }
+        } finally {
+            cursor1.close();
+        }
+        
+        // Buscar por documentoIdPaciente (campo nuevo)
+        var cursor2 = collection.find(new Document(KEY_DOCUMENTO_ID_PACIENTE, documentoIdPaciente)).iterator();
+        try {
+            while (cursor2.hasNext()) {
+                Document doc = cursor2.next();
+                String contenido = doc.getString(KEY_CONTENIDO);
+                if (contenido != null && !contenido.isBlank() && !contenidos.contains(contenido)) {
+                    contenidos.add(contenido);
+                }
+            }
+        } finally {
+            cursor2.close();
+        }
+        
+        return contenidos;
+    }
+
+    /**
      * Obtiene los metadatos de un documento por su documentoId.
      * Consulta RNDC vía HCEN central.
      * 
@@ -130,6 +175,9 @@ public class DocumentoService {
      * @return Metadatos del documento o null si no se encuentra
      */
     public Map<String, Object> obtenerMetadatosPorDocumentoId(String documentoId) {
+        if (documentoId == null || documentoId.isBlank()) {
+            throw new IllegalArgumentException("documentoId is required");
+        }
         try {
             // Consultar RNDC directamente o vía HCEN central
             String rndcBase = resolveConfiguredValue(PROP_RNDC_METADATOS_URL, "http://127.0.0.1:8080/rndc/api");
@@ -167,7 +215,8 @@ public class DocumentoService {
         String documentoId = resolveDocumentoId(body);
         String tenantId = resolveTenantId(body);
 
-        Document saved = repo.guardarContenido(documentoId, contenido);
+        // Guardar contenido con información del paciente para facilitar búsquedas
+        Document saved = repo.guardarContenidoConPaciente(documentoId, contenido, documentoIdPaciente);
         String documentoIdLocal = extractMongoId(saved);
         String urlAcceso = buildUrlAcceso(documentoIdLocal);
 
@@ -203,6 +252,9 @@ public class DocumentoService {
     }
 
     private DTMetadatos parseMetadatos(String json) {
+        if (json == null || json.isBlank()) {
+            throw new IllegalArgumentException("json is required");
+        }
         try (Jsonb jsonb = JsonbBuilder.create()) {
             return jsonb.fromJson(json, DTMetadatos.class);
         } catch (Exception e) {

@@ -51,6 +51,7 @@ Para visualizar la documentación OpenAPI, puedes usar:
 - `POST /api/documentos/solicitudes/{id}/rechazar` - Rechazar una solicitud de acceso
 - `POST /api/documentos/completo` - Crear documento completo
 - `GET /api/documentos/paciente/{documentoIdPaciente}/metadatos` - Metadatos del paciente
+- `GET /api/documentos/paciente/{documentoIdPaciente}/resumen` - Generar resumen de historia clínica con IA (OpenAI o3)
 
 ### Políticas de Acceso
 

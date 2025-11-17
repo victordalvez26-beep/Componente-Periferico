@@ -16,6 +16,7 @@ El componente periférico ahora incluye:
 1. **Verificación Automática de Permisos**: Al acceder a un documento, se verifica si el profesional tiene permiso
 2. **Registro de Accesos**: Todos los accesos se registran automáticamente para auditoría
 3. **Solicitud de Acceso**: Los profesionales pueden solicitar acceso desde el componente periférico
+4. **Generación de Resúmenes con IA**: Los profesionales pueden generar resúmenes estructurados de la historia clínica usando OpenAI o3
 
 **Requisitos:**
 - El servicio de políticas debe estar desplegado y funcionando
@@ -87,7 +88,45 @@ Write-Host "Solicitud ID: $($solicitud.solicitudId)"
 Write-Host "Estado: $($solicitud.estado)"  # PENDIENTE
 ```
 
-### 3. Solicitar Acceso a Historia Clínica Completa
+### 3. Generar Resumen de Historia Clínica con IA
+
+**Endpoint:** `GET /api/documentos/paciente/{documentoIdPaciente}/resumen`
+
+**Descripción:** Genera un resumen estructurado de la historia clínica completa del paciente usando inteligencia artificial (OpenAI o3).
+
+**Requisitos:**
+- El profesional debe tener permisos para acceder a TODA la historia clínica del paciente
+- Debe existir al menos un documento clínico del paciente
+- El servicio de OpenAI debe estar disponible (configurado mediante variable de entorno `GITHUB_TOKEN`)
+
+**Autenticación:** Requerida (Bearer Token)
+
+**Respuestas:**
+- `200 OK`: Resumen generado exitosamente
+- `401 Unauthorized`: No autenticado
+- `403 Forbidden`: No tiene permisos para acceder a la historia clínica completa
+- `404 Not Found`: No se encontraron documentos para el paciente
+- `500 Internal Server Error`: Error al generar resumen (puede ser error de conexión con OpenAI)
+
+**Ejemplo:**
+```powershell
+$headers = @{
+    "Authorization" = "Bearer $token"
+    "X-Tenant-Id" = "101"
+}
+
+$resumen = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/documentos/paciente/12345678/resumen" `
+    -Method GET -Headers $headers
+
+Write-Host "Paciente: $($resumen.paciente)"
+Write-Host "Documentos procesados: $($resumen.documentosProcesados)"
+Write-Host "Resumen:"
+Write-Host $resumen.resumen
+```
+
+**Nota:** Este endpoint registra el acceso en el sistema de auditoría de seguridad.
+
+### 4. Solicitar Acceso a Historia Clínica Completa
 
 **Endpoint:** `POST /api/documentos/solicitar-acceso-historia-clinica`
 
@@ -126,7 +165,7 @@ Write-Host "Estado: $($solicitud.estado)"  # PENDIENTE
 Write-Host "Tipo: $($solicitud.tipoSolicitud)"  # HISTORIA_CLINICA_COMPLETA
 ```
 
-### 4. Aprobar Solicitud de Acceso
+### 5. Aprobar Solicitud de Acceso
 
 **Endpoint:** `POST /api/documentos/solicitudes/{id}/aprobar`
 
@@ -165,7 +204,7 @@ $solicitudAprobada = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen-web/api/
 Write-Host "Solicitud aprobada: Estado $($solicitudAprobada.estado)"  # APROBADA
 ```
 
-### 5. Rechazar Solicitud de Acceso
+### 6. Rechazar Solicitud de Acceso
 
 **Endpoint:** `POST /api/documentos/solicitudes/{id}/rechazar`
 

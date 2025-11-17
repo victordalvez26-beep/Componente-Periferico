@@ -25,15 +25,25 @@ public class NodoPerifericoRepository {
             // If not found via find, try getReference (returns a proxy). This helps when
             // joined-inheritance rows exist but Hibernate resolution differs between find
             // and queries on some environments. getReference will not hit the DB immediately.
-            try {
-                NodoPeriferico ref = em.getReference(NodoPeriferico.class, id);
-                return Optional.of(ref);
-            } catch (Exception ex2) {
-                LOGGER.log(Level.FINE, "getReference failed for NodoPeriferico id=" + id, ex2);
-                return Optional.empty();
-            }
+            return tryGetReference(id);
         } catch (Exception ex) {
             LOGGER.log(Level.WARNING, "NodoPerifericoRepository.findById error", ex);
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Intenta obtener una referencia proxy del NodoPeriferico usando getReference.
+     * 
+     * @param id ID del nodo periférico
+     * @return Optional con la referencia si tiene éxito, Optional.empty() si falla
+     */
+    private Optional<NodoPeriferico> tryGetReference(Long id) {
+        try {
+            NodoPeriferico ref = em.getReference(NodoPeriferico.class, id);
+            return Optional.of(ref);
+        } catch (Exception ex) {
+            LOGGER.log(Level.FINE, "getReference failed for NodoPeriferico id={0}", id);
             return Optional.empty();
         }
     }

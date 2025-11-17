@@ -28,7 +28,7 @@ public class DatabaseInitializer {
 
     @PostConstruct
     public void init() {
-        LOG.info("🚀 DatabaseInitializer - Checking master tables in public schema...");
+        LOG.info(" DatabaseInitializer - Checking master tables in public schema...");
         try {
             createMasterTables();
             LOG.info("✅ All master tables initialized successfully");
