@@ -471,7 +471,7 @@ Write-Host "Accesos del profesional: $($registrosProf.Count)"
 **Los endpoints de configuración de políticas han sido movidos al componente central (HCEN)** porque es donde entran los usuarios. 
 
 Los endpoints ahora están disponibles en:
-- **URL Base**: `http://127.0.0.1:8080/api/politicas` (HCEN Central)
+- **URL Base**: `http://127.0.0.1:8080/hcen/api/politicas` (HCEN Central)
 
 Ver la documentación completa en: [`../../hcen/docs/openapi-hcen.yaml`](../../hcen/docs/openapi-hcen.yaml)
 
@@ -510,7 +510,7 @@ $politicaBody = @{
     referencia = "Política de acceso para consulta"
 } | ConvertTo-Json
 
-$politica = Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/politicas" `
+$politica = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen/api/politicas" `
     -Method POST -Body $politicaBody -ContentType "application/json" -Headers $headers
 
 Write-Host "Política creada. ID: $($politica.politicaId)"
@@ -545,7 +545,7 @@ $globalBody = @{
     referencia = "Política global"
 } | ConvertTo-Json
 
-$global = Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/politicas/global" `
+$global = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen/api/politicas/global" `
     -Method POST -Body $globalBody -ContentType "application/json" -Headers $headers
 
 Write-Host "Política global creada. ID: $($global.politicaId)"
@@ -582,7 +582,7 @@ $espBody = @{
     referencia = "Política por especialidad MEDICINA_GENERAL"
 } | ConvertTo-Json
 
-$esp = Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/politicas/especialidad" `
+$esp = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen/api/politicas/especialidad" `
     -Method POST -Body $espBody -ContentType "application/json" -Headers $headers
 
 Write-Host "Políticas creadas. Exitosas: $($esp.politicasExitosas), Total profesionales: $($esp.totalProfesionales)"
@@ -596,7 +596,7 @@ Write-Host "Políticas creadas. Exitosas: $($esp.politicasExitosas), Total profe
 
 **Ejemplo:**
 ```powershell
-$politicas = Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/politicas" `
+$politicas = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen/api/politicas" `
     -Method GET -Headers $headers
 
 Write-Host "Total de políticas: $($politicas.Count)"
@@ -610,7 +610,7 @@ Write-Host "Total de políticas: $($politicas.Count)"
 
 **Ejemplo:**
 ```powershell
-$politicas = Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/politicas/paciente/12345678" `
+$politicas = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen/api/politicas/paciente/12345678" `
     -Method GET -Headers $headers
 
 Write-Host "Políticas del paciente: $($politicas.Count)"
@@ -624,7 +624,7 @@ Write-Host "Políticas del paciente: $($politicas.Count)"
 
 **Ejemplo:**
 ```powershell
-$politicas = Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/politicas/profesional/admin_c101" `
+$politicas = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen/api/politicas/profesional/admin_c101" `
     -Method GET -Headers $headers
 
 Write-Host "Políticas del profesional: $($politicas.Count)"
@@ -638,7 +638,7 @@ Write-Host "Políticas del profesional: $($politicas.Count)"
 
 **Ejemplo:**
 ```powershell
-$delete = Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/politicas/1" `
+$delete = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen/api/politicas/1" `
     -Method DELETE -Headers $headers
 
 Write-Host "Política eliminada: $($delete.mensaje)"
