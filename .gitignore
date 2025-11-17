@@ -1,0 +1,21 @@
+# Maven
+**/target/
+pom.properties
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+release.properties
+
+# IDEs
+*.iml
+.idea/
+*.classpath
+*.project
+.settings/
+
+# Environment files (local secrets)
+.env
+
+# OS files
+Thumbs.db
+.DS_Store
