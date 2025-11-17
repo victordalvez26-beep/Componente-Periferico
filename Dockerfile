@@ -1,4 +1,4 @@
-FROM jboss/wildfly:26.0.1.Final
+FROM quay.io/wildfly/wildfly:latest-jdk17
 
 COPY myapp.ear /opt/jboss/wildfly/standalone/deployments/
 
