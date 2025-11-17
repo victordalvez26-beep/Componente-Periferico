@@ -8,6 +8,7 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.annotation.security.RolesAllowed;
+import jakarta.ejb.EJB;
 import jakarta.ejb.TransactionAttribute;
 import jakarta.ejb.TransactionAttributeType;
 import jakarta.enterprise.context.RequestScoped;
@@ -24,7 +25,9 @@ import java.util.Optional;
 @RequestScoped
 public class ProfesionalSaludResource {
 
-    @jakarta.ejb.EJB
+    private static final String ERROR_ID_REQUIRED = "id is required";
+
+    @EJB
     private ProfesionalSaludService profesionalService;
 
     @GET
@@ -37,6 +40,9 @@ public class ProfesionalSaludResource {
     @GET
     @Path("/{id}")
     public Response getById(@PathParam("id") Long id) {
+        if (id == null) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(ERROR_ID_REQUIRED).build();
+        }
         Optional<ProfesionalSalud> opt = profesionalService.findById(id);
         if (opt.isPresent()) {
             return Response.ok(ProfesionalResponse.fromEntity(opt.get())).build();
@@ -66,6 +72,12 @@ public class ProfesionalSaludResource {
     @PUT
     @Path("/{id}")
     public Response update(@PathParam("id") Long id, DTProfesionalSalud dto) {
+        if (id == null) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(ERROR_ID_REQUIRED).build();
+        }
+        if (dto == null) {
+            return Response.status(Response.Status.BAD_REQUEST).entity("dto is required").build();
+        }
         try {
             ProfesionalSalud merged = profesionalService.update(id, dto);
             return Response.ok(ProfesionalResponse.fromEntity(merged)).build();
@@ -77,6 +89,9 @@ public class ProfesionalSaludResource {
     @DELETE
     @Path("/{id}")
     public Response delete(@PathParam("id") Long id) {
+        if (id == null) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(ERROR_ID_REQUIRED).build();
+        }
         try {
             profesionalService.delete(id);
             return Response.noContent().build();

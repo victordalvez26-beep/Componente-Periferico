@@ -20,6 +20,7 @@ import uy.edu.tse.hcen.dto.DTMetadatos;
 import uy.edu.tse.hcen.exceptions.HcenUnavailableException;
 import jakarta.ws.rs.core.Context;
 import org.jboss.logging.Logger;
+import uy.edu.tse.hcen.multitenancy.TenantContext;
 
 
 /**
@@ -239,7 +240,7 @@ public class DocumentoClinicoResource {
 
         try {
             // Obtener tenantId del contexto actual
-            String currentTenantId = uy.edu.tse.hcen.multitenancy.TenantContext.getCurrentTenant();
+            String currentTenantId = TenantContext.getCurrentTenant();
             
             // Consultar metadatos desde HCEN central (que consulta RNDC)
             // HCEN central maneja la lógica de filtrar por tenant si es necesario
@@ -338,7 +339,7 @@ public class DocumentoClinicoResource {
         // 4) Verificar permisos si tenemos información del paciente
         if (codDocumPaciente != null && !codDocumPaciente.isBlank()) {
             // Obtener tenantId del contexto para políticas por clínica
-            String tenantId = uy.edu.tse.hcen.multitenancy.TenantContext.getCurrentTenant();
+            String tenantId = TenantContext.getCurrentTenant();
             accesoPermitido = politicasClient.verificarPermiso(profesionalId, codDocumPaciente, tipoDocumento, tenantId);
             if (!accesoPermitido) {
                 motivoRechazo = "No tiene permisos para acceder a este documento";
@@ -975,7 +976,7 @@ public class DocumentoClinicoResource {
 
             // 2) Verificar permisos para acceder a TODA la historia clínica
             // Verificar sin tipoDocumento específico para verificar acceso general
-            String tenantId = uy.edu.tse.hcen.multitenancy.TenantContext.getCurrentTenant();
+            String tenantId = TenantContext.getCurrentTenant();
             boolean tienePermiso = politicasClient.verificarPermiso(profesionalId, documentoIdPaciente, null, tenantId);
             
             if (!tienePermiso) {
