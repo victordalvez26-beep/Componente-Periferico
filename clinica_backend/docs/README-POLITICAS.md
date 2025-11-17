@@ -520,29 +520,34 @@ Write-Host "Política creada. ID: $($politica.politicaId)"
 
 **Endpoint:** `POST /api/politicas/global` (en HCEN Central)
 
-**Descripción:** Crea una política global que permite a un profesional acceder a TODOS los pacientes. Solo administradores.
+**Descripción:** Crea una política global desde la perspectiva del paciente. Permite que TODOS los profesionales puedan acceder a los documentos del paciente.
 
-**Autenticación:** Requerida (Bearer Token, rol ADMINISTRADOR)
+El paciente puede:
+- Permitir que todos los profesionales accedan a TODOS sus documentos
+- Permitir que todos los profesionales accedan a un tipo específico de documento
+- Permitir que todos los profesionales accedan a un documento específico
+
+**Autenticación:** Requerida (Bearer Token)
 
 **Request Body:**
 ```json
 {
+  "codDocumPaciente": "12345678",
   "alcance": "TODOS_LOS_DOCUMENTOS",
   "duracion": "INDEFINIDA",
   "gestion": "AUTOMATICA",
-  "profesionalAutorizado": "admin_c101",
-  "referencia": "Política global"
+  "referencia": "Política global: todos los profesionales pueden acceder"
 }
 ```
 
 **Ejemplo:**
 ```powershell
 $globalBody = @{
+    codDocumPaciente = "12345678"
     alcance = "TODOS_LOS_DOCUMENTOS"
     duracion = "INDEFINIDA"
     gestion = "AUTOMATICA"
-    profesionalAutorizado = "admin_c101"
-    referencia = "Política global"
+    referencia = "Política global: todos los profesionales pueden acceder"
 } | ConvertTo-Json
 
 $global = Invoke-RestMethod -Uri "http://127.0.0.1:8080/hcen/api/politicas/global" `

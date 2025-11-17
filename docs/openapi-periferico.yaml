@@ -4,7 +4,8 @@ info:
   version: 1.0.0
   description: API del nodo periférico — endpoints de autenticación, profesionales y administración de tenants.
 servers:
-  - url: http://localhost:8080/hcen-web
+  - url: http://127.0.0.1:8080/hcen-web/api
+    description: Servidor local de desarrollo (usar 127.0.0.1 en lugar de localhost)
 
 components:
   securitySchemes:
@@ -29,10 +30,10 @@ components:
         properties:
           token:
             type: string
-            description: JWT bearer token
+            description: Token JWT bearer
           role:
             type: string
-            description: Usuario role
+            description: Rol del usuario
         example:
           token: eyJhbGciOiJIUzI1NiJ9... (truncated)
           role: ADMINISTRADOR
@@ -61,7 +62,7 @@ components:
         properties:
           tenantId:
             type: string
-            description: Numeric tenant identifier (suffix used in schema name, e.g. '103')
+            description: 'Identificador numérico del tenant (sufijo usado en el nombre del esquema, ej: "103")'
             example: '108'
           nombrePortal:
             type: string
@@ -129,198 +130,215 @@ components:
           direccion:
             type: string
 
-  security:
-    - bearerAuth: []
-
-  paths:
-    /api/auth/login:
-      post:
-        summary: Login and obtain a JWT
-        requestBody:
-          required: true
+paths:
+  /api/auth/login:
+    post:
+      summary: Iniciar sesión y obtener un JWT
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Autenticación exitosa. Devuelve token y rol.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LoginRequest'
-        responses:
-          '200':
-            description: Authentication successful. Returns token and role.
-            content:
-              application/json:
-                schema:
-                  $ref: '#/components/schemas/LoginResponse'
-          '401':
-            description: Invalid credentials
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Credenciales inválidas
 
-    /api/auth/logout:
-      post:
-        summary: Logout (client should discard token)
-        security:
-          - bearerAuth: []
-        responses:
-          '200':
-            description: Logout successful
-            content:
-              application/json:
-                example:
-                  message: "Logout successful - discard token on client"
+  /api/auth/logout:
+    post:
+      summary: Cerrar sesión (el cliente debe descartar el token)
+      tags:
+        - Autenticación
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Cierre de sesión exitoso
+          content:
+            application/json:
+              example:
+                message: "Cierre de sesión exitoso - descartar token en el cliente"
 
-    /api/portal-configuracion/public:
-      get:
-        summary: Get tenant-specific portal configuration (public)
-        security:
-          - bearerAuth: []
-        responses:
-          '200':
-            description: Portal configuration for the tenant resolved from JWT
-            content:
-              application/json:
-                schema:
-                  $ref: '#/components/schemas/PortalConfiguracion'
-          '401':
-            description: Unauthorized or invalid token
-
-    /api/admin/tenants:
-      post:
-        summary: Create a new tenant (admin only)
-        security:
-          - bearerAuth: []
-        requestBody:
-          required: true
+  /api/portal-configuracion/public:
+    get:
+      summary: Obtener configuración del portal específica del tenant (público)
+      tags:
+        - Configuración
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Configuración del portal para el tenant resuelta desde el JWT
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TenantCreateRequest'
-        responses:
-          '201':
-            description: Tenant created (Location header with tenant id)
-          '400':
-            description: Bad request
-          '403':
-            description: Forbidden (requires ADMINISTRADOR role)
-          '500':
-            description: Server error
+                $ref: '#/components/schemas/PortalConfiguracion'
+        '401':
+          description: No autorizado o token inválido
 
-      get:
-        summary: List tenants (admin only)
-        security:
-          - bearerAuth: []
-        responses:
-          '200':
-            description: Array of tenant summaries
-            content:
-              application/json:
-                schema:
-                  type: array
-                  items:
-                    $ref: '#/components/schemas/TenantSummary'
-          '403':
-            description: Forbidden
+  /api/admin/tenants:
+    post:
+      summary: Crear un nuevo tenant (solo administrador)
+      tags:
+        - Administración
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantCreateRequest'
+      responses:
+        '201':
+          description: Tenant creado (header Location con el id del tenant)
+        '400':
+          description: Solicitud incorrecta
+        '403':
+          description: Prohibido (requiere rol ADMINISTRADOR)
+        '500':
+          description: Error del servidor
 
-    /api/profesionales:
-      get:
-        summary: List all Profesionales (admin only)
-        security:
-          - bearerAuth: []
-        responses:
-          '200':
-            description: Array of profesionales
-            content:
-              application/json:
-                schema:
-                  type: array
-                  items:
-                    $ref: '#/components/schemas/ProfesionalResponse'
-          '403':
-            description: Forbidden
-
-      post:
-        summary: Create a profesional (admin only)
-        security:
-          - bearerAuth: []
-        requestBody:
-          required: true
+    get:
+      summary: Listar tenants (solo administrador)
+      tags:
+        - Administración
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Arreglo de resúmenes de tenants
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProfesionalDTO'
-        responses:
-          '201':
-            description: Profesional created
-            content:
-              application/json:
-                schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TenantSummary'
+        '403':
+          description: Prohibido
+
+  /api/profesionales:
+    get:
+      summary: Listar todos los Profesionales (solo administrador)
+      tags:
+        - Profesionales
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Arreglo de profesionales
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
                   $ref: '#/components/schemas/ProfesionalResponse'
-          '400':
-            description: Bad request
-          '403':
-            description: Forbidden
+        '403':
+          description: Prohibido
 
-    /api/profesionales/{id}:
-      get:
-        summary: Get profesional by id (admin only)
-        security:
-          - bearerAuth: []
-        parameters:
+    post:
+      summary: Crear un profesional (solo administrador)
+      tags:
+        - Profesionales
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfesionalDTO'
+      responses:
+        '201':
+          description: Profesional creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfesionalResponse'
+        '400':
+          description: Solicitud incorrecta
+        '403':
+          description: Prohibido
+
+  /api/profesionales/{id}:
+    get:
+      summary: Obtener profesional por id (solo administrador)
+      tags:
+        - Profesionales
+      security:
+        - bearerAuth: []
+      parameters:
           - name: id
             in: path
             required: true
             schema:
               type: integer
-        responses:
-          '200':
-            description: Profesional
-            content:
-              application/json:
-                schema:
-                  $ref: '#/components/schemas/ProfesionalResponse'
-          '404':
-            description: Not found
-          '403':
-            description: Forbidden
-
-      put:
-        summary: Update profesional (admin only)
-        security:
-          - bearerAuth: []
-        parameters:
-          - name: id
-            in: path
-            required: true
-            schema:
-              type: integer
-        requestBody:
-          required: true
+      responses:
+        '200':
+          description: Profesional encontrado
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProfesionalDTO'
-        responses:
-          '200':
-            description: Updated profesional
-            content:
-              application/json:
-                schema:
-                  $ref: '#/components/schemas/ProfesionalResponse'
-          '404':
-            description: Not found
-          '403':
-            description: Forbidden
+                $ref: '#/components/schemas/ProfesionalResponse'
+        '404':
+          description: No encontrado
+        '403':
+          description: Prohibido
 
-      delete:
-        summary: Delete profesional (admin only)
-        security:
-          - bearerAuth: []
-        parameters:
+    put:
+      summary: Actualizar profesional (solo administrador)
+      tags:
+        - Profesionales
+      security:
+        - bearerAuth: []
+      parameters:
           - name: id
             in: path
             required: true
             schema:
               type: integer
-        responses:
-          '204':
-            description: Deleted
-          '404':
-            description: Not found
-          '403':
-            description: Forbidden
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfesionalDTO'
+      responses:
+        '200':
+          description: Profesional actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfesionalResponse'
+        '404':
+          description: No encontrado
+        '403':
+          description: Prohibido
+
+    delete:
+      summary: Eliminar profesional (solo administrador)
+      tags:
+        - Profesionales
+      security:
+        - bearerAuth: []
+      parameters:
+          - name: id
+            in: path
+            required: true
+            schema:
+              type: integer
+      responses:
+        '204':
+          description: Eliminado
+        '404':
+          description: No encontrado
+        '403':
+          description: Prohibido

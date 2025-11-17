@@ -1025,7 +1025,7 @@ paths:
               properties:
                 especialidad:
                   type: string
-                  description: Especialidad médica (nombre del enum, ej: "MEDICINA_GENERAL", "CARDIOLOGIA")
+                  description: 'Especialidad médica (nombre del enum, ej: "MEDICINA_GENERAL", "CARDIOLOGIA")'
                   example: "MEDICINA_GENERAL"
                 codDocumPaciente:
                   type: string
