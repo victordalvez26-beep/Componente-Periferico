@@ -144,9 +144,44 @@ public class DocumentoClinicoResource {
             return Response.status(Response.Status.NOT_FOUND).entity(Map.of("error", "document not found or invalid id")).build();
         }
         
-        // Si existe PDF, devolverlo como binario (para compatibilidad con RNDC)
+        // Verificar el Accept header para ver si se solicita JSON explícitamente
+        // Por defecto, devolver JSON con metadatos del documento
+        // Si se solicita application/octet-stream o application/pdf, devolver el PDF si existe
+        
+        // Construir objeto JSON con información del documento
+        Map<String, Object> docInfo = new java.util.HashMap<>();
+        docInfo.put("mongoId", id);
+        docInfo.put("documentoId", doc.getString("documentoId"));
+        docInfo.put("documentoIdPaciente", doc.getString("documentoIdPaciente"));
+        
         org.bson.types.Binary pdfBinary = doc.get("pdf", org.bson.types.Binary.class);
-        if (pdfBinary != null && pdfBinary.getData() != null && pdfBinary.getData().length > 0) {
+        boolean tienePdf = pdfBinary != null && pdfBinary.getData() != null && pdfBinary.getData().length > 0;
+        docInfo.put("tienePdf", tienePdf);
+        
+        org.bson.types.Binary archivoAdjuntoBinary = doc.get("archivoAdjunto", org.bson.types.Binary.class);
+        boolean tieneArchivoAdjunto = archivoAdjuntoBinary != null && archivoAdjuntoBinary.getData() != null && archivoAdjuntoBinary.getData().length > 0;
+        docInfo.put("tieneArchivoAdjunto", tieneArchivoAdjunto);
+        
+        if (tieneArchivoAdjunto) {
+            docInfo.put("nombreArchivo", doc.getString("nombreArchivo"));
+            docInfo.put("tipoArchivo", doc.getString("tipoArchivo"));
+        }
+        
+        // Si hay contenido de texto, incluirlo (pero limitado para no hacer el JSON muy grande)
+        String contenido = doc.getString("contenido");
+        if (contenido != null) {
+            docInfo.put("tieneContenido", true);
+            docInfo.put("contenidoLength", contenido.length());
+            // Incluir solo los primeros 100 caracteres del contenido como preview
+            if (contenido.length() > 100) {
+                docInfo.put("contenidoPreview", contenido.substring(0, 100) + "...");
+            } else {
+                docInfo.put("contenido", contenido);
+            }
+        }
+        
+        // Si existe PDF y el cliente acepta octet-stream o pdf, devolverlo como binario (para compatibilidad con RNDC)
+        if (tienePdf) {
             byte[] pdfBytes = pdfBinary.getData();
             String documentoId = doc.getString("documentoId");
             String fileName = "documento_" + id + ".pdf";
@@ -159,8 +194,8 @@ public class DocumentoClinicoResource {
                     .build();
         }
         
-        // Si no hay PDF, devolver JSON (comportamiento original)
-        return Response.ok(doc.toJson()).build();
+        // Devolver JSON con información del documento
+        return Response.ok(docInfo, MediaType.APPLICATION_JSON).build();
     }
 
     /**
@@ -256,40 +291,101 @@ public class DocumentoClinicoResource {
             
             if (input.getFormDataMap().containsKey("archivo")) {
                 List<InputPart> archivoParts = input.getFormDataMap().get("archivo");
-                if (!archivoParts.isEmpty()) {
-                    InputPart archivoPart = archivoParts.get(0);
-                    archivoBytes = archivoPart.getBody(byte[].class, null);
-                    
-                    // Obtener información del archivo desde los headers
-                    MultivaluedMap<String, String> headers = archivoPart.getHeaders();
-                    String contentDisposition = headers.getFirst("Content-Disposition");
-                    tipoArchivo = archivoPart.getMediaType() != null ? archivoPart.getMediaType().toString() : null;
-                    
-                    // Extraer el nombre del archivo del header Content-Disposition
-                    if (contentDisposition != null) {
-                        // Formato: Content-Disposition: form-data; name="archivo"; filename="nombre_archivo.ext"
-                        String[] parts = contentDisposition.split(";");
-                        for (String part : parts) {
-                            part = part.trim();
-                            if (part.startsWith("filename")) {
-                                String[] keyValue = part.split("=");
-                                if (keyValue.length == 2) {
-                                    nombreArchivo = keyValue[1].trim();
-                                    // Remover comillas si las hay
-                                    if (nombreArchivo.startsWith("\"") && nombreArchivo.endsWith("\"")) {
-                                        nombreArchivo = nombreArchivo.substring(1, nombreArchivo.length() - 1);
+                LOG.infof("Archivo parts encontrados: %d", archivoParts != null ? archivoParts.size() : 0);
+                if (archivoParts != null && !archivoParts.isEmpty()) {
+                    try {
+                        InputPart archivoPart = archivoParts.get(0);
+                        
+                        // Obtener información del archivo desde los headers ANTES de leer el cuerpo
+                        MultivaluedMap<String, String> headers = archivoPart.getHeaders();
+                        String contentDisposition = headers.getFirst("Content-Disposition");
+                        tipoArchivo = archivoPart.getMediaType() != null ? archivoPart.getMediaType().toString() : null;
+                        
+                        LOG.infof("Headers del archivo - Content-Disposition: %s, MediaType: %s", 
+                                contentDisposition, tipoArchivo);
+                        
+                        // Extraer el nombre del archivo del header Content-Disposition
+                        if (contentDisposition != null) {
+                            // Formato: Content-Disposition: form-data; name="archivo"; filename="nombre_archivo.ext"
+                            String[] parts = contentDisposition.split(";");
+                            for (String part : parts) {
+                                part = part.trim();
+                                if (part.startsWith("filename")) {
+                                    String[] keyValue = part.split("=", 2);
+                                    if (keyValue.length == 2) {
+                                        nombreArchivo = keyValue[1].trim();
+                                        // Remover comillas si las hay
+                                        if (nombreArchivo.startsWith("\"") && nombreArchivo.endsWith("\"")) {
+                                            nombreArchivo = nombreArchivo.substring(1, nombreArchivo.length() - 1);
+                                        }
+                                        break;
                                     }
-                                    break;
                                 }
                             }
                         }
+                        
+                        // Intentar leer el archivo como byte[]
+                        try {
+                            // Primero intentar leer directamente como byte[]
+                            archivoBytes = archivoPart.getBody(byte[].class, null);
+                            if (archivoBytes == null || archivoBytes.length == 0) {
+                                // Si no funcionó, leer como InputStream y convertir a byte[]
+                                java.io.InputStream inputStream = archivoPart.getBody(java.io.InputStream.class, null);
+                                if (inputStream != null) {
+                                    java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+                                    int nRead;
+                                    byte[] data = new byte[8192];
+                                    while ((nRead = inputStream.read(data, 0, data.length)) != -1) {
+                                        buffer.write(data, 0, nRead);
+                                    }
+                                    archivoBytes = buffer.toByteArray();
+                                    inputStream.close();
+                                    LOG.infof("Archivo leído como InputStream: %d bytes", 
+                                            archivoBytes != null ? archivoBytes.length : 0);
+                                }
+                            } else {
+                                LOG.infof("Archivo leído como byte[]: %d bytes", archivoBytes.length);
+                            }
+                        } catch (Exception e) {
+                            LOG.errorf(e, "Error al leer el archivo: %s", e.getMessage());
+                            // Intentar método alternativo manual
+                            try {
+                                java.io.InputStream inputStream = archivoPart.getBody(java.io.InputStream.class, null);
+                                if (inputStream != null) {
+                                    java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+                                    int nRead;
+                                    byte[] data = new byte[8192];
+                                    while ((nRead = inputStream.read(data, 0, data.length)) != -1) {
+                                        buffer.write(data, 0, nRead);
+                                    }
+                                    archivoBytes = buffer.toByteArray();
+                                    inputStream.close();
+                                    LOG.infof("Archivo leído con método alternativo: %d bytes", 
+                                            archivoBytes != null ? archivoBytes.length : 0);
+                                }
+                            } catch (Exception e2) {
+                                LOG.errorf(e2, "Error alternativo al leer el archivo: %s", e2.getMessage());
+                            }
+                        }
+                        
+                        if (archivoBytes != null && archivoBytes.length > 0) {
+                            if (nombreArchivo == null || nombreArchivo.isBlank()) {
+                                nombreArchivo = "archivo_adjunto_" + System.currentTimeMillis();
+                            }
+                            LOG.infof("Archivo adjunto recibido exitosamente: %s, tamaño: %d bytes, tipo: %s", 
+                                    nombreArchivo, archivoBytes.length, tipoArchivo);
+                        } else {
+                            LOG.warnf("Archivo adjunto está vacío o no se pudo leer: nombre=%s, tamaño=%d", 
+                                    nombreArchivo, archivoBytes != null ? archivoBytes.length : 0);
+                        }
+                    } catch (Exception e) {
+                        LOG.errorf(e, "Error procesando archivo adjunto: %s", e.getMessage());
                     }
-                    
-                    if (nombreArchivo != null && archivoBytes != null) {
-                        LOG.infof("Archivo adjunto recibido: %s, tamaño: %d bytes, tipo: %s", 
-                                nombreArchivo, archivoBytes.length, tipoArchivo);
-                    }
+                } else {
+                    LOG.warnf("La lista de archivoParts está vacía o es null");
                 }
+            } else {
+                LOG.infof("No se encontró el campo 'archivo' en el formulario multipart");
             }
 
             // Construir map de metadatos
@@ -461,17 +557,22 @@ public class DocumentoClinicoResource {
     @GET
     @Path("/{id}/contenido")
     @RolesAllowed("PROFESIONAL")
+    @Produces({"application/pdf", MediaType.APPLICATION_OCTET_STREAM, MediaType.TEXT_PLAIN, MediaType.APPLICATION_JSON, MediaType.WILDCARD})
     public Response obtenerContenido(
             @PathParam("id") String id,
             @HeaderParam("X-Paciente-CI") String pacienteCI) {
         if (id == null || id.isBlank()) {
-            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "id required")).build();
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .type(MediaType.APPLICATION_JSON)
+                    .entity(Map.of("error", "id required"))
+                    .build();
         }
 
         // 1) Buscar documento en MongoDB
         var doc = documentoService.buscarPorId(id);
         if (doc == null) {
             return Response.status(Response.Status.NOT_FOUND)
+                    .type(MediaType.APPLICATION_JSON)
                     .entity(Map.of("error", "document not found or invalid id"))
                     .build();
         }
@@ -487,6 +588,7 @@ public class DocumentoClinicoResource {
             politicasClient.registrarAcceso(null, null, null, null, false, 
                 "Usuario no identificado", "Intento de acceso sin autenticación");
             return Response.status(Response.Status.UNAUTHORIZED)
+                    .type(MediaType.APPLICATION_JSON)
                     .entity(Map.of("error", "Autenticación requerida"))
                     .build();
         }
@@ -554,12 +656,39 @@ public class DocumentoClinicoResource {
         // 6) Si no tiene permiso, denegar acceso
         if (!accesoPermitido) {
             return Response.status(Response.Status.FORBIDDEN)
+                    .type(MediaType.APPLICATION_JSON)
                     .entity(Map.of("error", "No tiene permisos para acceder a este documento",
                                  "detail", motivoRechazo))
                     .build();
         }
         
-        // 7) Verificar si existe PDF y devolverlo si está disponible
+        // 7) Verificar si existe archivo adjunto y devolverlo si está disponible (prioridad)
+        org.bson.types.Binary archivoAdjuntoBinary = doc.get("archivoAdjunto", org.bson.types.Binary.class);
+        if (archivoAdjuntoBinary != null && archivoAdjuntoBinary.getData() != null && archivoAdjuntoBinary.getData().length > 0) {
+            // Devolver archivo adjunto binario
+            byte[] archivoBytes = archivoAdjuntoBinary.getData();
+            String nombreArchivo = doc.getString("nombreArchivo");
+            String tipoArchivo = doc.getString("tipoArchivo");
+            
+            if (nombreArchivo == null || nombreArchivo.isBlank()) {
+                nombreArchivo = "archivo_adjunto_" + id;
+            }
+            
+            // Determinar Content-Type del archivo adjunto
+            String contentTypeArchivo = tipoArchivo != null && !tipoArchivo.isBlank() 
+                    ? tipoArchivo 
+                    : "application/octet-stream";
+            
+            LOG.infof("Devolviendo archivo adjunto: %s, tamaño: %d bytes, tipo: %s", 
+                    nombreArchivo, archivoBytes.length, contentTypeArchivo);
+            
+            // Usar el Content-Type específico del archivo directamente en el método ok()
+            return Response.ok(archivoBytes, contentTypeArchivo)
+                    .header("Content-Disposition", "attachment; filename=\"" + nombreArchivo + "\"")
+                    .build();
+        }
+        
+        // 8) Verificar si existe PDF y devolverlo si está disponible
         org.bson.types.Binary pdfBinary = doc.get("pdf", org.bson.types.Binary.class);
         if (pdfBinary != null && pdfBinary.getData() != null && pdfBinary.getData().length > 0) {
             // Devolver PDF binario
@@ -568,28 +697,131 @@ public class DocumentoClinicoResource {
             if (documentoId != null && !documentoId.isBlank()) {
                 fileName = "documento_" + documentoId + ".pdf";
             }
+            LOG.infof("Devolviendo PDF: %s, tamaño: %d bytes", fileName, pdfBytes.length);
             return Response.ok(pdfBytes, MediaType.APPLICATION_OCTET_STREAM)
                     .header("Content-Type", "application/pdf")
                     .header("Content-Disposition", "attachment; filename=\"" + fileName + "\"")
                     .build();
         }
         
-        // 8) Si no hay PDF, devolver contenido de texto
+        // 9) Si no hay PDF ni archivo adjunto, devolver contenido de texto
         String contenido = doc.getString("contenido");
         if (contenido == null) {
             return Response.status(Response.Status.NOT_FOUND)
-                    .entity(Map.of("error", "document has no content"))
+                    .type(MediaType.APPLICATION_JSON)
+                    .entity(Map.of("error", "document has no content, PDF, or attached file"))
                     .build();
         }
         
-        // 9) Determinar Content-Type para texto
+        // 10) Determinar Content-Type para texto
         String contentType = tipoDocumento != null && !tipoDocumento.isBlank() 
                 ? tipoDocumento 
                 : MediaType.TEXT_PLAIN;
         
-        // 10) Devolver contenido de texto
+        LOG.infof("Devolviendo contenido de texto, tipo: %s", contentType);
+        
+        // 11) Devolver contenido de texto
         return Response.ok(contenido, contentType)
                 .header("Content-Disposition", "inline; filename=\"documento_" + id + ".txt\"")
+                .build();
+    }
+
+    /**
+     * GET /api/documentos/{id}/archivo
+     * 
+     * Endpoint específico para obtener solo el archivo adjunto de un documento.
+     * 
+     * @param id ID del documento (MongoDB _id hex string)
+     * @param pacienteCI CI del paciente (header opcional, para acceso directo del paciente)
+     * @return El archivo adjunto del documento
+     */
+    @GET
+    @Path("/{id}/archivo")
+    @RolesAllowed("PROFESIONAL")
+    @Produces({MediaType.APPLICATION_OCTET_STREAM, MediaType.APPLICATION_JSON, MediaType.WILDCARD})
+    public Response obtenerArchivoAdjunto(
+            @PathParam("id") String id,
+            @HeaderParam("X-Paciente-CI") String pacienteCI) {
+        if (id == null || id.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .type(MediaType.APPLICATION_JSON)
+                    .entity(Map.of("error", "id required"))
+                    .build();
+        }
+
+        // 1) Buscar documento en MongoDB
+        var doc = documentoService.buscarPorId(id);
+        if (doc == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .type(MediaType.APPLICATION_JSON)
+                    .entity(Map.of("error", "document not found or invalid id"))
+                    .build();
+        }
+        
+        // 2) Obtener información del usuario desde el token
+        String usuarioId = null;
+        if (securityContext != null && securityContext.getUserPrincipal() != null) {
+            usuarioId = securityContext.getUserPrincipal().getName();
+        }
+        
+        if (usuarioId == null || usuarioId.isBlank()) {
+            return Response.status(Response.Status.UNAUTHORIZED)
+                    .type(MediaType.APPLICATION_JSON)
+                    .entity(Map.of("error", "Autenticación requerida"))
+                    .build();
+        }
+        
+        // 3) Verificar permisos (similar a obtenerContenido)
+        String codDocumPaciente = doc.getString("pacienteDoc");
+        boolean accesoPermitido = false;
+        
+        if (codDocumPaciente != null && !codDocumPaciente.isBlank()) {
+            if (pacienteCI != null && !pacienteCI.isBlank() && pacienteCI.equals(codDocumPaciente)) {
+                accesoPermitido = true;
+            } else {
+                String tenantId = TenantContext.getCurrentTenant();
+                accesoPermitido = politicasClient.verificarPermiso(usuarioId, codDocumPaciente, null, tenantId);
+            }
+        } else {
+            accesoPermitido = true; // Por compatibilidad
+        }
+        
+        if (!accesoPermitido) {
+            return Response.status(Response.Status.FORBIDDEN)
+                    .type(MediaType.APPLICATION_JSON)
+                    .entity(Map.of("error", "No tiene permisos para acceder a este documento"))
+                    .build();
+        }
+        
+        // 4) Verificar si existe archivo adjunto
+        org.bson.types.Binary archivoAdjuntoBinary = doc.get("archivoAdjunto", org.bson.types.Binary.class);
+        if (archivoAdjuntoBinary == null || archivoAdjuntoBinary.getData() == null || archivoAdjuntoBinary.getData().length == 0) {
+            LOG.infof("Documento %s no tiene archivo adjunto", id);
+            return Response.status(Response.Status.NOT_FOUND)
+                    .type(MediaType.APPLICATION_JSON)
+                    .entity(Map.of("error", "Este documento no tiene archivo adjunto"))
+                    .build();
+        }
+        
+        // 5) Devolver archivo adjunto
+        byte[] archivoBytes = archivoAdjuntoBinary.getData();
+        String nombreArchivo = doc.getString("nombreArchivo");
+        String tipoArchivo = doc.getString("tipoArchivo");
+        
+        if (nombreArchivo == null || nombreArchivo.isBlank()) {
+            nombreArchivo = "archivo_adjunto_" + id;
+        }
+        
+        String contentTypeArchivo = tipoArchivo != null && !tipoArchivo.isBlank() 
+                ? tipoArchivo 
+                : "application/octet-stream";
+        
+        LOG.infof("Devolviendo archivo adjunto desde endpoint específico: %s, tamaño: %d bytes, tipo: %s", 
+                nombreArchivo, archivoBytes.length, contentTypeArchivo);
+        
+        // Usar el Content-Type específico del archivo directamente en el método ok()
+        return Response.ok(archivoBytes, contentTypeArchivo)
+                .header("Content-Disposition", "attachment; filename=\"" + nombreArchivo + "\"")
                 .build();
     }
 

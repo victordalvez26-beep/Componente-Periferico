@@ -293,10 +293,28 @@ public class DocumentoService {
         }
 
         // Guardar contenido con información del paciente, PDF y archivo adjunto
+        LOGGER.log(Level.INFO, "Guardando documento con archivo adjunto - documentoId: {0}, archivoAdjunto: {1} bytes, nombreArchivo: {2}, tipoArchivo: {3}", 
+                new Object[]{documentoId, 
+                    archivoAdjunto != null ? archivoAdjunto.length : 0, 
+                    nombreArchivo, 
+                    tipoArchivo});
         Document saved = repo.guardarContenidoConPacienteYArchivos(
             documentoId, contenido, pdfBytes, archivoAdjunto, nombreArchivo, tipoArchivo, documentoIdPaciente);
         String documentoIdLocal = extractMongoId(saved);
         String urlAcceso = buildUrlAcceso(documentoIdLocal);
+        
+        // Verificar que se guardó correctamente
+        Document savedDoc = repo.buscarPorId(documentoIdLocal);
+        if (savedDoc != null) {
+            Boolean tieneArchivoAdjunto = savedDoc.getBoolean("tieneArchivoAdjunto");
+            org.bson.types.Binary archivoGuardado = savedDoc.get("archivoAdjunto", org.bson.types.Binary.class);
+            LOGGER.log(Level.INFO, "Documento guardado - mongoId: {0}, tieneArchivoAdjunto: {1}, tamaño archivo guardado: {2} bytes", 
+                    new Object[]{documentoIdLocal, 
+                        tieneArchivoAdjunto, 
+                        archivoGuardado != null && archivoGuardado.getData() != null ? archivoGuardado.getData().length : 0});
+        } else {
+            LOGGER.log(Level.WARNING, "No se pudo verificar el documento guardado - mongoId: {0}", documentoIdLocal);
+        }
 
         // Construir metadatos combinando los parámetros con el map
         Map<String, Object> bodyCompleto = new HashMap<>(metadatos);

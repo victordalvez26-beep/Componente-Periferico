@@ -44,7 +44,7 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
             }
             responseBuilder.header("Access-Control-Allow-Credentials", "true");
             responseBuilder.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD");
-            responseBuilder.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-Profesional-Id");
+            responseBuilder.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-Profesional-Id, X-Paciente-CI");
             requestContext.abortWith(responseBuilder.build());
             return;
         }
