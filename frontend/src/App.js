@@ -8,6 +8,7 @@ import HomePage from './pages/HomePage';
 import ProfesionalesPage from './pages/ProfesionalesPage';
 import UsuariosSaludPage from './pages/UsuariosSaludPage';
 import ConfiguracionPage from './pages/ConfiguracionPage';
+import DocumentosPage from './pages/DocumentosPage';
 import './index.css';
 
 /**
@@ -89,6 +90,18 @@ export default function App() {
             <TenantProtectedRoute>
               <Layout>
                 <UsuariosSaludPage />
+              </Layout>
+            </TenantProtectedRoute>
+          } 
+        />
+
+        {/* Gestión de Documentos Clínicos (Profesional) */}
+        <Route 
+          path="/portal/clinica/:tenantId/documentos" 
+          element={
+            <TenantProtectedRoute>
+              <Layout>
+                <DocumentosPage />
               </Layout>
             </TenantProtectedRoute>
           } 
