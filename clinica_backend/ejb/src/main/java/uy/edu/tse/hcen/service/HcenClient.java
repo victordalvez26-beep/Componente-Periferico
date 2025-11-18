@@ -27,11 +27,11 @@ public class HcenClient {
     private static final Logger LOG = Logger.getLogger(HcenClient.class.getName());
 
     // The HCEN central endpoint can be overridden via the HCEN_CENTRAL_URL environment variable
-    // URL correcta: /api (ApplicationPath) + /central/api/rndc/metadatos (Path del recurso)
-    private static final String DEFAULT_CENTRAL_URL = "http://127.0.0.1:8080/api/central/api/rndc/metadatos";
+    // URL correcta: /hcen (context root) + /api (ApplicationPath) + /central/api/rndc/metadatos (Path del recurso)
+    private static final String DEFAULT_CENTRAL_URL = "http://127.0.0.1:8080/hcen/api/central/api/rndc/metadatos";
     
     // URL para obtener token de servicio
-    private static final String DEFAULT_SERVICE_AUTH_URL = "http://127.0.0.1:8080/api/service-auth/token";
+    private static final String DEFAULT_SERVICE_AUTH_URL = "http://127.0.0.1:8080/hcen/api/service-auth/token";
     
     // Cache del token de servicio (para evitar obtener uno nuevo en cada llamada)
     private String cachedServiceToken = null;
@@ -169,6 +169,34 @@ public class HcenClient {
                         String.format(ERROR_MSG_REGISTRAR_METADATOS, retryStatus, errorMsg));
                 }
             }
+        } else {
+            // Si no se pudo obtener nuevo token, lanzar excepción
+            throw new HcenUnavailableException("No se pudo obtener nuevo token de servicio después del rechazo");
+        }
+    }
+    
+    private void handleTokenRejection(jakarta.ws.rs.client.Client client, String centralUrl, Map<String, Object> payload) throws HcenUnavailableException {
+        LOG.warning("Token de servicio rechazado, limpiando cache");
+        cachedServiceToken = null;
+        tokenExpiryTime = 0;
+        
+        // Reintentar con nuevo token
+        String newToken = getServiceToken();
+        if (newToken != null) {
+            jakarta.ws.rs.client.Invocation.Builder retryBuilder = client.target(centralUrl)
+                    .request(MediaType.APPLICATION_JSON)
+                    .header(HEADER_AUTHORIZATION, BEARER_PREFIX + newToken);
+            try (Response retryResponse = retryBuilder.post(Entity.json(payload))) {
+                int retryStatus = retryResponse.getStatus();
+                if (retryStatus != 200 && retryStatus != 201 && retryStatus != 202) {
+                    String errorMsg = retryResponse.hasEntity() ? retryResponse.readEntity(String.class) : ERROR_UNKNOWN;
+                    throw new HcenUnavailableException(
+                        String.format(ERROR_MSG_REGISTRAR_METADATOS, retryStatus, errorMsg));
+                }
+            }
+        } else {
+            // Si no se pudo obtener nuevo token, lanzar excepción
+            throw new HcenUnavailableException("No se pudo obtener nuevo token de servicio después del rechazo");
         }
     }
 
@@ -199,12 +227,28 @@ public class HcenClient {
                     handleTokenRejection(client, centralUrl, payload);
                 } else if (status != 200 && status != 201 && status != 202) {
                     String errorMsg = response.hasEntity() ? response.readEntity(String.class) : ERROR_UNKNOWN;
+                    LOG.warning(String.format("Error al registrar metadatos en HCEN central: HTTP %d - %s", status, errorMsg));
                     throw new HcenUnavailableException(
                         String.format(ERROR_MSG_REGISTRAR_METADATOS, status, errorMsg));
+                } else {
+                    LOG.info("Metadatos registrados exitosamente en HCEN central - Status: " + status);
                 }
             }
         } catch (ProcessingException ex) {
-            throw new HcenUnavailableException("HCEN no disponible", ex);
+            LOG.warning("Error de procesamiento al comunicarse con HCEN central: " + ex.getMessage());
+            if (ex.getCause() != null) {
+                LOG.warning("Causa: " + ex.getCause().getMessage());
+            }
+            throw new HcenUnavailableException("HCEN no disponible: " + ex.getMessage(), ex);
+        } catch (HcenUnavailableException ex) {
+            // Re-lanzar excepciones de HCEN
+            throw ex;
+        } catch (Exception ex) {
+            LOG.warning("Error inesperado al comunicarse con HCEN central: " + ex.getMessage());
+            if (ex.getCause() != null) {
+                LOG.warning("Causa: " + ex.getCause().getMessage());
+            }
+            throw new HcenUnavailableException("Error comunicándose con HCEN central: " + ex.getMessage(), ex);
         }
     }
 

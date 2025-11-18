@@ -43,6 +43,7 @@ public class UsuarioPerifericoRepository {
      */
     public UsuarioPeriferico findByNicknameForLogin(String nickname) {
         
+        System.out.println("[UsuarioPerifericoRepository] findByNicknameForLogin called with nickname: " + nickname);
         LOGGER.log(Level.FINE, "findByNicknameForLogin called with nickname: {0}", nickname);
         if (nickname == null || nickname.isBlank()) {
             throw new IllegalArgumentException("nickname is required");
@@ -58,8 +59,10 @@ public class UsuarioPerifericoRepository {
             );
             query.setParameter(1, nickname);
             
+            System.out.println("[UsuarioPerifericoRepository] Query created, executing...");
             LOGGER.log(Level.FINE, "Query created, executing...");
             Object[] row = (Object[]) query.getSingleResult();
+            System.out.println("[UsuarioPerifericoRepository] Query returned " + row.length + " columns");
             LOGGER.log(Level.FINE, "Query returned {0} columns", row.length);
             
             // Mapear manualmente a UsuarioPeriferico
@@ -86,9 +89,12 @@ public class UsuarioPerifericoRepository {
             LOGGER.log(Level.FINE, "User mapped successfully: {0}", user.getNickname());
             return user;
         } catch (NoResultException e) {
+            System.out.println("[UsuarioPerifericoRepository] NoResultException: Usuario no encontrado - " + nickname);
             LOGGER.log(Level.FINE, "NoResultException: User not found");
             return null;
         } catch (Exception e) {
+            System.out.println("[UsuarioPerifericoRepository] Exception: " + e.getClass().getName() + " - " + e.getMessage());
+            e.printStackTrace();
             LOGGER.log(Level.WARNING, "Exception in findByNicknameForLogin: {0} - {1}", 
                 new Object[]{e.getClass().getName(), e.getMessage()});
             return null;

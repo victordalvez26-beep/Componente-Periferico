@@ -10,6 +10,9 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
+import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
+import org.jboss.resteasy.plugins.providers.multipart.InputPart;
+import jakarta.ws.rs.core.MultivaluedMap;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -134,11 +137,29 @@ public class DocumentoClinicoResource {
      */
     @GET
     @Path("/{id}")
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_OCTET_STREAM})
     public Response obtenerPorId(@PathParam("id") String id) {
         var doc = documentoService.buscarPorId(id);
         if (doc == null) {
             return Response.status(Response.Status.NOT_FOUND).entity(Map.of("error", "document not found or invalid id")).build();
         }
+        
+        // Si existe PDF, devolverlo como binario (para compatibilidad con RNDC)
+        org.bson.types.Binary pdfBinary = doc.get("pdf", org.bson.types.Binary.class);
+        if (pdfBinary != null && pdfBinary.getData() != null && pdfBinary.getData().length > 0) {
+            byte[] pdfBytes = pdfBinary.getData();
+            String documentoId = doc.getString("documentoId");
+            String fileName = "documento_" + id + ".pdf";
+            if (documentoId != null && !documentoId.isBlank()) {
+                fileName = "documento_" + documentoId + ".pdf";
+            }
+            return Response.ok(pdfBytes, MediaType.APPLICATION_OCTET_STREAM)
+                    .header("Content-Type", "application/pdf")
+                    .header("Content-Disposition", "attachment; filename=\"" + fileName + "\"")
+                    .build();
+        }
+        
+        // Si no hay PDF, devolver JSON (comportamiento original)
         return Response.ok(doc.toJson()).build();
     }
 
@@ -160,9 +181,157 @@ public class DocumentoClinicoResource {
     }
 
     /**
+     * Crea un documento clínico completo con archivo adjunto: guarda el contenido en MongoDB, 
+     * convierte a PDF, guarda el archivo adjunto y envía los metadatos al HCEN central.
+     * Acepta multipart/form-data con los siguientes campos:
+     * - contenido: texto del documento (requerido)
+     * - documentoIdPaciente: CI del paciente (requerido)
+     * - titulo: título del documento (opcional)
+     * - autor: autor del documento (opcional)
+     * - especialidad: especialidad (opcional)
+     * - archivo: archivo adjunto (opcional)
+     * 
+     * El documentoId se genera automáticamente si no se proporciona.
+     */
+    @POST
+    @Path("/completo-con-archivo")
+    @RolesAllowed("PROFESIONAL")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    public Response crearDocumentoCompletoConArchivo(MultipartFormDataInput input) {
+        try {
+            // Extraer campos del formulario
+            String contenido = null;
+            String documentoIdPaciente = null;
+            String titulo = null;
+            String autor = null;
+            String especialidad = null;
+            
+            // Leer campos de texto
+            if (input.getFormDataMap().containsKey("contenido")) {
+                List<InputPart> contenidoParts = input.getFormDataMap().get("contenido");
+                if (!contenidoParts.isEmpty()) {
+                    contenido = contenidoParts.get(0).getBodyAsString();
+                }
+            }
+            if (input.getFormDataMap().containsKey("documentoIdPaciente")) {
+                List<InputPart> pacienteParts = input.getFormDataMap().get("documentoIdPaciente");
+                if (!pacienteParts.isEmpty()) {
+                    documentoIdPaciente = pacienteParts.get(0).getBodyAsString();
+                }
+            }
+            if (input.getFormDataMap().containsKey("titulo")) {
+                List<InputPart> tituloParts = input.getFormDataMap().get("titulo");
+                if (!tituloParts.isEmpty()) {
+                    titulo = tituloParts.get(0).getBodyAsString();
+                }
+            }
+            if (input.getFormDataMap().containsKey("autor")) {
+                List<InputPart> autorParts = input.getFormDataMap().get("autor");
+                if (!autorParts.isEmpty()) {
+                    autor = autorParts.get(0).getBodyAsString();
+                }
+            }
+            if (input.getFormDataMap().containsKey("especialidad")) {
+                List<InputPart> especialidadParts = input.getFormDataMap().get("especialidad");
+                if (!especialidadParts.isEmpty()) {
+                    especialidad = especialidadParts.get(0).getBodyAsString();
+                }
+            }
+
+            if (contenido == null || contenido.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "contenido es requerido"))
+                        .build();
+            }
+            if (documentoIdPaciente == null || documentoIdPaciente.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "documentoIdPaciente es requerido"))
+                        .build();
+            }
+
+            // Leer archivo adjunto si está presente
+            byte[] archivoBytes = null;
+            String nombreArchivo = null;
+            String tipoArchivo = null;
+            
+            if (input.getFormDataMap().containsKey("archivo")) {
+                List<InputPart> archivoParts = input.getFormDataMap().get("archivo");
+                if (!archivoParts.isEmpty()) {
+                    InputPart archivoPart = archivoParts.get(0);
+                    archivoBytes = archivoPart.getBody(byte[].class, null);
+                    
+                    // Obtener información del archivo desde los headers
+                    MultivaluedMap<String, String> headers = archivoPart.getHeaders();
+                    String contentDisposition = headers.getFirst("Content-Disposition");
+                    tipoArchivo = archivoPart.getMediaType() != null ? archivoPart.getMediaType().toString() : null;
+                    
+                    // Extraer el nombre del archivo del header Content-Disposition
+                    if (contentDisposition != null) {
+                        // Formato: Content-Disposition: form-data; name="archivo"; filename="nombre_archivo.ext"
+                        String[] parts = contentDisposition.split(";");
+                        for (String part : parts) {
+                            part = part.trim();
+                            if (part.startsWith("filename")) {
+                                String[] keyValue = part.split("=");
+                                if (keyValue.length == 2) {
+                                    nombreArchivo = keyValue[1].trim();
+                                    // Remover comillas si las hay
+                                    if (nombreArchivo.startsWith("\"") && nombreArchivo.endsWith("\"")) {
+                                        nombreArchivo = nombreArchivo.substring(1, nombreArchivo.length() - 1);
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (nombreArchivo != null && archivoBytes != null) {
+                        LOG.infof("Archivo adjunto recibido: %s, tamaño: %d bytes, tipo: %s", 
+                                nombreArchivo, archivoBytes.length, tipoArchivo);
+                    }
+                }
+            }
+
+            // Construir map de metadatos
+            Map<String, Object> metadatos = new java.util.HashMap<>();
+            if (titulo != null && !titulo.isBlank()) {
+                metadatos.put("titulo", titulo);
+            }
+            if (autor != null && !autor.isBlank()) {
+                metadatos.put("autor", autor);
+            }
+            if (especialidad != null && !especialidad.isBlank()) {
+                metadatos.put("especialidad", especialidad);
+            }
+
+            var resultado = documentoService.crearDocumentoCompletoConArchivo(
+                    contenido, documentoIdPaciente, archivoBytes, nombreArchivo, tipoArchivo, metadatos);
+            
+            URI location = UriBuilder.fromPath("/api/documentos/{documentoId}").build(resultado.get("documentoId"));
+            return Response.created(location).entity(resultado).build();
+        } catch (IllegalArgumentException ex) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", ex.getMessage())).build();
+        } catch (SecurityException ex) {
+            return Response.status(Response.Status.FORBIDDEN).entity(Map.of("error", ex.getMessage())).build();
+        } catch (uy.edu.tse.hcen.exceptions.MetadatosSyncException ex) {
+            LOG.warnf("Documento guardado localmente pero sin sincronización en HCEN: %s", ex.getMessage());
+            return Response.status(Response.Status.SERVICE_UNAVAILABLE)
+                    .entity(Map.of("error", "Documento guardado localmente pero sin sincronización en HCEN", 
+                            "detail", ex.getMessage()))
+                    .build();
+        } catch (Exception ex) {
+            LOG.error("Error al crear documento con archivo", ex);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("error", "Error al crear documento", "detail", ex.getMessage()))
+                    .build();
+        }
+    }
+
+    /**
      * Crea un documento clínico completo: guarda el contenido en MongoDB y envía los metadatos al HCEN central.
      * Espera un JSON con "contenido" y los campos de metadatos (documentoIdPaciente, especialidad, etc.)
      * El documentoId se genera automáticamente si no se proporciona.
+     * Convierte automáticamente el contenido a PDF y lo guarda como binario.
      */
     @POST
     @Path("/completo")
@@ -281,13 +450,20 @@ public class DocumentoClinicoResource {
      * Verifica permisos antes de devolver el contenido.
      * Registra el acceso para auditoría.
      * 
+     * PERMITE ACCESO DEL PACIENTE A SUS PROPIOS DOCUMENTOS:
+     * - Si el header X-Paciente-CI coincide con el CI del documento, se permite acceso sin verificación de políticas.
+     * - Para profesionales, se verifica mediante políticas de acceso.
+     * 
      * @param id ID del documento (MongoDB _id hex string)
+     * @param pacienteCI CI del paciente (header opcional, para acceso directo del paciente)
      * @return El contenido del documento
      */
     @GET
     @Path("/{id}/contenido")
     @RolesAllowed("PROFESIONAL")
-    public Response obtenerContenido(@PathParam("id") String id) {
+    public Response obtenerContenido(
+            @PathParam("id") String id,
+            @HeaderParam("X-Paciente-CI") String pacienteCI) {
         if (id == null || id.isBlank()) {
             return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "id required")).build();
         }
@@ -300,16 +476,16 @@ public class DocumentoClinicoResource {
                     .build();
         }
         
-        // 2) Obtener información del profesional desde el token
-        String profesionalId = null;
+        // 2) Obtener información del usuario desde el token
+        String usuarioId = null;
         if (securityContext != null && securityContext.getUserPrincipal() != null) {
-            profesionalId = securityContext.getUserPrincipal().getName();
+            usuarioId = securityContext.getUserPrincipal().getName();
         }
         
-        if (profesionalId == null || profesionalId.isBlank()) {
+        if (usuarioId == null || usuarioId.isBlank()) {
             // Registrar acceso denegado
             politicasClient.registrarAcceso(null, null, null, null, false, 
-                "Profesional no identificado", "Intento de acceso sin autenticación");
+                "Usuario no identificado", "Intento de acceso sin autenticación");
             return Response.status(Response.Status.UNAUTHORIZED)
                     .entity(Map.of("error", "Autenticación requerida"))
                     .build();
@@ -321,13 +497,19 @@ public class DocumentoClinicoResource {
         String tipoDocumento = null;
         boolean accesoPermitido = false;
         String motivoRechazo = null;
+        boolean esAccesoPaciente = false;
         
         if (documentoId != null && !documentoId.isBlank()) {
             // Consultar metadatos para obtener información del paciente
             Map<String, Object> metadatos = documentoService.obtenerMetadatosPorDocumentoId(documentoId);
             if (metadatos != null) {
                 codDocumPaciente = (String) metadatos.get("documentoIdPaciente");
-                tipoDocumento = (String) metadatos.get("formato");
+                // Intentar obtener tipoDocumento primero (tipo de documento clínico)
+                tipoDocumento = (String) metadatos.get("tipoDocumento");
+                // Si no hay tipoDocumento, usar formato como fallback (aunque no es ideal)
+                if (tipoDocumento == null || tipoDocumento.isBlank()) {
+                    tipoDocumento = (String) metadatos.get("formato");
+                }
             }
         }
         
@@ -336,20 +518,27 @@ public class DocumentoClinicoResource {
             codDocumPaciente = doc.getString("pacienteDoc");
         }
         
-        // 4) Verificar permisos si tenemos información del paciente
+        // 4) Verificar si es acceso del paciente a sus propios documentos
         if (codDocumPaciente != null && !codDocumPaciente.isBlank()) {
-            // Obtener tenantId del contexto para políticas por clínica
-            String tenantId = TenantContext.getCurrentTenant();
-            accesoPermitido = politicasClient.verificarPermiso(profesionalId, codDocumPaciente, tipoDocumento, tenantId);
-            if (!accesoPermitido) {
-                motivoRechazo = "No tiene permisos para acceder a este documento";
-                // Logging de auditoría para acceso denegado
-                uy.edu.tse.hcen.common.security.SecurityAuditLogger.logFailedAccess(
-                    profesionalId, "/api/documentos/" + id, motivoRechazo);
+            // Si se proporciona el header X-Paciente-CI y coincide con el CI del documento, permitir acceso
+            if (pacienteCI != null && !pacienteCI.isBlank() && pacienteCI.equals(codDocumPaciente)) {
+                accesoPermitido = true;
+                esAccesoPaciente = true;
+                LOG.infof("Acceso permitido: Paciente %s accediendo a su propio documento %s", pacienteCI, id);
             } else {
-                // Logging de auditoría para acceso exitoso a documento sensible
-                uy.edu.tse.hcen.common.security.SecurityAuditLogger.logSensitiveAccess(
-                    profesionalId, "/api/documentos/" + id);
+                // Verificar permisos para profesionales mediante políticas
+                String tenantId = TenantContext.getCurrentTenant();
+                accesoPermitido = politicasClient.verificarPermiso(usuarioId, codDocumPaciente, tipoDocumento, tenantId);
+                if (!accesoPermitido) {
+                    motivoRechazo = "No tiene permisos para acceder a este documento";
+                    // Logging de auditoría para acceso denegado
+                    uy.edu.tse.hcen.common.security.SecurityAuditLogger.logFailedAccess(
+                        usuarioId, "/api/documentos/" + id, motivoRechazo);
+                } else {
+                    // Logging de auditoría para acceso exitoso a documento sensible
+                    uy.edu.tse.hcen.common.security.SecurityAuditLogger.logSensitiveAccess(
+                        usuarioId, "/api/documentos/" + id);
+                }
             }
         } else {
             // Si no podemos determinar el paciente, permitir acceso pero registrar advertencia
@@ -358,8 +547,9 @@ public class DocumentoClinicoResource {
         }
         
         // 5) Registrar acceso (exitoso o no)
-        politicasClient.registrarAcceso(profesionalId, codDocumPaciente, documentoId, tipoDocumento,
-                accesoPermitido, motivoRechazo, "Acceso desde componente periférico");
+        String referencia = esAccesoPaciente ? "Acceso del paciente a su propio documento" : "Acceso desde componente periférico";
+        politicasClient.registrarAcceso(usuarioId, codDocumPaciente, documentoId, tipoDocumento,
+                accesoPermitido, motivoRechazo, referencia);
         
         // 6) Si no tiene permiso, denegar acceso
         if (!accesoPermitido) {
@@ -369,7 +559,22 @@ public class DocumentoClinicoResource {
                     .build();
         }
         
-        // 7) Extraer contenido del documento
+        // 7) Verificar si existe PDF y devolverlo si está disponible
+        org.bson.types.Binary pdfBinary = doc.get("pdf", org.bson.types.Binary.class);
+        if (pdfBinary != null && pdfBinary.getData() != null && pdfBinary.getData().length > 0) {
+            // Devolver PDF binario
+            byte[] pdfBytes = pdfBinary.getData();
+            String fileName = "documento_" + id + ".pdf";
+            if (documentoId != null && !documentoId.isBlank()) {
+                fileName = "documento_" + documentoId + ".pdf";
+            }
+            return Response.ok(pdfBytes, MediaType.APPLICATION_OCTET_STREAM)
+                    .header("Content-Type", "application/pdf")
+                    .header("Content-Disposition", "attachment; filename=\"" + fileName + "\"")
+                    .build();
+        }
+        
+        // 8) Si no hay PDF, devolver contenido de texto
         String contenido = doc.getString("contenido");
         if (contenido == null) {
             return Response.status(Response.Status.NOT_FOUND)
@@ -377,12 +582,12 @@ public class DocumentoClinicoResource {
                     .build();
         }
         
-        // 8) Determinar Content-Type
+        // 9) Determinar Content-Type para texto
         String contentType = tipoDocumento != null && !tipoDocumento.isBlank() 
                 ? tipoDocumento 
                 : MediaType.TEXT_PLAIN;
         
-        // 9) Devolver contenido
+        // 10) Devolver contenido de texto
         return Response.ok(contenido, contentType)
                 .header("Content-Disposition", "inline; filename=\"documento_" + id + ".txt\"")
                 .build();
@@ -399,6 +604,7 @@ public class DocumentoClinicoResource {
     @POST
     @Path("/solicitar-acceso")
     @RolesAllowed("PROFESIONAL")
+    @Consumes(MediaType.APPLICATION_JSON)
     public Response solicitarAcceso(Map<String, Object> body) {
         // 1) Obtener información del profesional desde el token
         String profesionalId = null;
@@ -466,6 +672,7 @@ public class DocumentoClinicoResource {
     @POST
     @Path("/solicitar-acceso-historia-clinica")
     @RolesAllowed("PROFESIONAL")
+    @Consumes(MediaType.APPLICATION_JSON)
     public Response solicitarAccesoHistoriaClinica(Map<String, Object> body) {
         // 1) Obtener información del profesional desde el token
         String profesionalId = null;
@@ -529,15 +736,23 @@ public class DocumentoClinicoResource {
      * POST /api/documentos/solicitudes/{id}/aprobar
      * 
      * Permite a un paciente o administrador aprobar una solicitud de acceso pendiente.
-     * Nota: El servicio de políticas validará que el usuario tenga permisos para aprobar la solicitud.
+     * 
+     * FLUJO:
+     * - Un profesional crea un documento clínico de un paciente.
+     * - Otro profesional intenta acceder y solicita autorización.
+     * - EL PACIENTE es quien debe aprobar la solicitud.
+     * 
+     * Nota: Este endpoint permite que cualquier usuario autenticado apruebe solicitudes.
+     * En producción, se debería validar que el usuario sea el paciente correspondiente.
      * 
      * @param id ID de la solicitud a aprobar
-     * @param body JSON con resueltoPor (opcional), comentario (opcional)
+     * @param body JSON con resueltoPor (opcional), comentario (opcional), pacienteCI (opcional para validación)
      * @return Solicitud aprobada
      */
     @POST
     @Path("/solicitudes/{id}/aprobar")
-    @RolesAllowed({"PROFESIONAL", "ADMINISTRADOR"})
+    // Permitir a cualquier usuario autenticado aprobar (incluye pacientes)
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.WILDCARD})
     public Response aprobarSolicitud(@PathParam("id") Long id, Map<String, Object> body) {
         // 1) Obtener información del usuario desde el token
         String resueltoPor = null;
@@ -577,15 +792,23 @@ public class DocumentoClinicoResource {
      * POST /api/documentos/solicitudes/{id}/rechazar
      * 
      * Permite a un paciente o administrador rechazar una solicitud de acceso pendiente.
-     * Nota: El servicio de políticas validará que el usuario tenga permisos para rechazar la solicitud.
+     * 
+     * FLUJO:
+     * - Un profesional crea un documento clínico de un paciente.
+     * - Otro profesional intenta acceder y solicita autorización.
+     * - EL PACIENTE es quien debe rechazar la solicitud si no desea otorgar acceso.
+     * 
+     * Nota: Este endpoint permite que cualquier usuario autenticado rechace solicitudes.
+     * En producción, se debería validar que el usuario sea el paciente correspondiente.
      * 
      * @param id ID de la solicitud a rechazar
-     * @param body JSON con resueltoPor (opcional), comentario (opcional)
+     * @param body JSON con resueltoPor (opcional), comentario (opcional), pacienteCI (opcional para validación)
      * @return Solicitud rechazada
      */
     @POST
     @Path("/solicitudes/{id}/rechazar")
-    @RolesAllowed({"PROFESIONAL", "ADMINISTRADOR"})
+    // Permitir a cualquier usuario autenticado rechazar (incluye pacientes)
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.WILDCARD})
     public Response rechazarSolicitud(@PathParam("id") Long id, Map<String, Object> body) {
         // 1) Obtener información del usuario desde el token
         String resueltoPor = null;

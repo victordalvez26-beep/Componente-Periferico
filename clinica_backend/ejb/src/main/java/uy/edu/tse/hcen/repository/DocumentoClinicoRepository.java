@@ -3,6 +3,7 @@ package uy.edu.tse.hcen.repository;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import org.bson.Document;
+import org.bson.types.Binary;
 import org.bson.types.ObjectId;
 import jakarta.inject.Inject;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -81,6 +82,55 @@ public class DocumentoClinicoRepository {
         Document documento = new Document();
         documento.append("documentoId", documentoId);
         documento.append("contenido", contenido);
+        if (documentoIdPaciente != null && !documentoIdPaciente.isBlank()) {
+            documento.append("documentoIdPaciente", documentoIdPaciente);
+            documento.append("pacienteDoc", documentoIdPaciente); // También para compatibilidad
+        }
+        guardarDocumento(documento);
+        return documento;
+    }
+
+    /**
+     * Guarda el contenido asociado a un documento con información del paciente, incluyendo PDF binario.
+     * 
+     * @param documentoId identificador del documento (UUID)
+     * @param contenido contenido de texto (String)
+     * @param pdfBytes contenido PDF como array de bytes (opcional, puede ser null)
+     * @param archivoAdjunto contenido de archivo adjunto como array de bytes (opcional, puede ser null)
+     * @param nombreArchivo nombre del archivo adjunto (opcional)
+     * @param tipoArchivo tipo MIME del archivo adjunto (opcional)
+     * @param documentoIdPaciente CI o documento de identidad del paciente
+     * @return el Document insertado
+     */
+    public Document guardarContenidoConPacienteYArchivos(String documentoId, String contenido, 
+            byte[] pdfBytes, byte[] archivoAdjunto, String nombreArchivo, String tipoArchivo, 
+            String documentoIdPaciente) {
+        Document documento = new Document();
+        documento.append("documentoId", documentoId);
+        documento.append("contenido", contenido);
+        
+        // Guardar PDF como binario si está presente
+        if (pdfBytes != null && pdfBytes.length > 0) {
+            documento.append("pdf", new Binary(pdfBytes));
+            documento.append("tienePdf", true);
+        } else {
+            documento.append("tienePdf", false);
+        }
+        
+        // Guardar archivo adjunto si está presente
+        if (archivoAdjunto != null && archivoAdjunto.length > 0) {
+            documento.append("archivoAdjunto", new Binary(archivoAdjunto));
+            documento.append("tieneArchivoAdjunto", true);
+            if (nombreArchivo != null && !nombreArchivo.isBlank()) {
+                documento.append("nombreArchivo", nombreArchivo);
+            }
+            if (tipoArchivo != null && !tipoArchivo.isBlank()) {
+                documento.append("tipoArchivo", tipoArchivo);
+            }
+        } else {
+            documento.append("tieneArchivoAdjunto", false);
+        }
+        
         if (documentoIdPaciente != null && !documentoIdPaciente.isBlank()) {
             documento.append("documentoIdPaciente", documentoIdPaciente);
             documento.append("pacienteDoc", documentoIdPaciente); // También para compatibilidad

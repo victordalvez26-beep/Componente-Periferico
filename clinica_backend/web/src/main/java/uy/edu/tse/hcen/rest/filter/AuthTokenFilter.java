@@ -29,7 +29,23 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
     public void filter(ContainerRequestContext requestContext) throws IOException {
         // Manejar peticiones OPTIONS (CORS preflight) - siempre permitir
         if ("OPTIONS".equalsIgnoreCase(requestContext.getMethod())) {
-            requestContext.abortWith(Response.ok().build());
+            // Agregar headers CORS en la respuesta OPTIONS
+            Response.ResponseBuilder responseBuilder = Response.ok();
+            String origin = requestContext.getHeaderString("Origin");
+            if (origin != null && (
+                origin.equals("http://localhost:3000") || 
+                origin.equals("http://localhost:3001") ||
+                origin.equals("http://127.0.0.1:3000") ||
+                origin.equals("http://127.0.0.1:3001")
+            )) {
+                responseBuilder.header("Access-Control-Allow-Origin", origin);
+            } else {
+                responseBuilder.header("Access-Control-Allow-Origin", "http://localhost:3000");
+            }
+            responseBuilder.header("Access-Control-Allow-Credentials", "true");
+            responseBuilder.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD");
+            responseBuilder.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-Profesional-Id");
+            requestContext.abortWith(responseBuilder.build());
             return;
         }
         
@@ -37,7 +53,21 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
         // - /config/* : Llamados por HCEN central (init, update, delete, activate, health)
         // - /auth/login : Login de usuarios
         String path = requestContext.getUriInfo().getPath();
-        if (path.startsWith("config/") || path.equals("auth/login")) {
+        String method = requestContext.getMethod();
+        
+        // Log temporal para debugging (remover en producción)
+        System.out.println("[AuthTokenFilter] Path: " + path + ", Method: " + method);
+        
+        // El path puede venir con o sin el ApplicationPath, verificar ambos casos
+        // path puede ser "auth/login" o "api/auth/login" dependiendo de cómo JAX-RS lo maneje
+        boolean isPublicEndpoint = path.startsWith("config/") || 
+            path.equals("auth/login") || 
+            path.endsWith("/auth/login") ||
+            path.contains("/auth/login") ||
+            path.contains("auth/login");
+            
+        if (isPublicEndpoint) {
+            System.out.println("[AuthTokenFilter] Permitiendo acceso público a: " + path);
             // Permitir acceso sin JWT a estos endpoints públicos
             return;
         }
@@ -108,11 +138,23 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
 
     @Override
     public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) throws IOException {
-        // Agregar headers CORS para permitir llamadas desde el frontend React (localhost:3001)
-        responseContext.getHeaders().add("Access-Control-Allow-Origin", "http://localhost:3001");
+        // Agregar headers CORS para permitir llamadas desde el frontend React
+        // Permitir tanto localhost:3000 como localhost:3001 para flexibilidad
+        String origin = requestContext.getHeaderString("Origin");
+        if (origin != null && (
+            origin.equals("http://localhost:3000") || 
+            origin.equals("http://localhost:3001") ||
+            origin.equals("http://127.0.0.1:3000") ||
+            origin.equals("http://127.0.0.1:3001")
+        )) {
+            responseContext.getHeaders().add("Access-Control-Allow-Origin", origin);
+        } else {
+            // Por defecto, permitir localhost:3000 (puerto estándar de React)
+            responseContext.getHeaders().add("Access-Control-Allow-Origin", "http://localhost:3000");
+        }
         responseContext.getHeaders().add("Access-Control-Allow-Credentials", "true");
         responseContext.getHeaders().add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD");
-        responseContext.getHeaders().add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+        responseContext.getHeaders().add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-Profesional-Id");
         
         // Limpiar el TenantContext al finalizar la petición para evitar fugas entre hilos
         TenantContext.clear();

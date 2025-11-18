@@ -25,17 +25,33 @@ public class AuthResource {
     @POST
     @Path("/login")
     public Response login(LoginRequest request) {
+        System.out.println("[AuthResource] Login intentado - nickname: " + (request != null ? request.getNickname() : "null"));
         try {
+            if (request == null || request.getNickname() == null || request.getPassword() == null) {
+                System.out.println("[AuthResource] Request inválido - request o credenciales null");
+                return Response.status(Response.Status.BAD_REQUEST)
+                               .entity(java.util.Map.of("error", "Nickname y password son requeridos"))
+                               .build();
+            }
+            
             uy.edu.tse.hcen.dto.LoginResponse response = loginService.authenticateAndGenerateToken(
                 request.getNickname(),
                 request.getPassword()
             );
 
+            System.out.println("[AuthResource] Login exitoso para: " + request.getNickname());
             return Response.ok(response).build();
 
         } catch (SecurityException e) {
+            System.out.println("[AuthResource] Login fallido: " + e.getMessage());
             return Response.status(Response.Status.UNAUTHORIZED)
                            .entity(java.util.Map.of("error", "Credenciales incorrectas"))
+                           .build();
+        } catch (Exception e) {
+            System.out.println("[AuthResource] Error inesperado en login: " + e.getMessage());
+            e.printStackTrace();
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                           .entity(java.util.Map.of("error", "Error interno del servidor"))
                            .build();
         }
     }

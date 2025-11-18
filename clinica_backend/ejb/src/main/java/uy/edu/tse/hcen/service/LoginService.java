@@ -47,21 +47,29 @@ public class LoginService {
 
     // 1) Buscar usuario en el schema público (global)  
     // Usar el método con query nativa para evitar JOINs problemáticos
+    System.out.println("[LoginService] Buscando usuario: " + nickname);
     UsuarioPeriferico user = userRepository.findByNicknameForLogin(nickname);
 
         // Validar credenciales
         if (user == null) {
+            System.out.println("[LoginService] Usuario no encontrado: " + nickname);
             LOG.debugf("Usuario no encontrado: %s", nickname);
             throw new SecurityException("Credenciales inválidas.");
         }
         
+        System.out.println("[LoginService] Usuario encontrado - ID: " + user.getId() + ", Hash: " + (user.getPasswordHash() != null ? user.getPasswordHash().substring(0, Math.min(20, user.getPasswordHash().length())) + "..." : "null"));
         String storedHash = user.getPasswordHash();
+        System.out.println("[LoginService] Verificando contraseña...");
         boolean matches = PasswordUtils.verifyPassword(rawPassword, storedHash);
+        System.out.println("[LoginService] Resultado verificación: " + matches);
         
         if (!matches) {
+            System.out.println("[LoginService] Contraseña incorrecta para usuario: " + nickname);
             LOG.debugf("Contraseña incorrecta para usuario: %s", nickname);
             throw new SecurityException("Credenciales inválidas.");
         }
+        
+        System.out.println("[LoginService] Credenciales válidas para: " + nickname);
 
         // Determine role for token. Prefer an explicit stored role when present
         // (added to public.usuarioperiferico). Fallback to instanceof checks.

@@ -44,12 +44,15 @@ Para visualizar la documentación OpenAPI, puedes usar:
 
 ### Documentos
 
-- `GET /api/documentos/{id}/contenido` - Descarga contenido con verificación de permisos
+- `GET /api/documentos/{id}` - Obtener documento por ID (devuelve PDF si existe, JSON si no)
+- `GET /api/documentos/{id}/contenido` - Descarga contenido con verificación de permisos (devuelve PDF si existe, texto si no)
+  - **Header opcional:** `X-Paciente-CI` - Permite acceso del paciente a sus propios documentos
+- `POST /api/documentos/completo` - Crear documento completo (convierte automáticamente a PDF)
+- `POST /api/documentos/completo-con-archivo` - Crear documento completo con archivo adjunto (multipart/form-data)
 - `POST /api/documentos/solicitar-acceso` - Solicitar acceso a documentos específicos de un paciente
 - `POST /api/documentos/solicitar-acceso-historia-clinica` - Solicitar acceso a toda la historia clínica de un paciente
-- `POST /api/documentos/solicitudes/{id}/aprobar` - Aprobar una solicitud de acceso
-- `POST /api/documentos/solicitudes/{id}/rechazar` - Rechazar una solicitud de acceso
-- `POST /api/documentos/completo` - Crear documento completo
+- `POST /api/documentos/solicitudes/{id}/aprobar` - Aprobar una solicitud de acceso (idempotente, permite pacientes)
+- `POST /api/documentos/solicitudes/{id}/rechazar` - Rechazar una solicitud de acceso (idempotente, permite pacientes)
 - `GET /api/documentos/paciente/{documentoIdPaciente}/metadatos` - Metadatos del paciente
 - `GET /api/documentos/paciente/{documentoIdPaciente}/resumen` - Generar resumen de historia clínica con IA (OpenAI o3)
 

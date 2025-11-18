@@ -155,11 +155,16 @@ paths:
     post:
       summary: Crear documento completo
       description: |
-        Crea un documento completo: guarda el contenido en MongoDB y envía los metadatos al HCEN central.
-        Este es el endpoint principal del flujo completo.
+        Crea un documento completo: guarda el contenido en MongoDB, **convierte automáticamente a PDF**,
+        y envía los metadatos al HCEN central. Este es el endpoint principal del flujo completo.
+        
+        **📄 Conversión a PDF:** El contenido de texto se convierte automáticamente a PDF usando iText 7
+        y se guarda como binario en MongoDB. El PDF incluye el título, autor, CI del paciente y contenido.
         
         **Autenticación entre servicios:** El cliente automáticamente genera y envía un token JWT de servicio
         al HCEN central cuando se envían los metadatos. No se requiere configuración adicional.
+        
+        **Nota:** Para crear documentos con archivos adjuntos, use `/documentos/completo-con-archivo`.
       operationId: crearDocumentoCompleto
       tags:
         - Documentos
@@ -198,10 +203,108 @@ paths:
         '403':
           description: No autorizado (tenant incorrecto o falta autenticación)
 
+  /documentos/completo-con-archivo:
+    post:
+      summary: Crear documento completo con archivo adjunto
+      description: |
+        Crea un documento completo con archivo adjunto: guarda el contenido en MongoDB, **convierte automáticamente a PDF**,
+        guarda el archivo adjunto y envía los metadatos al HCEN central.
+        
+        **📄 Conversión a PDF:** El contenido de texto se convierte automáticamente a PDF usando iText 7
+        y se guarda como binario en MongoDB. El PDF incluye el título, autor, CI del paciente y contenido.
+        
+        **📎 Archivo Adjunto:** Si se proporciona un archivo adjunto, se guarda como binario en MongoDB
+        junto con su nombre y tipo MIME.
+        
+        **Autenticación entre servicios:** El cliente automáticamente genera y envía un token JWT de servicio
+        al HCEN central cuando se envían los metadatos. No se requiere configuración adicional.
+      operationId: crearDocumentoCompletoConArchivo
+      tags:
+        - Documentos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - contenido
+                - documentoIdPaciente
+              properties:
+                contenido:
+                  type: string
+                  description: Contenido de texto del documento (requerido)
+                  example: "Diagnóstico: Paciente presenta síntomas de gripe. Tratamiento: reposo y paracetamol."
+                documentoIdPaciente:
+                  type: string
+                  description: CI del paciente (requerido)
+                  example: "12345678"
+                titulo:
+                  type: string
+                  description: Título del documento (opcional)
+                  example: "Consulta Médica"
+                autor:
+                  type: string
+                  description: Autor del documento (opcional)
+                  example: "Dr. Juan Pérez"
+                especialidad:
+                  type: string
+                  description: Especialidad (opcional)
+                  example: "Medicina General"
+                archivo:
+                  type: string
+                  format: binary
+                  description: Archivo adjunto (opcional)
+            encoding:
+              archivo:
+                contentType: application/octet-stream
+      responses:
+        '201':
+          description: Documento creado exitosamente con PDF y archivo adjunto
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/CrearDocumentoResponse'
+                  - type: object
+                    properties:
+                      tienePdf:
+                        type: boolean
+                        description: Indica si se generó y guardó el PDF
+                        example: true
+                      tieneArchivoAdjunto:
+                        type: boolean
+                        description: Indica si se guardó un archivo adjunto
+                        example: true
+        '400':
+          description: Error de validación (campos requeridos faltantes)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "contenido es requerido"
+        '403':
+          description: No autorizado (tenant incorrecto o falta autenticación)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /documentos/{id}:
     get:
       summary: Obtener documento por ID
-      description: Obtiene un documento por su MongoDB ID
+      description: |
+        Obtiene un documento por su MongoDB ID. 
+        
+        **Comportamiento:**
+        - Si el documento tiene un PDF guardado, se devuelve el PDF binario con `Content-Type: application/pdf`
+        - Si no tiene PDF, se devuelve el documento completo como JSON
+        
+        **Nota:** Este endpoint es accesible públicamente (sin autenticación requerida) para compatibilidad con RNDC.
+        Para descargas con verificación de permisos, use `/documentos/{id}/contenido`.
       operationId: obtenerDocumento
       tags:
         - Documentos
@@ -209,12 +312,19 @@ paths:
         - name: id
           in: path
           required: true
+          description: ID del documento (MongoDB _id hex string)
           schema:
             type: string
+            example: "691cd3b557817d262bd76b93"
       responses:
         '200':
           description: Documento encontrado
           content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+              description: Si el documento tiene PDF, se devuelve como binario
             application/json:
               schema:
                 type: object
@@ -225,8 +335,32 @@ paths:
                     type: string
                   contenido:
                     type: string
+                  pdf:
+                    type: object
+                    description: Objeto PDF (solo presente si tiene PDF)
+                  tienePdf:
+                    type: boolean
+                  tieneArchivoAdjunto:
+                    type: boolean
+                  documentoIdPaciente:
+                    type: string
+                  pacienteDoc:
+                    type: string
+          headers:
+            Content-Type:
+              schema:
+                type: string
+              description: "application/pdf si tiene PDF, application/json si no"
+            Content-Disposition:
+              schema:
+                type: string
+              description: "Header para indicar el nombre del archivo (solo si es PDF)"
         '404':
           description: Documento no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /documentos/{id}/contenido:
     get:
@@ -237,8 +371,16 @@ paths:
         **⚠️ Verificación de Permisos:** Este endpoint verifica automáticamente si el profesional autenticado
         tiene permisos para acceder al documento antes de devolverlo. Si no tiene permisos, retorna 403 Forbidden.
         
+        **👤 Acceso del Paciente:** Los pacientes pueden acceder a sus propios documentos sin autorización profesional.
+        Para esto, deben enviar el header `X-Paciente-CI` con su CI. Si el CI coincide con el CI del documento,
+        se permite el acceso automáticamente sin verificación de políticas.
+        
         **📝 Registro de Acceso:** Todos los accesos (exitosos y denegados) se registran automáticamente
         en el servicio de políticas para auditoría.
+        
+        **📄 Comportamiento:**
+        - Si el documento tiene un PDF guardado, se devuelve el PDF binario con `Content-Type: application/pdf`
+        - Si no tiene PDF, se devuelve el contenido de texto con `Content-Type: text/plain`
       operationId: descargarContenido
       tags:
         - Documentos
@@ -252,25 +394,39 @@ paths:
           schema:
             type: string
             example: "690bb94df439e34986bf1ab7"
+        - name: X-Paciente-CI
+          in: header
+          required: false
+          description: |
+            CI del paciente (opcional). Si se proporciona y coincide con el CI del documento,
+            se permite acceso automático sin verificación de políticas.
+          schema:
+            type: string
+            example: "12345678"
       responses:
         '200':
           description: Contenido del documento (acceso permitido)
           content:
-            text/plain:
-              schema:
-                type: string
-                example: "Este es el contenido del documento clínico..."
             application/pdf:
               schema:
                 type: string
                 format: binary
-              description: Si el formato es PDF, se devuelve como binario
+              description: Si el documento tiene PDF, se devuelve como binario
+            text/plain:
+              schema:
+                type: string
+                example: "Este es el contenido del documento clínico..."
+              description: Si no tiene PDF, se devuelve el contenido de texto
           headers:
+            Content-Type:
+              schema:
+                type: string
+              description: "application/pdf si tiene PDF, text/plain si no"
             Content-Disposition:
               description: Header para indicar el nombre del archivo
               schema:
                 type: string
-                example: 'inline; filename="documento_690bb94df439e34986bf1ab7.txt"'
+              example: 'attachment; filename="documento_690bb94df439e34986bf1ab7.pdf"'
         '400':
           description: ID inválido o faltante
           content:
@@ -340,7 +496,7 @@ paths:
                   titulo: "Consulta Médica"
                   languageCode: "es"
                   breakingTheGlass: false
-                  urlAcceso: "http://127.0.0.1:8080/hcen-web/api/documentos/690bb94df439e34986bf1ab7"
+                  urlAcceso: "http://127.0.0.1:8080/hcen-web/api/documentos/690bb94df439e34986bf1ab7/contenido"
                   fechaCreacion: "2025-01-15T10:30:00"
                   fechaRegistro: "2025-01-15T10:31:00"
                   descripcion: "Consulta de rutina"
@@ -1539,12 +1695,28 @@ components:
       properties:
         documentoId:
           type: string
+          description: ID único del documento (UUID)
+          example: "7ca525ad-bea6-466b-ae31-6a1ed745825f"
         mongoId:
           type: string
+          description: ID de MongoDB del documento guardado
+          example: "691cd3b557817d262bd76b93"
         urlAcceso:
           type: string
+          description: URL para acceder al contenido del documento (apunta a /contenido)
+          example: "http://127.0.0.1:8080/hcen-web/api/documentos/691cd3b557817d262bd76b93/contenido"
         documentoIdPaciente:
           type: string
+          description: CI del paciente
+          example: "12345678"
+        tienePdf:
+          type: boolean
+          description: Indica si se generó y guardó el PDF
+          example: true
+        tieneArchivoAdjunto:
+          type: boolean
+          description: Indica si se guardó un archivo adjunto (solo para /completo-con-archivo)
+          example: false
 
     Profesional:
       type: object
@@ -1624,7 +1796,7 @@ components:
         urlAcceso:
           type: string
           description: URL para acceder al contenido completo del documento en el componente periférico
-          example: "http://127.0.0.1:8080/hcen-web/api/documentos/690bb94df439e34986bf1ab7"
+          example: "http://127.0.0.1:8080/hcen-web/api/documentos/690bb94df439e34986bf1ab7/contenido"
         fechaCreacion:
           type: string
           format: date-time

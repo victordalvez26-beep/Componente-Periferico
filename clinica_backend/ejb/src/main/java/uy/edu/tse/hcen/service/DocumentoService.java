@@ -17,13 +17,17 @@ import java.util.function.Consumer;
 import uy.edu.tse.hcen.exceptions.HcenUnavailableException;
 import uy.edu.tse.hcen.exceptions.MetadatosQueryException;
 import uy.edu.tse.hcen.exceptions.MetadatosSyncException;
+import uy.edu.tse.hcen.util.PdfGenerator;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Servicio que encapsula la lógica de negocio de documentos clínicos.
@@ -35,6 +39,8 @@ import java.util.UUID;
  */
 @RequestScoped
 public class DocumentoService {
+
+    private static final Logger LOGGER = Logger.getLogger(DocumentoService.class.getName());
 
     private static final String PROP_RNDC_METADATOS_URL = "RNDC_METADATOS_URL";
     private static final String PROP_NODO_BASE_URL = "NODO_BASE_URL";
@@ -206,6 +212,7 @@ public class DocumentoService {
 
     /**
      * Crea un documento clínico completo: guarda el contenido en MongoDB y envía los metadatos al HCEN central.
+     * Convierte automáticamente el contenido a PDF y lo guarda como binario.
      * @param body Map con "contenido" (requerido), "documentoIdPaciente" (requerido) y otros campos opcionales de metadatos
      * @return Map con el resultado incluyendo documentoId, urlAcceso, etc.
      */
@@ -215,8 +222,21 @@ public class DocumentoService {
         String documentoId = resolveDocumentoId(body);
         String tenantId = resolveTenantId(body);
 
-        // Guardar contenido con información del paciente para facilitar búsquedas
-        Document saved = repo.guardarContenidoConPaciente(documentoId, contenido, documentoIdPaciente);
+        // Convertir contenido a PDF
+        byte[] pdfBytes = null;
+        try {
+            String titulo = (String) body.get("titulo");
+            String autor = (String) body.get("autor");
+            pdfBytes = PdfGenerator.textoAPdf(contenido, titulo, autor, documentoIdPaciente);
+            LOGGER.log(Level.INFO, "PDF generado exitosamente para documento {0}", documentoId);
+        } catch (IOException e) {
+            LOGGER.log(Level.WARNING, "Error al generar PDF, continuando sin PDF: {0}", e.getMessage());
+            // Continuar sin PDF si hay error
+        }
+
+        // Guardar contenido con información del paciente y PDF
+        Document saved = repo.guardarContenidoConPacienteYArchivos(
+            documentoId, contenido, pdfBytes, null, null, null, documentoIdPaciente);
         String documentoIdLocal = extractMongoId(saved);
         String urlAcceso = buildUrlAcceso(documentoIdLocal);
 
@@ -225,11 +245,84 @@ public class DocumentoService {
 
         try {
             hcenClient.registrarMetadatosCompleto(payloadCompleto);
+            // Si llegamos aquí, la sincronización fue exitosa
         } catch (HcenUnavailableException ex) {
+            // Log del error pero no fallar la creación del documento
+            LOGGER.log(Level.WARNING, "Error sincronizando metadatos con HCEN central: {0}", ex.getMessage());
             throw new MetadatosSyncException("Documento guardado localmente pero sin sincronización en HCEN", ex);
         }
 
-        return buildResultado(documentoId, documentoIdPaciente, urlAcceso, documentoIdLocal);
+        Map<String, Object> resultado = buildResultado(documentoId, documentoIdPaciente, urlAcceso, documentoIdLocal);
+        resultado.put("tienePdf", pdfBytes != null && pdfBytes.length > 0);
+        return resultado;
+    }
+
+    /**
+     * Crea un documento clínico completo con archivo adjunto: guarda el contenido en MongoDB, 
+     * convierte a PDF, guarda el archivo adjunto y envía los metadatos al HCEN central.
+     * @param contenido Contenido de texto del documento
+     * @param documentoIdPaciente CI del paciente
+     * @param archivoAdjunto Bytes del archivo adjunto (opcional)
+     * @param nombreArchivo Nombre del archivo adjunto (opcional)
+     * @param tipoArchivo Tipo MIME del archivo adjunto (opcional)
+     * @param metadatos Map con campos adicionales de metadatos (titulo, autor, especialidad, etc.)
+     * @return Map con el resultado incluyendo documentoId, urlAcceso, etc.
+     */
+    public Map<String, Object> crearDocumentoCompletoConArchivo(String contenido, String documentoIdPaciente,
+            byte[] archivoAdjunto, String nombreArchivo, String tipoArchivo, Map<String, Object> metadatos) {
+        if (contenido == null || contenido.isBlank()) {
+            throw new IllegalArgumentException("contenido es requerido");
+        }
+        if (documentoIdPaciente == null || documentoIdPaciente.isBlank()) {
+            throw new IllegalArgumentException("documentoIdPaciente es requerido");
+        }
+
+        String documentoId = resolveDocumentoId(metadatos);
+        String tenantId = resolveTenantId(metadatos);
+
+        // Convertir contenido a PDF
+        byte[] pdfBytes = null;
+        try {
+            String titulo = (String) metadatos.get("titulo");
+            String autor = (String) metadatos.get("autor");
+            pdfBytes = PdfGenerator.textoAPdf(contenido, titulo, autor, documentoIdPaciente);
+            LOGGER.log(Level.INFO, "PDF generado exitosamente para documento {0}", documentoId);
+        } catch (IOException e) {
+            LOGGER.log(Level.WARNING, "Error al generar PDF, continuando sin PDF: {0}", e.getMessage());
+            // Continuar sin PDF si hay error
+        }
+
+        // Guardar contenido con información del paciente, PDF y archivo adjunto
+        Document saved = repo.guardarContenidoConPacienteYArchivos(
+            documentoId, contenido, pdfBytes, archivoAdjunto, nombreArchivo, tipoArchivo, documentoIdPaciente);
+        String documentoIdLocal = extractMongoId(saved);
+        String urlAcceso = buildUrlAcceso(documentoIdLocal);
+
+        // Construir metadatos combinando los parámetros con el map
+        Map<String, Object> bodyCompleto = new HashMap<>(metadatos);
+        bodyCompleto.put(KEY_CONTENIDO, contenido);
+        bodyCompleto.put(KEY_DOCUMENTO_ID_PACIENTE, documentoIdPaciente);
+        bodyCompleto.put(KEY_DOCUMENTO_ID, documentoId);
+
+        DTMetadatos dtMetadatos = buildMetadatos(bodyCompleto, documentoId, documentoIdPaciente, tenantId, urlAcceso);
+        Map<String, Object> payloadCompleto = buildPayload(dtMetadatos, bodyCompleto);
+
+        try {
+            hcenClient.registrarMetadatosCompleto(payloadCompleto);
+            // Si llegamos aquí, la sincronización fue exitosa
+        } catch (HcenUnavailableException ex) {
+            // Log del error pero no fallar la creación del documento
+            LOGGER.log(Level.WARNING, "Error sincronizando metadatos con HCEN central: {0}", ex.getMessage());
+            throw new MetadatosSyncException("Documento guardado localmente pero sin sincronización en HCEN", ex);
+        }
+
+        Map<String, Object> resultado = buildResultado(documentoId, documentoIdPaciente, urlAcceso, documentoIdLocal);
+        resultado.put("tienePdf", pdfBytes != null && pdfBytes.length > 0);
+        resultado.put("tieneArchivoAdjunto", archivoAdjunto != null && archivoAdjunto.length > 0);
+        if (nombreArchivo != null && !nombreArchivo.isBlank()) {
+            resultado.put("nombreArchivo", nombreArchivo);
+        }
+        return resultado;
     }
 
     private DTMetadatos fetchMetadatos(String rndcBase, String documentoId) {
@@ -303,7 +396,14 @@ public class DocumentoService {
 
     private String buildUrlAcceso(String documentoIdLocal) {
         String nodoBase = resolveConfiguredValue(PROP_NODO_BASE_URL, DEFAULT_NODO_BASE_URL);
-        return nodoBase + "/hcen-web/api/documentos/" + documentoIdLocal;
+        // El periférico tiene su propio context root, pero la URL de acceso debe apuntar al periférico
+        // La URL debe apuntar al endpoint /contenido que devuelve el PDF binario
+        // Si el nodoBase ya incluye el path completo, usarlo directamente
+        if (nodoBase.contains("/hcen-web") || nodoBase.contains("/nodo-periferico")) {
+            return nodoBase + "/api/documentos/" + documentoIdLocal + "/contenido";
+        }
+        // Si no, asumir que es el base host y usar el context root del periférico
+        return nodoBase + "/hcen-web/api/documentos/" + documentoIdLocal + "/contenido";
     }
 
     private DTMetadatos buildMetadatos(Map<String, Object> body,

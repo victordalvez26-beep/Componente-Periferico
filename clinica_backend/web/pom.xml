@@ -145,6 +145,14 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- RESTEasy Multipart support for file uploads -->
+        <dependency>
+            <groupId>org.jboss.resteasy</groupId>
+            <artifactId>resteasy-multipart-provider</artifactId>
+            <version>6.2.3.Final</version>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- Spring Security for BCrypt - provided by EAR/lib -->
         <dependency>
             <groupId>org.springframework.security</groupId>
