@@ -3,6 +3,9 @@ import { useParams } from 'react-router-dom';
 
 function ConfiguracionPage() {
   const { tenantId } = useParams();
+  // Usar variable de entorno o ruta relativa por defecto
+  const backendBase = process.env.REACT_APP_BACKEND_URL || '';
+  
   const [config, setConfig] = useState({
     nombrePortal: '',
     colorPrimario: '#3b82f6',
@@ -19,7 +22,7 @@ function ConfiguracionPage() {
   const loadConfig = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/hcen-web/api/config/${tenantId}`, {
+      const res = await fetch(`${backendBase}/hcen-web/api/config/${tenantId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -38,7 +41,7 @@ function ConfiguracionPage() {
 
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/hcen-web/api/config/${tenantId}`, {
+      const res = await fetch(`${backendBase}/hcen-web/api/config/${tenantId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -50,6 +53,8 @@ function ConfiguracionPage() {
       if (res.ok) {
         setMessage('✅ Configuración guardada exitosamente');
         setTimeout(() => setMessage(''), 3000);
+        // Recargar la configuración actualizada después de guardar
+        loadConfig();
       } else {
         setMessage('❌ Error al guardar configuración');
       }

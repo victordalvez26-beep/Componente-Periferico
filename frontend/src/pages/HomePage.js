@@ -18,7 +18,8 @@ function HomePage() {
   const fetchStats = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/hcen-web/api/stats/${tenantId}`, {
+      const backendBase = process.env.REACT_APP_BACKEND_URL || '';
+      const res = await fetch(`${backendBase}/hcen-web/api/stats/${tenantId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

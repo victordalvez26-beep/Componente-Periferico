@@ -95,6 +95,18 @@ export default function App() {
           } 
         />
 
+        {/* Gestión de Documentos Clínicos (Profesional) */}
+        <Route 
+          path="/portal/clinica/:tenantId/documentos" 
+          element={
+            <TenantProtectedRoute>
+              <Layout>
+                <DocumentosPage />
+              </Layout>
+            </TenantProtectedRoute>
+          } 
+        />
+
         {/* Configuración del Portal (Admin) */}
         <Route 
           path="/portal/clinica/:tenantId/configuracion" 

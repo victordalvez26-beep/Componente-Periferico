@@ -26,7 +26,8 @@ function LoginPage() {
 
   const fetchClinicInfo = async () => {
     try {
-      const res = await fetch(`/hcen-web/api/config/clinic/${tenantId}`);
+      const backendBase = process.env.REACT_APP_BACKEND_URL || '';
+      const res = await fetch(`${backendBase}/hcen-web/api/config/clinic/${tenantId}`);
       if (res.ok) {
         const data = await res.json();
         setClinicInfo(data);

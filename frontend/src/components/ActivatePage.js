@@ -94,9 +94,10 @@ function ActivatePage() {
     setLoading(true);
 
     try {
+      // Usar variable de entorno o URL por defecto
+      const backendBase = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8081';
       // Llamada al backend periférico con TODOS los datos de la clínica
-      // Usar ruta relativa para que el proxy funcione
-      const response = await fetch('/hcen-web/api/config/activate', {
+      const response = await fetch(`${backendBase}/hcen-web/api/config/activate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
