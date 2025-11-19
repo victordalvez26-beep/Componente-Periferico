@@ -29,23 +29,23 @@ public class DocumentoPacienteResource {
 
     private static final Logger LOG = Logger.getLogger(DocumentoPacienteResource.class);
 
-    private final HcenClient hcenClient;
-    private final DocumentoService documentoService;
-    private final PoliticasClient politicasClient;
-    private final OpenAIService openAIService;
-    private final SecurityContext securityContext;
-
     @Inject
-    public DocumentoPacienteResource(HcenClient hcenClient,
-                                    DocumentoService documentoService,
-                                    PoliticasClient politicasClient,
-                                    OpenAIService openAIService,
-                                    SecurityContext securityContext) {
-        this.hcenClient = hcenClient;
-        this.documentoService = documentoService;
-        this.politicasClient = politicasClient;
-        this.openAIService = openAIService;
-        this.securityContext = securityContext;
+    private HcenClient hcenClient;
+    
+    @Inject
+    private DocumentoService documentoService;
+    
+    @Inject
+    private PoliticasClient politicasClient;
+    
+    @Inject
+    private OpenAIService openAIService;
+    
+    @Inject
+    private SecurityContext securityContext;
+
+    // Constructor sin parámetros requerido por RESTEasy
+    public DocumentoPacienteResource() {
     }
 
     /**

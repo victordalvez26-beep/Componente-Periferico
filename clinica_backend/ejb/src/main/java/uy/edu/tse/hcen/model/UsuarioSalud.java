@@ -39,6 +39,18 @@ public class UsuarioSalud extends Usuario {
     @Column
     private String direccion;
 
+    @Column(name = "hcen_user_id")
+    private Long hcenUserId;
+
+    @Column(name = "tenant_id")
+    private Long tenantId;
+
+    @Column(name = "fecha_alta")
+    private java.time.LocalDateTime fechaAlta;
+
+    @Column(name = "fecha_actualizacion")
+    private java.time.LocalDateTime fechaActualizacion;
+
     public UsuarioSalud() { super(); }
 
     public String getTipDoc() { return tipDoc; }
@@ -70,5 +82,17 @@ public class UsuarioSalud extends Usuario {
 
     public String getSegundoApellido() { return segundoApellido; }
     public void setSegundoApellido(String segundoApellido) { this.segundoApellido = segundoApellido; }
+
+    public Long getHcenUserId() { return hcenUserId; }
+    public void setHcenUserId(Long hcenUserId) { this.hcenUserId = hcenUserId; }
+
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
+
+    public java.time.LocalDateTime getFechaAlta() { return fechaAlta; }
+    public void setFechaAlta(java.time.LocalDateTime fechaAlta) { this.fechaAlta = fechaAlta; }
+
+    public java.time.LocalDateTime getFechaActualizacion() { return fechaActualizacion; }
+    public void setFechaActualizacion(java.time.LocalDateTime fechaActualizacion) { this.fechaActualizacion = fechaActualizacion; }
 
 }

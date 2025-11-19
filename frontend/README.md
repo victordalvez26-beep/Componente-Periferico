@@ -12,6 +12,6 @@ npm install
 npm start
 ```
 
-2. The app expects the backend running at `http://127.0.0.1:8080/nodo-periferico` by default. You can override it with environment variable `REACT_APP_BACKEND_URL`.
+2. The app expects the backend running at `http://localhost:8080/nodo-periferico` by default. You can override it with environment variable `REACT_APP_BACKEND_URL`.
 
 Note: This is a minimal scaffold for development and manual testing; expand it as needed.

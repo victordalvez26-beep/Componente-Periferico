@@ -355,7 +355,8 @@ public class ConfigResource {
     @POST
     @Path("/activate")
     public Response activate(ActivationRequest req) {
-        LOG.infof("Received complete registration request for tenant: %s", req.tenantId);
+        long startTime = System.currentTimeMillis();
+        LOG.infof("=== ACTIVATE START === Received complete registration request for tenant: %s", req.tenantId);
         
         try {
             // Validar datos requeridos básicos
@@ -385,62 +386,100 @@ public class ConfigResource {
                 return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "telefono is required")).build();
             }
             
+            LOG.infof("Validation completed in %d ms", System.currentTimeMillis() - startTime);
+            
             String schemaName = "schema_clinica_" + req.tenantId;
             String colorPrimario = "#007bff";
             
             // PASO 1: Crear schema y tablas del tenant
-            LOG.infof("Creating tenant schema: %s", schemaName);
-            tenantAdminService.createTenantSchema(schemaName, colorPrimario, "Clínica " + req.tenantId);
+            long step1Start = System.currentTimeMillis();
+            LOG.infof("STEP 1 START: Creating tenant schema: %s", schemaName);
+            try {
+                tenantAdminService.createTenantSchema(schemaName, colorPrimario, "Clínica " + req.tenantId);
+                LOG.infof("STEP 1 COMPLETE: Schema created in %d ms", System.currentTimeMillis() - step1Start);
+            } catch (Exception e) {
+                LOG.errorf(e, "STEP 1 FAILED: Error creating schema after %d ms", System.currentTimeMillis() - step1Start);
+                throw e;
+            }
             
             // PASO 2: Registrar clínica en public.nodoperiferico con los datos completos
-            LOG.infof("Registering clinic in public schema with RUT: %s", req.rut);
-            tenantAdminService.registerNodoInPublic(Long.parseLong(req.tenantId), "Clínica " + req.tenantId, req.rut, schemaName);
+            long step2Start = System.currentTimeMillis();
+            LOG.infof("STEP 2 START: Registering clinic in public schema with RUT: %s", req.rut);
+            try {
+                tenantAdminService.registerNodoInPublic(Long.parseLong(req.tenantId), "Clínica " + req.tenantId, req.rut, schemaName);
+                LOG.infof("STEP 2 COMPLETE: Clinic registered in %d ms", System.currentTimeMillis() - step2Start);
+            } catch (Exception e) {
+                LOG.errorf(e, "STEP 2 FAILED: Error registering clinic after %d ms", System.currentTimeMillis() - step2Start);
+                throw e;
+            }
             
             // PASO 3: Activar el usuario con username personalizado y contraseña
-            String userNickname = tenantAdminService.activateAdminUserComplete(
-                req.tenantId,
-                schemaName,
-                req.token,
-                req.username,
-                req.password
-            );
-            
-            LOG.infof("✅ Clinic fully registered: tenant=%s, username=%s, RUT=%s", req.tenantId, userNickname, req.rut);
-            
-            // PASO 4: Notificar a HCEN que el registro se completó
+            long step3Start = System.currentTimeMillis();
+            LOG.infof("STEP 3 START: Activating admin user");
+            String userNickname;
             try {
-                String hcenUrl = "http://hcen-backend:8080/api/nodos/" + req.tenantId + "/complete-registration";
-                LOG.infof("Notifying HCEN about completed registration: %s", hcenUrl);
-                
-                java.net.http.HttpClient httpClient = java.net.http.HttpClient.newHttpClient();
-                String jsonPayload = String.format(
-                    "{\"rut\":\"%s\",\"departamento\":\"%s\",\"localidad\":\"%s\",\"direccion\":\"%s\",\"adminNickname\":\"%s\"}",
-                    req.rut, req.departamento, 
-                    req.localidad != null ? req.localidad : "", 
-                    req.direccion, userNickname
+                userNickname = tenantAdminService.activateAdminUserComplete(
+                    req.tenantId,
+                    schemaName,
+                    req.token,
+                    req.username,
+                    req.password
                 );
-                
-                java.net.http.HttpRequest hcenRequest = java.net.http.HttpRequest.newBuilder()
-                        .uri(java.net.URI.create(hcenUrl))
-                        .header("Content-Type", "application/json")
-                        .timeout(java.time.Duration.ofSeconds(10))
-                        .POST(java.net.http.HttpRequest.BodyPublishers.ofString(jsonPayload))
-                        .build();
-                
-                java.net.http.HttpResponse<String> hcenResponse = httpClient.send(
-                    hcenRequest, 
-                    java.net.http.HttpResponse.BodyHandlers.ofString()
-                );
-                
-                if (hcenResponse.statusCode() >= 200 && hcenResponse.statusCode() < 300) {
-                    LOG.info("✅ HCEN notified successfully about clinic " + req.tenantId);
-                } else {
-                    LOG.warn("⚠️ HCEN notification failed. Status: " + hcenResponse.statusCode());
-                }
+                LOG.infof("STEP 3 COMPLETE: User activated in %d ms", System.currentTimeMillis() - step3Start);
             } catch (Exception e) {
-                LOG.error("Error notifying HCEN (clinic still functional): " + e.getMessage(), e);
-                // No fallar el registro si HCEN no responde - la clínica ya está creada
+                LOG.errorf(e, "STEP 3 FAILED: Error activating user after %d ms", System.currentTimeMillis() - step3Start);
+                throw e;
             }
+            
+            long totalTime = System.currentTimeMillis() - startTime;
+            LOG.infof("✅ ACTIVATE SUCCESS: Clinic fully registered: tenant=%s, username=%s, RUT=%s (Total time: %d ms)", 
+                     req.tenantId, userNickname, req.rut, totalTime);
+            
+            // PASO 4: Notificar a HCEN que el registro se completó (asíncrono para no bloquear)
+            // Hacer esto en un hilo separado para no bloquear la respuesta
+            final String finalTenantId = req.tenantId;
+            final String finalRut = req.rut;
+            final String finalDepartamento = req.departamento;
+            final String finalLocalidad = req.localidad != null ? req.localidad : "";
+            final String finalDireccion = req.direccion;
+            final String finalUserNickname = userNickname;
+            
+            new Thread(() -> {
+                try {
+                    String hcenUrl = "http://hcen-backend:8080/api/nodos/" + finalTenantId + "/complete-registration";
+                    LOG.infof("Notifying HCEN about completed registration: %s", hcenUrl);
+                    
+                    java.net.http.HttpClient httpClient = java.net.http.HttpClient.newBuilder()
+                            .connectTimeout(java.time.Duration.ofSeconds(5))
+                            .build();
+                    
+                    String jsonPayload = String.format(
+                        "{\"rut\":\"%s\",\"departamento\":\"%s\",\"localidad\":\"%s\",\"direccion\":\"%s\",\"adminNickname\":\"%s\"}",
+                        finalRut, finalDepartamento, finalLocalidad, finalDireccion, finalUserNickname
+                    );
+                    
+                    java.net.http.HttpRequest hcenRequest = java.net.http.HttpRequest.newBuilder()
+                            .uri(java.net.URI.create(hcenUrl))
+                            .header("Content-Type", "application/json")
+                            .timeout(java.time.Duration.ofSeconds(5))
+                            .POST(java.net.http.HttpRequest.BodyPublishers.ofString(jsonPayload))
+                            .build();
+                    
+                    java.net.http.HttpResponse<String> hcenResponse = httpClient.send(
+                        hcenRequest, 
+                        java.net.http.HttpResponse.BodyHandlers.ofString()
+                    );
+                    
+                    if (hcenResponse.statusCode() >= 200 && hcenResponse.statusCode() < 300) {
+                        LOG.info("✅ HCEN notified successfully about clinic " + finalTenantId);
+                    } else {
+                        LOG.warn("⚠️ HCEN notification failed. Status: " + hcenResponse.statusCode());
+                    }
+                } catch (Exception e) {
+                    LOG.warn("Error notifying HCEN (clinic still functional): " + e.getMessage());
+                    // No fallar el registro si HCEN no responde - la clínica ya está creada
+                }
+            }).start();
             
             return Response.ok()
                     .entity(Map.of(

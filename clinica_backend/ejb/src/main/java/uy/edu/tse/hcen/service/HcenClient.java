@@ -27,11 +27,13 @@ public class HcenClient {
     private static final Logger LOG = Logger.getLogger(HcenClient.class.getName());
 
     // The HCEN central endpoint can be overridden via the HCEN_CENTRAL_URL environment variable
-    // URL correcta: /hcen (context root) + /api (ApplicationPath) + /central/api/rndc/metadatos (Path del recurso)
-    private static final String DEFAULT_CENTRAL_URL = "http://127.0.0.1:8080/hcen/api/central/api/rndc/metadatos";
+    // URL correcta: /api (ApplicationPath) + /metadatos-documento (Path del recurso)
+    // Usar nombre del servicio Docker para comunicación entre contenedores
+    private static final String DEFAULT_CENTRAL_URL = "http://hcen-backend:8080/api/metadatos-documento";
     
     // URL para obtener token de servicio
-    private static final String DEFAULT_SERVICE_AUTH_URL = "http://127.0.0.1:8080/hcen/api/service-auth/token";
+    // Usar nombre del servicio Docker para comunicación entre contenedores
+    private static final String DEFAULT_SERVICE_AUTH_URL = "http://hcen-backend:8080/api/service-auth/token";
     
     // Cache del token de servicio (para evitar obtener uno nuevo en cada llamada)
     private String cachedServiceToken = null;

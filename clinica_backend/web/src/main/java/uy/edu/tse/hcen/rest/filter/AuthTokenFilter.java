@@ -60,7 +60,11 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
         
         // El path puede venir con o sin el ApplicationPath, verificar ambos casos
         // path puede ser "auth/login" o "api/auth/login" dependiendo de cómo JAX-RS lo maneje
+        // También puede venir como "config/health" o solo "health" si el path se parsea diferente
         boolean isPublicEndpoint = path.startsWith("config/") || 
+            path.contains("config/") ||
+            path.equals("config/health") ||
+            path.endsWith("/config/health") ||
             path.equals("auth/login") || 
             path.endsWith("/auth/login") ||
             path.contains("/auth/login") ||

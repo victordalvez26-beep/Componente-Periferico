@@ -42,13 +42,14 @@ public class DocumentoClinicoResource {
 
     private static final Logger LOG = Logger.getLogger(DocumentoClinicoResource.class);
 
-    private final DocumentoService documentoService;
-    private final HcenClient hcenClient;
-
     @Inject
-    public DocumentoClinicoResource(DocumentoService documentoService, HcenClient hcenClient) {
-        this.documentoService = documentoService;
-        this.hcenClient = hcenClient;
+    private DocumentoService documentoService;
+    
+    @Inject
+    private HcenClient hcenClient;
+
+    // Constructor sin parámetros requerido por RESTEasy
+    public DocumentoClinicoResource() {
     }
 
     /**

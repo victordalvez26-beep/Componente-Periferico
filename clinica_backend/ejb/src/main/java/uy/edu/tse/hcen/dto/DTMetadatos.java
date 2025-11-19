@@ -25,6 +25,8 @@ public class DTMetadatos {
     private boolean breakingTheGlass;      // Flag para emergencias
     private String hashDocumento;          // Hash para verificar integridad
     private String descripcion;            // Descripción libre o resumen
+    private String tipoDocumento;          // Tipo de documento clínico
+    private String datosPatronimicos;      // Nombre completo del paciente
 
     public DTMetadatos() {
     }
@@ -77,4 +79,10 @@ public class DTMetadatos {
 
     public String getDescripcion() { return descripcion; }
     public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
+
+    public String getTipoDocumento() { return tipoDocumento; }
+    public void setTipoDocumento(String tipoDocumento) { this.tipoDocumento = tipoDocumento; }
+
+    public String getDatosPatronimicos() { return datosPatronimicos; }
+    public void setDatosPatronimicos(String datosPatronimicos) { this.datosPatronimicos = datosPatronimicos; }
 }
