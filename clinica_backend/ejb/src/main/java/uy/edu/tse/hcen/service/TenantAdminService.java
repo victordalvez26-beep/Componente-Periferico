@@ -577,6 +577,109 @@ public class TenantAdminService {
     }
 
     /**
+     * Obtiene la configuración del portal para un tenant específico.
+     * 
+     * @param tenantId ID del tenant (ej: "1", "123")
+     * @return Map con la configuración del portal o null si no existe
+     * @throws SQLException si hay error en la operación
+     */
+    public Map<String, Object> getTenantConfig(String tenantId) throws SQLException {
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new IllegalArgumentException("tenantId is required");
+        }
+        
+        String schemaName = "schema_clinica_" + tenantId;
+        String sql = String.format(
+            "SELECT color_primario, color_secundario, logo_url, nombre_portal " +
+            "FROM %s.portal_configuracion WHERE id = 1",
+            schemaName
+        );
+        
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            
+            if (rs.next()) {
+                Map<String, Object> config = new HashMap<>();
+                config.put("tenantId", tenantId);
+                config.put("nombrePortal", rs.getString("nombre_portal"));
+                config.put("colorPrimario", rs.getString("color_primario"));
+                config.put("colorSecundario", rs.getString("color_secundario"));
+                config.put("logoUrl", rs.getString("logo_url") != null ? rs.getString("logo_url") : "");
+                return config;
+            }
+            
+            // Si no existe, retornar null (el endpoint manejará valores por defecto)
+            return null;
+            
+        } catch (SQLException ex) {
+            LOG.warnf(ex, "Error getting tenant config for %s (schema may not exist yet)", tenantId);
+            // Si el schema no existe, retornar null en lugar de lanzar excepción
+            return null;
+        }
+    }
+
+    /**
+     * Actualiza la configuración del portal para un tenant específico.
+     * 
+     * @param tenantId ID del tenant (ej: "1", "123")
+     * @param nombrePortal Nombre del portal
+     * @param colorPrimario Color primario (hex)
+     * @param colorSecundario Color secundario (hex)
+     * @param logoUrl URL del logo
+     * @throws SQLException si hay error en la operación
+     */
+    public void updateTenantConfig(String tenantId, String nombrePortal, String colorPrimario, 
+                                   String colorSecundario, String logoUrl) throws SQLException {
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new IllegalArgumentException("tenantId is required");
+        }
+        
+        String schemaName = "schema_clinica_" + tenantId;
+        
+        // Valores por defecto si vienen null
+        String nomPortal = (nombrePortal != null && !nombrePortal.isBlank()) ? nombrePortal.replace("'", "''") : "Clínica " + tenantId;
+        String colorPrim = (colorPrimario != null && !colorPrimario.isBlank()) ? colorPrimario.replace("'", "''") : "#007bff";
+        String colorSec = (colorSecundario != null && !colorSecundario.isBlank()) ? colorSecundario.replace("'", "''") : "#6b7280";
+        String logo = (logoUrl != null) ? logoUrl.replace("'", "''") : "";
+        
+        String sql = String.format(
+            "UPDATE %s.portal_configuracion SET " +
+            "nombre_portal = '%s', " +
+            "color_primario = '%s', " +
+            "color_secundario = '%s', " +
+            "logo_url = '%s' " +
+            "WHERE id = 1",
+            schemaName, nomPortal, colorPrim, colorSec, logo
+        );
+        
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            
+            int rowsAffected = ps.executeUpdate();
+            
+            if (rowsAffected == 0) {
+                // Si no existe el registro, crearlo
+                String insertSql = String.format(
+                    "INSERT INTO %s.portal_configuracion (id, nombre_portal, color_primario, color_secundario, logo_url) " +
+                    "VALUES (1, '%s', '%s', '%s', '%s')",
+                    schemaName, nomPortal, colorPrim, colorSec, logo
+                );
+                try (PreparedStatement insertPs = c.prepareStatement(insertSql)) {
+                    insertPs.executeUpdate();
+                    LOG.infof("Created portal config for tenant %s", tenantId);
+                }
+            } else {
+                LOG.infof("Updated portal config for tenant %s", tenantId);
+            }
+            
+        } catch (SQLException ex) {
+            LOG.errorf(ex, "Error updating tenant config for %s", tenantId);
+            throw ex;
+        }
+    }
+
+    /**
      * Hashea una contraseña usando BCrypt.
      * IMPORTANTE: Debe usar el mismo algoritmo que PasswordUtils para que el login funcione.
      */

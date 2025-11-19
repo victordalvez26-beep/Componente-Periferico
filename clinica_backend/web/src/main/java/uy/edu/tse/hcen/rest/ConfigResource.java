@@ -409,6 +409,95 @@ public class ConfigResource {
     }
 
     /**
+     * Endpoint GET para obtener la configuración de una clínica por su ID.
+     * 
+     * @param id ID de la clínica (tenantId)
+     * @return 200 OK con la configuración de la clínica
+     */
+    @GET
+    @Path("/{id}")
+    public Response getConfig(@PathParam("id") String id) {
+        LOG.infof("Received GET config request for clinic: %s", id);
+        
+        try {
+            if (id == null || id.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "tenantId is required"))
+                        .build();
+            }
+            
+            // Obtener configuración del tenant desde el servicio
+            Map<String, Object> config = tenantAdminService.getTenantConfig(id);
+            
+            if (config == null || config.isEmpty()) {
+                // Si no existe configuración, retornar valores por defecto
+                return Response.ok()
+                        .entity(Map.of(
+                            "tenantId", id,
+                            "nombrePortal", "Clínica " + id,
+                            "colorPrimario", "#007bff",
+                            "colorSecundario", "#6b7280",
+                            "logoUrl", ""
+                        ))
+                        .build();
+            }
+            
+            return Response.ok().entity(config).build();
+            
+        } catch (Exception ex) {
+            LOG.error("Error getting tenant config", ex);
+            return Response.serverError()
+                    .entity(Map.of("error", ex.getMessage()))
+                    .build();
+        }
+    }
+
+    /**
+     * Endpoint PUT para actualizar la configuración de una clínica por su ID.
+     * 
+     * @param id ID de la clínica (tenantId)
+     * @param configData Map con los datos de configuración (nombrePortal, colorPrimario, colorSecundario, logoUrl)
+     * @return 200 OK con la configuración actualizada
+     */
+    @PUT
+    @Path("/{id}")
+    public Response updateConfig(@PathParam("id") String id, Map<String, Object> configData) {
+        LOG.infof("Received PUT config request for clinic: %s, data: %s", id, configData);
+        
+        try {
+            if (id == null || id.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "tenantId is required"))
+                        .build();
+            }
+            
+            // Actualizar configuración del tenant
+            tenantAdminService.updateTenantConfig(
+                id,
+                (String) configData.get("nombrePortal"),
+                (String) configData.get("colorPrimario"),
+                (String) configData.get("colorSecundario"),
+                (String) configData.get("logoUrl")
+            );
+            
+            LOG.infof("Successfully updated config for tenant: %s", id);
+            
+            return Response.ok()
+                    .entity(Map.of(
+                        "message", "Configuration updated successfully",
+                        "tenantId", id
+                    ))
+                    .build();
+                    
+        } catch (Exception ex) {
+            LOG.error("Error updating tenant config", ex);
+            return Response.serverError()
+                    .entity(Map.of("error", ex.getMessage()))
+                    .build();
+        }
+    }
+
+    /**
      * Health check endpoint para verificar que el servicio de configuración está activo.
      * 
      * @return 200 OK con mensaje de estado

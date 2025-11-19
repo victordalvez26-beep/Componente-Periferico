@@ -27,9 +27,23 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
 
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
-        // Manejar peticiones OPTIONS (CORS preflight) - siempre permitir
+        // Manejar peticiones OPTIONS (CORS preflight) - siempre permitir con headers CORS
         if ("OPTIONS".equalsIgnoreCase(requestContext.getMethod())) {
-            requestContext.abortWith(Response.ok().build());
+            String origin = requestContext.getHeaderString("Origin");
+            Response.ResponseBuilder responseBuilder = Response.ok();
+            
+            // Agregar headers CORS al preflight
+            if (origin != null && (origin.startsWith("http://localhost:3000") || origin.startsWith("http://localhost:3001"))) {
+                responseBuilder.header("Access-Control-Allow-Origin", origin);
+            } else {
+                responseBuilder.header("Access-Control-Allow-Origin", "*");
+            }
+            responseBuilder.header("Access-Control-Allow-Credentials", "true");
+            responseBuilder.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH");
+            responseBuilder.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+            responseBuilder.header("Access-Control-Max-Age", "3600");
+            
+            requestContext.abortWith(responseBuilder.build());
             return;
         }
         
@@ -106,11 +120,21 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
 
     @Override
     public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) throws IOException {
-        // Agregar headers CORS para permitir llamadas desde el frontend React (localhost:3001)
-        responseContext.getHeaders().add("Access-Control-Allow-Origin", "http://localhost:3001");
-        responseContext.getHeaders().add("Access-Control-Allow-Credentials", "true");
-        responseContext.getHeaders().add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD");
-        responseContext.getHeaders().add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+        // Agregar headers CORS para permitir llamadas desde el frontend React (localhost:3000 y 3001)
+        String origin = requestContext.getHeaderString("Origin");
+        if (origin != null && (origin.startsWith("http://localhost:3000") || origin.startsWith("http://localhost:3001"))) {
+            responseContext.getHeaders().add("Access-Control-Allow-Origin", origin);
+            responseContext.getHeaders().add("Access-Control-Allow-Credentials", "true");
+        } else if (origin != null) {
+            // Para otros orígenes, permitir pero sin credentials
+            responseContext.getHeaders().add("Access-Control-Allow-Origin", origin);
+        } else {
+            // Si no hay Origin header, permitir cualquier origen (solo para desarrollo)
+            responseContext.getHeaders().add("Access-Control-Allow-Origin", "*");
+        }
+        responseContext.getHeaders().add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH");
+        responseContext.getHeaders().add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+        responseContext.getHeaders().add("Access-Control-Expose-Headers", "Content-Type, Authorization");
         
         // Limpiar el TenantContext al finalizar la petición para evitar fugas entre hilos
         TenantContext.clear();

@@ -39,6 +39,13 @@ public class DocumentoPdfRepository {
     }
 
     /**
+     * Obtiene la colección de documentos PDF (método público para uso en servicios).
+     */
+    public MongoCollection<Document> getCollectionPublic() {
+        return database.getCollection("documentos_pdf");
+    }
+
+    /**
      * Guarda un PDF en MongoDB.
      * 
      * @param documentoId UUID único del documento
