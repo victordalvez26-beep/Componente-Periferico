@@ -72,25 +72,26 @@ public class LoginService {
         }
     }
 
-        // DEBUG: show stored hash and result of verification
-        if (user != null) {
-            System.out.println("=== LoginService: User found: " + user.getNickname());
-            System.out.println("=== LoginService: User ID: " + user.getId());
-            String storedHash = user.getPasswordHash();
-            System.out.println("=== LoginService: Stored hash: " + (storedHash != null ? storedHash.substring(0, Math.min(20, storedHash.length())) + "..." : "NULL"));
-            System.out.println("=== LoginService: Hash length: " + (storedHash != null ? storedHash.length() : 0));
-            System.out.println("=== LoginService: Raw password length: " + rawPassword.length());
-            
-            boolean matches = PasswordUtils.verifyPassword(rawPassword, storedHash);
-            System.out.println("=== LoginService: Password matches: " + matches);
-            
-            if (!matches) {
-                throw new SecurityException("Credenciales inválidas.");
-            }
-        } else {
-            System.out.println("=== LoginService: User NOT found");
+        // Validar credenciales
+        if (user == null) {
+            System.out.println("[LoginService] Usuario no encontrado: " + nickname);
+            LOG.debugf("Usuario no encontrado: %s", nickname);
             throw new SecurityException("Credenciales inválidas.");
         }
+        
+        System.out.println("[LoginService] Usuario encontrado - ID: " + user.getId() + ", Hash: " + (user.getPasswordHash() != null ? user.getPasswordHash().substring(0, Math.min(20, user.getPasswordHash().length())) + "..." : "null"));
+        String storedHash = user.getPasswordHash();
+        System.out.println("[LoginService] Verificando contraseña...");
+        boolean matches = PasswordUtils.verifyPassword(rawPassword, storedHash);
+        System.out.println("[LoginService] Resultado verificación: " + matches);
+        
+        if (!matches) {
+            System.out.println("[LoginService] Contraseña incorrecta para usuario: " + nickname);
+            LOG.debugf("Contraseña incorrecta para usuario: %s", nickname);
+            throw new SecurityException("Credenciales inválidas.");
+        }
+        
+        System.out.println("[LoginService] Credenciales válidas para: " + nickname);
 
         // Determine role for token. Prefer an explicit stored role when present
         // (added to public.usuarioperiferico). Fallback to instanceof checks.

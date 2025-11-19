@@ -29,10 +29,10 @@ public class TokenUtils {
             secret = System.getProperty("hcen.jwt.secret.base64");
         }
 
+        // Clave secreta por defecto para desarrollo (NO usar en producción)
         if (secret == null || secret.isBlank()) {
-            throw new IllegalStateException(
-                    "La variable de entorno HCEN_JWT_SECRET_BASE64 no está definida. "
-                    + "Define HCEN_JWT_SECRET_BASE64 en el entorno o como propiedad del sistema 'hcen.jwt.secret.base64'.");
+            secret = "dGVzdC1zZWNyZXQta2V5LWZvci1kZXZlbG9wbWVudC1vbmx5LWRvLW5vdC11c2UtaW4tcHJvZHVjdGlvbg==";
+            System.err.println("WARNING: Usando clave JWT por defecto para desarrollo. NO usar en producción!");
         }
 
         SECRET_BASE64 = secret;

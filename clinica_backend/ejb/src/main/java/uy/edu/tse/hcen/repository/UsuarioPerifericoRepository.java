@@ -8,6 +8,8 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.NoResultException;
 import jakarta.persistence.Query;
 import java.math.BigInteger;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 @Stateless
 public class UsuarioPerifericoRepository {
@@ -15,12 +17,18 @@ public class UsuarioPerifericoRepository {
     @PersistenceContext(unitName = "hcenPersistenceUnit")
     private EntityManager em;
 
+    private static final Logger LOGGER = Logger.getLogger(UsuarioPerifericoRepository.class.getName());
+
     /**
      * Busca un usuario por nickname en el schema/tenant activo usando JPA.
      * ADVERTENCIA: Este método usa herencia JOINED y puede fallar si las tablas
      * secundarias (profesionalsalud, administradorclinica) no existen o están vacías.
      */
     public UsuarioPeriferico findByNickname(String nickname) {
+
+        if (nickname == null || nickname.isBlank()) {
+            throw new IllegalArgumentException("nickname is required");
+        }
         try {
             return em.createQuery(
                 "SELECT u FROM UsuarioPeriferico u WHERE u.nickname = :nickname", UsuarioPeriferico.class)
@@ -105,7 +113,12 @@ public class UsuarioPerifericoRepository {
      * Usado específicamente para login donde solo necesitamos datos básicos.
      */
     public UsuarioPeriferico findByNicknameForLogin(String nickname) {
-        System.out.println("=== findByNicknameForLogin called with nickname: " + nickname);
+        
+        System.out.println("[UsuarioPerifericoRepository] findByNicknameForLogin called with nickname: " + nickname);
+        LOGGER.log(Level.FINE, "findByNicknameForLogin called with nickname: {0}", nickname);
+        if (nickname == null || nickname.isBlank()) {
+            throw new IllegalArgumentException("nickname is required");
+        }
         try {
             // Query nativa SQL para evitar JOINs de herencia
             Query query = em.createNativeQuery(
@@ -117,22 +130,24 @@ public class UsuarioPerifericoRepository {
             );
             query.setParameter(1, nickname);
             
-            System.out.println("=== Query created, executing...");
+            System.out.println("[UsuarioPerifericoRepository] Query created, executing...");
+            LOGGER.log(Level.FINE, "Query created, executing...");
             Object[] row = (Object[]) query.getSingleResult();
-            System.out.println("=== Query returned " + row.length + " columns");
+            System.out.println("[UsuarioPerifericoRepository] Query returned " + row.length + " columns");
+            LOGGER.log(Level.FINE, "Query returned {0} columns", row.length);
             
             // Mapear manualmente a UsuarioPeriferico
             UsuarioPeriferico user = new UsuarioPeriferico();
             
             // Manejar ID que puede venir como Long o BigInteger
             Object idObj = row[0];
-            System.out.println("=== ID object type: " + (idObj != null ? idObj.getClass().getName() : "null"));
-            if (idObj instanceof Long) {
-                user.setId((Long) idObj);
-            } else if (idObj instanceof BigInteger) {
-                user.setId(((BigInteger) idObj).longValue());
-            } else if (idObj instanceof Integer) {
-                user.setId(((Integer) idObj).longValue());
+            LOGGER.log(Level.FINE, "ID object type: {0}", idObj != null ? idObj.getClass().getName() : "null");
+            if (idObj instanceof Long longId) {
+                user.setId(longId);
+            } else if (idObj instanceof BigInteger bigIntegerId) {
+                user.setId(bigIntegerId.longValue());
+            } else if (idObj instanceof Integer integerId) {
+                user.setId(integerId.longValue());
             }
             
             user.setNickname((String) row[1]);
@@ -142,14 +157,17 @@ public class UsuarioPerifericoRepository {
             user.setNombre((String) row[5]);
             user.setEmail((String) row[6]);
             
-            System.out.println("=== User mapped successfully: " + user.getNickname());
+            LOGGER.log(Level.FINE, "User mapped successfully: {0}", user.getNickname());
             return user;
         } catch (NoResultException e) {
-            System.out.println("=== NoResultException: User not found");
+            System.out.println("[UsuarioPerifericoRepository] NoResultException: Usuario no encontrado - " + nickname);
+            LOGGER.log(Level.FINE, "NoResultException: User not found");
             return null;
         } catch (Exception e) {
-            System.out.println("=== Exception in findByNicknameForLogin: " + e.getClass().getName() + " - " + e.getMessage());
+            System.out.println("[UsuarioPerifericoRepository] Exception: " + e.getClass().getName() + " - " + e.getMessage());
             e.printStackTrace();
+            LOGGER.log(Level.WARNING, "Exception in findByNicknameForLogin: {0} - {1}", 
+                new Object[]{e.getClass().getName(), e.getMessage()});
             return null;
         }
     }

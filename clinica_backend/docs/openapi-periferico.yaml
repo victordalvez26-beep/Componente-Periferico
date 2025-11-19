@@ -1,0 +1,1924 @@
+openapi: 3.0.3
+info:
+  title: Componente Periférico API
+  description: |
+    API del componente periférico que permite a las clínicas gestionar documentos clínicos
+    y enviar sus metadatos al HCEN central.
+  version: 1.0.0
+  contact:
+    name: Componente Periférico Development Team
+
+servers:
+  - url: http://127.0.0.1:8080/hcen-web/api
+    description: Servidor local de desarrollo (usar 127.0.0.1 en lugar de localhost)
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Verifica que el servicio está funcionando
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Servicio funcionando
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: UP
+
+  /auth/login:
+    post:
+      summary: Login
+      description: Autentica un usuario y devuelve un token JWT
+      operationId: login
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              nickname: "admin_c101"
+              password: "password123"
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Credenciales incorrectas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      summary: Logout
+      description: Cierra sesión (stateless, el cliente descarta el token)
+      operationId: logout
+      tags:
+        - Autenticación
+      responses:
+        '200':
+          description: Logout exitoso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /config/init:
+    post:
+      summary: Inicializar tenant
+      description: Crea un nuevo tenant (clínica) y usuario administrador
+      operationId: initTenant
+      tags:
+        - Configuración
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitRequest'
+            example:
+              tenantId: "101"
+              nombre: "Clínica Test"
+              rut: "11111111"
+              colorPrimario: "#007bff"
+              nombrePortal: "Clínica Test"
+              adminEmail: "admin@test.com"
+      responses:
+        '200':
+          description: Tenant creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InitResponse'
+        '400':
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /config/activate-simple:
+    post:
+      summary: Activar usuario admin
+      description: Activa un usuario administrador con token y contraseña
+      operationId: activateSimple
+      tags:
+        - Configuración
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tenantId
+                - token
+                - password
+              properties:
+                tenantId:
+                  type: string
+                token:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Usuario activado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nickname:
+                    type: string
+                  message:
+                    type: string
+
+  /documentos/completo:
+    post:
+      summary: Crear documento completo
+      description: |
+        Crea un documento completo: guarda el contenido en MongoDB, **convierte automáticamente a PDF**,
+        y envía los metadatos al HCEN central. Este es el endpoint principal del flujo completo.
+        
+        **📄 Conversión a PDF:** El contenido de texto se convierte automáticamente a PDF usando iText 7
+        y se guarda como binario en MongoDB. El PDF incluye el título, autor, CI del paciente y contenido.
+        
+        **Autenticación entre servicios:** El cliente automáticamente genera y envía un token JWT de servicio
+        al HCEN central cuando se envían los metadatos. No se requiere configuración adicional.
+        
+        **Nota:** Para crear documentos con archivos adjuntos, use `/documentos/completo-con-archivo`.
+      operationId: crearDocumentoCompleto
+      tags:
+        - Documentos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CrearDocumentoRequest'
+            example:
+              contenido: "Diagnóstico: Paciente presenta síntomas de gripe. Tratamiento: reposo y paracetamol."
+              documentoIdPaciente: "12345678"
+              tenantId: "101"
+              especialidad: "Medicina General"
+              formato: "text/plain"
+              autor: "Dr. Juan Pérez"
+              titulo: "Consulta Médica"
+              languageCode: "es"
+              breakingTheGlass: false
+              descripcion: "Consulta de rutina"
+              datosPatronimicos:
+                nombre: "Juan"
+                apellido: "García"
+                fechaNacimiento: "1990-01-15"
+      responses:
+        '201':
+          description: Documento creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CrearDocumentoResponse'
+        '400':
+          description: Error de validación
+        '403':
+          description: No autorizado (tenant incorrecto o falta autenticación)
+
+  /documentos/completo-con-archivo:
+    post:
+      summary: Crear documento completo con archivo adjunto
+      description: |
+        Crea un documento completo con archivo adjunto: guarda el contenido en MongoDB, **convierte automáticamente a PDF**,
+        guarda el archivo adjunto y envía los metadatos al HCEN central.
+        
+        **📄 Conversión a PDF:** El contenido de texto se convierte automáticamente a PDF usando iText 7
+        y se guarda como binario en MongoDB. El PDF incluye el título, autor, CI del paciente y contenido.
+        
+        **📎 Archivo Adjunto:** Si se proporciona un archivo adjunto, se guarda como binario en MongoDB
+        junto con su nombre y tipo MIME.
+        
+        **Autenticación entre servicios:** El cliente automáticamente genera y envía un token JWT de servicio
+        al HCEN central cuando se envían los metadatos. No se requiere configuración adicional.
+      operationId: crearDocumentoCompletoConArchivo
+      tags:
+        - Documentos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - contenido
+                - documentoIdPaciente
+              properties:
+                contenido:
+                  type: string
+                  description: Contenido de texto del documento (requerido)
+                  example: "Diagnóstico: Paciente presenta síntomas de gripe. Tratamiento: reposo y paracetamol."
+                documentoIdPaciente:
+                  type: string
+                  description: CI del paciente (requerido)
+                  example: "12345678"
+                titulo:
+                  type: string
+                  description: Título del documento (opcional)
+                  example: "Consulta Médica"
+                autor:
+                  type: string
+                  description: Autor del documento (opcional)
+                  example: "Dr. Juan Pérez"
+                especialidad:
+                  type: string
+                  description: Especialidad (opcional)
+                  example: "Medicina General"
+                archivo:
+                  type: string
+                  format: binary
+                  description: Archivo adjunto (opcional)
+            encoding:
+              archivo:
+                contentType: application/octet-stream
+      responses:
+        '201':
+          description: Documento creado exitosamente con PDF y archivo adjunto
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/CrearDocumentoResponse'
+                  - type: object
+                    properties:
+                      tienePdf:
+                        type: boolean
+                        description: Indica si se generó y guardó el PDF
+                        example: true
+                      tieneArchivoAdjunto:
+                        type: boolean
+                        description: Indica si se guardó un archivo adjunto
+                        example: true
+        '400':
+          description: Error de validación (campos requeridos faltantes)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "contenido es requerido"
+        '403':
+          description: No autorizado (tenant incorrecto o falta autenticación)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /documentos/{id}:
+    get:
+      summary: Obtener documento por ID
+      description: |
+        Obtiene un documento por su MongoDB ID. 
+        
+        **Comportamiento:**
+        - Si el documento tiene un PDF guardado, se devuelve el PDF binario con `Content-Type: application/pdf`
+        - Si no tiene PDF, se devuelve el documento completo como JSON
+        
+        **Nota:** Este endpoint es accesible públicamente (sin autenticación requerida) para compatibilidad con RNDC.
+        Para descargas con verificación de permisos, use `/documentos/{id}/contenido`.
+      operationId: obtenerDocumento
+      tags:
+        - Documentos
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del documento (MongoDB _id hex string)
+          schema:
+            type: string
+            example: "691cd3b557817d262bd76b93"
+      responses:
+        '200':
+          description: Documento encontrado
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+              description: Si el documento tiene PDF, se devuelve como binario
+            application/json:
+              schema:
+                type: object
+                properties:
+                  _id:
+                    type: string
+                  documentoId:
+                    type: string
+                  contenido:
+                    type: string
+                  pdf:
+                    type: object
+                    description: Objeto PDF (solo presente si tiene PDF)
+                  tienePdf:
+                    type: boolean
+                  tieneArchivoAdjunto:
+                    type: boolean
+                  documentoIdPaciente:
+                    type: string
+                  pacienteDoc:
+                    type: string
+          headers:
+            Content-Type:
+              schema:
+                type: string
+              description: "application/pdf si tiene PDF, application/json si no"
+            Content-Disposition:
+              schema:
+                type: string
+              description: "Header para indicar el nombre del archivo (solo si es PDF)"
+        '404':
+          description: Documento no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /documentos/{id}/contenido:
+    get:
+      summary: Descargar contenido del documento
+      description: |
+        Descarga el contenido de un documento clínico.
+        
+        **⚠️ Verificación de Permisos:** Este endpoint verifica automáticamente si el profesional autenticado
+        tiene permisos para acceder al documento antes de devolverlo. Si no tiene permisos, retorna 403 Forbidden.
+        
+        **👤 Acceso del Paciente:** Los pacientes pueden acceder a sus propios documentos sin autorización profesional.
+        Para esto, deben enviar el header `X-Paciente-CI` con su CI. Si el CI coincide con el CI del documento,
+        se permite el acceso automáticamente sin verificación de políticas.
+        
+        **📝 Registro de Acceso:** Todos los accesos (exitosos y denegados) se registran automáticamente
+        en el servicio de políticas para auditoría.
+        
+        **📄 Comportamiento:**
+        - Si el documento tiene un PDF guardado, se devuelve el PDF binario con `Content-Type: application/pdf`
+        - Si no tiene PDF, se devuelve el contenido de texto con `Content-Type: text/plain`
+      operationId: descargarContenido
+      tags:
+        - Documentos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del documento (MongoDB _id hex string)
+          schema:
+            type: string
+            example: "690bb94df439e34986bf1ab7"
+        - name: X-Paciente-CI
+          in: header
+          required: false
+          description: |
+            CI del paciente (opcional). Si se proporciona y coincide con el CI del documento,
+            se permite acceso automático sin verificación de políticas.
+          schema:
+            type: string
+            example: "12345678"
+      responses:
+        '200':
+          description: Contenido del documento (acceso permitido)
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+              description: Si el documento tiene PDF, se devuelve como binario
+            text/plain:
+              schema:
+                type: string
+                example: "Este es el contenido del documento clínico..."
+              description: Si no tiene PDF, se devuelve el contenido de texto
+          headers:
+            Content-Type:
+              schema:
+                type: string
+              description: "application/pdf si tiene PDF, text/plain si no"
+            Content-Disposition:
+              description: Header para indicar el nombre del archivo
+              schema:
+                type: string
+              example: 'attachment; filename="documento_690bb94df439e34986bf1ab7.pdf"'
+        '400':
+          description: ID inválido o faltante
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "id required"
+        '401':
+          description: No autenticado o profesional no identificado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Autenticación requerida"
+        '403':
+          description: Acceso denegado - No tiene permisos para acceder a este documento
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "No tiene permisos para acceder a este documento"
+                detail: "No tiene permisos para acceder a este documento"
+        '404':
+          description: Documento no encontrado o sin contenido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "document not found or invalid id"
+
+  /documentos/paciente/{documentoIdPaciente}/metadatos:
+    get:
+      summary: Obtener metadatos del paciente
+      description: Obtiene todos los metadatos de documentos de un paciente
+      operationId: obtenerMetadatosPaciente
+      tags:
+        - Documentos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: documentoIdPaciente
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de metadatos de documentos del paciente
+          content:
+            application/json:
+              schema:
+                type: array
+                description: Colección de metadatos de documentos clínicos del paciente
+                items:
+                  $ref: '#/components/schemas/MetadatosDocumento'
+              example:
+                - documentoId: "dbe1515b-b56d-4f46-8b61-1299c88f5d2e"
+                  documentoIdPaciente: "12345678"
+                  tenantId: "101"
+                  especialidad: "Medicina General"
+                  formato: "text/plain"
+                  autor: "Dr. Juan Pérez"
+                  titulo: "Consulta Médica"
+                  languageCode: "es"
+                  breakingTheGlass: false
+                  urlAcceso: "http://127.0.0.1:8080/hcen-web/api/documentos/690bb94df439e34986bf1ab7/contenido"
+                  fechaCreacion: "2025-01-15T10:30:00"
+                  fechaRegistro: "2025-01-15T10:31:00"
+                  descripcion: "Consulta de rutina"
+        '400':
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: HCEN no disponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /documentos/paciente/{documentoIdPaciente}/resumen:
+    get:
+      summary: Generar resumen de historia clínica con IA
+      description: |
+        Genera un resumen estructurado de la historia clínica completa del paciente usando inteligencia artificial (OpenAI o3).
+        
+        Este endpoint:
+        - Verifica que el profesional tenga permisos para acceder a TODA la historia clínica del paciente
+        - Obtiene todos los documentos clínicos del paciente desde MongoDB
+        - Genera un resumen médico profesional y estructurado usando OpenAI o3 a través de GitHub Models API
+        - Incluye: diagnóstico principal, tratamientos realizados, medicamentos prescritos, evolución del paciente, y recomendaciones
+        
+        **Requisitos**:
+        - El profesional debe tener permisos para acceder a toda la historia clínica del paciente
+        - Debe existir al menos un documento clínico del paciente
+        - El servicio de OpenAI debe estar disponible (configurado mediante variable de entorno `GITHUB_TOKEN`)
+        
+        **Nota**: Este endpoint registra el acceso en el sistema de auditoría de seguridad.
+      operationId: generarResumenHistoriaClinica
+      tags:
+        - Documentos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: documentoIdPaciente
+          in: path
+          required: true
+          description: CI o documento de identidad del paciente
+          schema:
+            type: string
+            example: "12345678"
+      responses:
+        '200':
+          description: Resumen generado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  paciente:
+                    type: string
+                    description: CI o documento de identidad del paciente
+                    example: "12345678"
+                  resumen:
+                    type: string
+                    description: Resumen médico estructurado generado por IA
+                    example: |
+                      Resumen médico estructurado
+
+                      1. Diagnóstico principal
+                         • Gripe estacional (diagnosticada el 15/01/2024).
+
+                      2. Tratamientos realizados
+                         • Tratamiento sintomático inicial: reposo domiciliario, hidratación abundante...
+                         
+                      3. Medicamentos prescritos
+                         • Paracetamol 500 mg VO cada 8 h...
+                         
+                      4. Evolución del paciente
+                         • 15/01/2024: cuadro gripal febril...
+                         
+                      5. Recomendaciones
+                         • Mantener adecuada hidratación...
+                  documentosProcesados:
+                    type: integer
+                    description: Número de documentos procesados para generar el resumen
+                    example: 5
+              example:
+                paciente: "12345678"
+                resumen: |
+                  Resumen médico estructurado
+
+                  1. Diagnóstico principal
+                     • Gripe estacional (diagnosticada el 15/01/2024).
+
+                  2. Tratamientos realizados
+                     • Tratamiento sintomático inicial: reposo domiciliario, hidratación abundante y control clínico programado.
+                     • Farmacoterapia: Paracetamol 500 mg VO cada 8 h desde el 15/01/2024 hasta el 01/02/2024.
+                     • Evaluaciones complementarias:
+                       - Análítica sanguínea (20/01/2024): parámetros hematológicos, glucémicos y lipídicos dentro de la normalidad.
+                       - Radiografía de tórax (25/01/2024): sin alteraciones.
+                       - Electrocardiograma + valoración cardiológica (10/02/2024): ritmo sinusal normal, sin hallazgos patológicos.
+
+                  3. Medicamentos prescritos
+                     • Paracetamol 500 mg VO cada 8 h (indicaciones: control de fiebre y malestar; duración: 15/01-01/02/2024).
+
+                  4. Evolución del paciente
+                     • 15/01/2024: cuadro gripal febril, tos y congestión nasal.
+                     • 20-25/01/2024: estudios complementarios sin hallazgos relevantes.
+                     • 01/02/2024: resolución de la fiebre, tos residual leve; exploración pulmonar normal; suspensión de paracetamol.
+                     • 10/02/2024: paciente asintomático; evaluación cardiológica y constantes vitales dentro de rangos normales. Pronóstico favorable.
+
+                  5. Recomendaciones
+                     • Mantener adecuada hidratación y reposo relativo mientras persista la tos residual.
+                     • Vigilar aparición de nuevos síntomas respiratorios (disnea, fiebre >38 °C, esputo purulento); acudir a consulta si se presentan.
+                     • Continuar controles cardiovasculares de rutina: próximo chequeo cardiológico en 6 meses o antes si se desarrollan síntomas.
+                documentosProcesados: 5
+        '400':
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "documentoIdPaciente es requerido"
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Autenticación requerida"
+        '403':
+          description: No tiene permisos para acceder a la historia clínica completa del paciente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "No tiene permisos para acceder a la historia clínica completa del paciente"
+        '404':
+          description: No se encontraron documentos para el paciente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "No se encontraron documentos para el paciente"
+        '500':
+          description: Error al generar resumen (puede ser error de conexión con OpenAI o error interno)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Error al generar resumen: Error de conexión con OpenAI"
+
+  /documentos/solicitar-acceso:
+    post:
+      summary: Solicitar acceso a documentos de un paciente
+      description: |
+        Permite a un profesional solicitar acceso a documentos clínicos específicos de un paciente.
+        
+        La solicitud se crea con estado `PENDIENTE` y debe ser aprobada o rechazada por el paciente
+        a través del servicio de políticas (`/hcen-politicas-service/api/solicitudes/{id}/aprobar` o `/rechazar`).
+        
+        Una vez aprobada, se puede crear una política de acceso automática que permita al profesional
+        acceder a los documentos del paciente.
+      operationId: solicitarAcceso
+      tags:
+        - Documentos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - codDocumPaciente
+              properties:
+                codDocumPaciente:
+                  type: string
+                  description: CI o documento de identidad del paciente
+                  example: "12345678"
+                tipoDocumento:
+                  type: string
+                  description: Tipo de documento específico (opcional). Si no se especifica, se solicita acceso a todos los documentos.
+                  example: "text/plain"
+                  nullable: true
+                documentoId:
+                  type: string
+                  description: ID específico del documento (opcional). Si se especifica, se solicita acceso solo a ese documento.
+                  example: "dbe1515b-b56d-4f46-8b61-1299c88f5d2e"
+                  nullable: true
+                razonSolicitud:
+                  type: string
+                  description: Razón por la cual se solicita acceso (opcional)
+                  example: "Necesito revisar el historial del paciente para una consulta"
+                  nullable: true
+                especialidad:
+                  type: string
+                  description: Especialidad del profesional (opcional, se puede obtener del contexto si no se envía)
+                  example: "Cardiología"
+                  nullable: true
+            example:
+              codDocumPaciente: "12345678"
+              tipoDocumento: "text/plain"
+              documentoId: "dbe1515b-b56d-4f46-8b61-1299c88f5d2e"
+              razonSolicitud: "Necesito revisar el historial del paciente para una consulta"
+              especialidad: "Cardiología"
+      responses:
+        '201':
+          description: Solicitud de acceso creada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  solicitudId:
+                    type: integer
+                    format: int64
+                    description: ID de la solicitud creada
+                    example: 1
+                  profesionalId:
+                    type: string
+                    description: ID del profesional que solicitó acceso (obtenido del token)
+                    example: "prof_001"
+                  codDocumPaciente:
+                    type: string
+                    description: CI del paciente
+                    example: "12345678"
+                  estado:
+                    type: string
+                    description: Estado de la solicitud
+                    example: "PENDIENTE"
+                  mensaje:
+                    type: string
+                    description: Mensaje de confirmación
+                    example: "Solicitud de acceso creada exitosamente"
+              example:
+                solicitudId: 1
+                profesionalId: "prof_001"
+                codDocumPaciente: "12345678"
+                estado: "PENDIENTE"
+                mensaje: "Solicitud de acceso creada exitosamente"
+        '400':
+          description: Error de validación - campos requeridos faltantes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "codDocumPaciente es requerido"
+        '401':
+          description: No autenticado o profesional no identificado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Autenticación requerida"
+        '500':
+          description: Error interno al crear la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Error al crear solicitud de acceso"
+
+  /documentos/solicitar-acceso-historia-clinica:
+    post:
+      summary: Solicitar acceso a toda la historia clínica de un paciente
+      description: |
+        Permite a un profesional solicitar acceso a **todos los documentos** de un paciente (su historia clínica completa).
+        
+        Este endpoint es similar a `/documentos/solicitar-acceso`, pero específicamente diseñado para solicitar
+        acceso a toda la historia clínica del paciente, no solo a documentos específicos.
+        
+        La solicitud se crea con estado `PENDIENTE` y tipo `HISTORIA_CLINICA_COMPLETA`. Debe ser aprobada o rechazada
+        por el paciente a través de los endpoints `/documentos/solicitudes/{id}/aprobar` o `/documentos/solicitudes/{id}/rechazar`.
+        
+        **Diferencia con `/documentos/solicitar-acceso`**: Este endpoint siempre crea una solicitud para toda la historia clínica,
+        mientras que el otro permite especificar documentos o tipos de documentos específicos.
+      operationId: solicitarAccesoHistoriaClinica
+      tags:
+        - Documentos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - codDocumPaciente
+              properties:
+                codDocumPaciente:
+                  type: string
+                  description: CI o documento de identidad del paciente
+                  example: "12345678"
+                razonSolicitud:
+                  type: string
+                  description: Razón por la cual se solicita acceso a la historia clínica completa (opcional)
+                  example: "Necesito revisar toda la historia clínica del paciente para una evaluación completa"
+                  nullable: true
+                especialidad:
+                  type: string
+                  description: Especialidad del profesional (opcional, se puede obtener del contexto si no se envía)
+                  example: "Medicina General"
+                  nullable: true
+            example:
+              codDocumPaciente: "12345678"
+              razonSolicitud: "Necesito revisar toda la historia clínica del paciente para una evaluación completa"
+              especialidad: "Medicina General"
+      responses:
+        '201':
+          description: Solicitud de acceso a historia clínica creada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  solicitudId:
+                    type: integer
+                    format: int64
+                    description: ID de la solicitud creada
+                    example: 1
+                  profesionalId:
+                    type: string
+                    description: ID del profesional que solicitó acceso (obtenido del token)
+                    example: "admin_c101"
+                  codDocumPaciente:
+                    type: string
+                    description: CI del paciente
+                    example: "12345678"
+                  estado:
+                    type: string
+                    description: Estado de la solicitud
+                    example: "PENDIENTE"
+                  tipoSolicitud:
+                    type: string
+                    description: Tipo de solicitud
+                    example: "HISTORIA_CLINICA_COMPLETA"
+                  mensaje:
+                    type: string
+                    description: Mensaje de confirmación
+                    example: "Solicitud de acceso a historia clínica creada exitosamente"
+              example:
+                solicitudId: 1
+                profesionalId: "admin_c101"
+                codDocumPaciente: "12345678"
+                estado: "PENDIENTE"
+                tipoSolicitud: "HISTORIA_CLINICA_COMPLETA"
+                mensaje: "Solicitud de acceso a historia clínica creada exitosamente"
+        '400':
+          description: Error de validación - campos requeridos faltantes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "codDocumPaciente es requerido"
+        '401':
+          description: No autenticado o profesional no identificado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Autenticación requerida"
+        '500':
+          description: Error interno al crear la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Error al crear solicitud de acceso"
+
+  /documentos/solicitudes/{id}/aprobar:
+    post:
+      summary: Aprobar una solicitud de acceso
+      description: |
+        Aprueba una solicitud de acceso a documentos o historia clínica de un paciente.
+        
+        Este endpoint permite aprobar solicitudes creadas a través de `/documentos/solicitar-acceso` o
+        `/documentos/solicitar-acceso-historia-clinica`. Una vez aprobada, el profesional puede acceder
+        a los documentos según el alcance de la solicitud.
+        
+        **Nota**: El servicio de políticas valida que quien aprueba sea el paciente correspondiente.
+        Este endpoint delega la aprobación al servicio de políticas.
+      operationId: aprobarSolicitud
+      tags:
+        - Documentos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID de la solicitud a aprobar
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resueltoPor:
+                  type: string
+                  description: Identificador de quien resuelve la solicitud (opcional)
+                  example: "paciente_12345678"
+                  nullable: true
+                comentario:
+                  type: string
+                  description: Comentario sobre la aprobación (opcional)
+                  example: "Aprobado por el paciente"
+                  nullable: true
+            example:
+              resueltoPor: "paciente_12345678"
+              comentario: "Aprobado por el paciente"
+      responses:
+        '200':
+          description: Solicitud aprobada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  solicitudId:
+                    type: integer
+                    format: int64
+                    description: ID de la solicitud
+                    example: 1
+                  estado:
+                    type: string
+                    description: Nuevo estado de la solicitud
+                    example: "APROBADA"
+                  resueltoPor:
+                    type: string
+                    description: Quien resolvió la solicitud
+                    example: "paciente_12345678"
+                  mensaje:
+                    type: string
+                    description: Mensaje de confirmación
+                    example: "Solicitud aprobada exitosamente"
+              example:
+                solicitudId: 1
+                estado: "APROBADA"
+                resueltoPor: "paciente_12345678"
+                mensaje: "Solicitud aprobada exitosamente"
+        '400':
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Solicitud no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Error interno al aprobar la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /documentos/solicitudes/{id}/rechazar:
+    post:
+      summary: Rechazar una solicitud de acceso
+      description: |
+        Rechaza una solicitud de acceso a documentos o historia clínica de un paciente.
+        
+        Este endpoint permite rechazar solicitudes creadas a través de `/documentos/solicitar-acceso` o
+        `/documentos/solicitar-acceso-historia-clinica`. Una vez rechazada, el profesional no podrá
+        acceder a los documentos solicitados.
+        
+        **Nota**: El servicio de políticas valida que quien rechaza sea el paciente correspondiente.
+        Este endpoint delega el rechazo al servicio de políticas.
+      operationId: rechazarSolicitud
+      tags:
+        - Documentos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID de la solicitud a rechazar
+          schema:
+            type: integer
+            format: int64
+            example: 2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resueltoPor:
+                  type: string
+                  description: Identificador de quien resuelve la solicitud (opcional)
+                  example: "paciente_12345678"
+                  nullable: true
+                comentario:
+                  type: string
+                  description: Comentario sobre el rechazo (opcional)
+                  example: "Rechazado por el paciente"
+                  nullable: true
+            example:
+              resueltoPor: "paciente_12345678"
+              comentario: "Rechazado por el paciente"
+      responses:
+        '200':
+          description: Solicitud rechazada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  solicitudId:
+                    type: integer
+                    format: int64
+                    description: ID de la solicitud
+                    example: 2
+                  estado:
+                    type: string
+                    description: Nuevo estado de la solicitud
+                    example: "RECHAZADA"
+                  resueltoPor:
+                    type: string
+                    description: Quien resolvió la solicitud
+                    example: "paciente_12345678"
+                  mensaje:
+                    type: string
+                    description: Mensaje de confirmación
+                    example: "Solicitud rechazada exitosamente"
+              example:
+                solicitudId: 2
+                estado: "RECHAZADA"
+                resueltoPor: "paciente_12345678"
+                mensaje: "Solicitud rechazada exitosamente"
+        '400':
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Solicitud no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Error interno al rechazar la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /documentos/politicas:
+    post:
+      summary: Crear política de acceso
+      description: |
+        Crea una política de acceso para un profesional específico y un paciente.
+        
+        Permite definir qué profesional puede acceder a qué documentos de qué paciente,
+        con diferentes alcances, duraciones y tipos de gestión.
+      operationId: crearPolitica
+      tags:
+        - Políticas
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - profesionalAutorizado
+              properties:
+                alcance:
+                  type: string
+                  enum: [TODOS_LOS_DOCUMENTOS, DOCUMENTOS_POR_TIPO, UN_DOCUMENTO_ESPECIFICO]
+                  default: TODOS_LOS_DOCUMENTOS
+                  description: Alcance de la política
+                duracion:
+                  type: string
+                  enum: [INDEFINIDA, TEMPORAL]
+                  default: INDEFINIDA
+                  description: Duración de la política
+                gestion:
+                  type: string
+                  enum: [AUTOMATICA, MANUAL]
+                  default: AUTOMATICA
+                  description: Tipo de gestión de acceso
+                codDocumPaciente:
+                  type: string
+                  description: CI del paciente (opcional)
+                  example: "12345678"
+                profesionalAutorizado:
+                  type: string
+                  description: ID o nickname del profesional autorizado
+                  example: "admin_c101"
+                tipoDocumento:
+                  type: string
+                  description: Tipo de documento (opcional, requerido si alcance es DOCUMENTOS_POR_TIPO)
+                  example: "text/plain"
+                fechaVencimiento:
+                  type: string
+                  format: date-time
+                  description: Fecha de vencimiento (opcional, requerida si duracion es TEMPORAL)
+                  example: "2025-12-31T23:59:59Z"
+                referencia:
+                  type: string
+                  description: Referencia o descripción de la política
+                  example: "Política de acceso para consulta"
+            example:
+              alcance: "TODOS_LOS_DOCUMENTOS"
+              duracion: "INDEFINIDA"
+              gestion: "AUTOMATICA"
+              codDocumPaciente: "12345678"
+              profesionalAutorizado: "admin_c101"
+              referencia: "Política de acceso para consulta"
+      responses:
+        '201':
+          description: Política creada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  politicaId:
+                    type: integer
+                    format: int64
+                    description: ID de la política creada
+                    example: 1
+                  mensaje:
+                    type: string
+                    example: "Política creada exitosamente"
+                  alcance:
+                    type: string
+                    example: "TODOS_LOS_DOCUMENTOS"
+                  duracion:
+                    type: string
+                    example: "INDEFINIDA"
+                  gestion:
+                    type: string
+                    example: "AUTOMATICA"
+        '400':
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Error interno al crear la política
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      summary: Listar todas las políticas
+      description: Obtiene todas las políticas de acceso registradas
+      operationId: listarPoliticas
+      tags:
+        - Políticas
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de políticas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PoliticaAcceso'
+
+  /documentos/politicas/global:
+    post:
+      summary: Crear política global
+      description: |
+        Crea una política global que permite a un profesional acceder a TODOS los pacientes.
+        
+        Este tipo de política es útil para administradores o profesionales que necesitan
+        acceso amplio al sistema. Solo puede ser creada por administradores.
+      operationId: crearPoliticaGlobal
+      tags:
+        - Políticas
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - profesionalAutorizado
+              properties:
+                alcance:
+                  type: string
+                  enum: [TODOS_LOS_DOCUMENTOS, DOCUMENTOS_POR_TIPO, UN_DOCUMENTO_ESPECIFICO]
+                  default: TODOS_LOS_DOCUMENTOS
+                duracion:
+                  type: string
+                  enum: [INDEFINIDA, TEMPORAL]
+                  default: INDEFINIDA
+                gestion:
+                  type: string
+                  enum: [AUTOMATICA, MANUAL]
+                  default: AUTOMATICA
+                profesionalAutorizado:
+                  type: string
+                  description: ID o nickname del profesional autorizado
+                  example: "admin_c101"
+                tipoDocumento:
+                  type: string
+                  description: Tipo de documento (opcional)
+                fechaVencimiento:
+                  type: string
+                  format: date-time
+                  description: Fecha de vencimiento (opcional)
+                referencia:
+                  type: string
+                  description: Referencia o descripción
+                  default: "Política global"
+            example:
+              alcance: "TODOS_LOS_DOCUMENTOS"
+              duracion: "INDEFINIDA"
+              gestion: "AUTOMATICA"
+              profesionalAutorizado: "admin_c101"
+              referencia: "Política global de prueba"
+      responses:
+        '201':
+          description: Política global creada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  politicaId:
+                    type: integer
+                    format: int64
+                    example: 2
+                  mensaje:
+                    type: string
+                    example: "Política global creada exitosamente"
+                  tipo:
+                    type: string
+                    example: "GLOBAL"
+                  profesionalAutorizado:
+                    type: string
+                    example: "admin_c101"
+                  alcance:
+                    type: string
+                    example: "TODOS_LOS_DOCUMENTOS"
+        '400':
+          description: Error de validación
+        '401':
+          description: No autenticado
+        '403':
+          description: Solo administradores pueden crear políticas globales
+        '500':
+          description: Error interno
+
+  /documentos/politicas/especialidad:
+    post:
+      summary: Crear políticas por especialidad
+      description: |
+        Crea políticas de acceso para todos los profesionales de una especialidad específica
+        y un paciente. Crea una política por cada profesional de esa especialidad.
+        
+        Útil para otorgar acceso masivo a un grupo de profesionales con la misma especialidad.
+      operationId: crearPoliticasPorEspecialidad
+      tags:
+        - Políticas
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - especialidad
+                - codDocumPaciente
+              properties:
+                especialidad:
+                  type: string
+                  description: 'Especialidad médica (nombre del enum, ej: "MEDICINA_GENERAL", "CARDIOLOGIA")'
+                  example: "MEDICINA_GENERAL"
+                codDocumPaciente:
+                  type: string
+                  description: CI del paciente
+                  example: "12345678"
+                alcance:
+                  type: string
+                  enum: [TODOS_LOS_DOCUMENTOS, DOCUMENTOS_POR_TIPO, UN_DOCUMENTO_ESPECIFICO]
+                  default: TODOS_LOS_DOCUMENTOS
+                duracion:
+                  type: string
+                  enum: [INDEFINIDA, TEMPORAL]
+                  default: INDEFINIDA
+                gestion:
+                  type: string
+                  enum: [AUTOMATICA, MANUAL]
+                  default: AUTOMATICA
+                tipoDocumento:
+                  type: string
+                  description: Tipo de documento (opcional)
+                fechaVencimiento:
+                  type: string
+                  format: date-time
+                  description: Fecha de vencimiento (opcional)
+                referencia:
+                  type: string
+                  description: Referencia o descripción
+            example:
+              especialidad: "MEDICINA_GENERAL"
+              codDocumPaciente: "12345678"
+              alcance: "TODOS_LOS_DOCUMENTOS"
+              duracion: "INDEFINIDA"
+              gestion: "AUTOMATICA"
+              referencia: "Política por especialidad MEDICINA_GENERAL"
+      responses:
+        '201':
+          description: Políticas creadas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mensaje:
+                    type: string
+                    example: "Políticas creadas por especialidad"
+                  especialidad:
+                    type: string
+                    example: "MEDICINA_GENERAL"
+                  codDocumPaciente:
+                    type: string
+                    example: "12345678"
+                  totalProfesionales:
+                    type: integer
+                    description: Total de profesionales encontrados con esa especialidad
+                    example: 3
+                  politicasExitosas:
+                    type: integer
+                    description: Número de políticas creadas exitosamente
+                    example: 3
+                  politicasFallidas:
+                    type: integer
+                    description: Número de políticas que fallaron al crearse
+                    example: 0
+                  politicas:
+                    type: array
+                    description: Lista de políticas creadas
+                    items:
+                      type: object
+                      properties:
+                        politicaId:
+                          type: integer
+                          format: int64
+                        profesionalId:
+                          type: string
+                        profesionalNombre:
+                          type: string
+        '400':
+          description: Error de validación
+        '401':
+          description: No autenticado
+        '403':
+          description: Solo administradores pueden crear políticas por especialidad
+        '404':
+          description: No se encontraron profesionales con esa especialidad
+        '500':
+          description: Error interno
+
+  /documentos/politicas/paciente/{ci}:
+    get:
+      summary: Listar políticas por paciente
+      description: Obtiene todas las políticas de acceso activas para un paciente específico
+      operationId: listarPoliticasPorPaciente
+      tags:
+        - Políticas
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ci
+          in: path
+          required: true
+          description: CI o documento de identidad del paciente
+          schema:
+            type: string
+            example: "12345678"
+      responses:
+        '200':
+          description: Lista de políticas del paciente
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PoliticaAcceso'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+
+  /documentos/politicas/profesional/{id}:
+    get:
+      summary: Listar políticas por profesional
+      description: Obtiene todas las políticas de acceso de un profesional específico
+      operationId: listarPoliticasPorProfesional
+      tags:
+        - Políticas
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID o nickname del profesional
+          schema:
+            type: string
+            example: "admin_c101"
+      responses:
+        '200':
+          description: Lista de políticas del profesional
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PoliticaAcceso'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+
+  /documentos/politicas/{id}:
+    delete:
+      summary: Eliminar política
+      description: Elimina una política de acceso
+      operationId: eliminarPolitica
+      tags:
+        - Políticas
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID de la política a eliminar
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        '200':
+          description: Política eliminada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  politicaId:
+                    type: integer
+                    format: int64
+                    example: 1
+                  mensaje:
+                    type: string
+                    example: "Política eliminada exitosamente"
+        '401':
+          description: No autenticado
+        '403':
+          description: Solo administradores pueden eliminar políticas
+        '404':
+          description: Política no encontrada
+        '500':
+          description: Error interno
+
+  /profesionales:
+    get:
+      summary: Listar profesionales
+      description: Obtiene la lista de profesionales de salud
+      operationId: listarProfesionales
+      tags:
+        - Profesionales
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de profesionales
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Profesional'
+    post:
+      summary: Crear profesional
+      description: Crea un nuevo profesional de salud
+      operationId: crearProfesional
+      tags:
+        - Profesionales
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfesionalDTO'
+      responses:
+        '201':
+          description: Profesional creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profesional'
+
+  /portal/configuracion:
+    get:
+      summary: Obtener configuración del portal
+      description: Obtiene la configuración del portal de la clínica
+      operationId: obtenerConfiguracionPortal
+      tags:
+        - Portal
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Configuración del portal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfiguracionPortal'
+    put:
+      summary: Actualizar configuración del portal
+      description: Actualiza la configuración del portal
+      operationId: actualizarConfiguracionPortal
+      tags:
+        - Portal
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfiguracionPortal'
+      responses:
+        '200':
+          description: Configuración actualizada
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - nickname
+        - password
+      properties:
+        nickname:
+          type: string
+        password:
+          type: string
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        nickname:
+          type: string
+        rol:
+          type: string
+
+    InitRequest:
+      type: object
+      required:
+        - tenantId
+        - nombre
+        - rut
+      properties:
+        tenantId:
+          type: string
+        nombre:
+          type: string
+        rut:
+          type: string
+        colorPrimario:
+          type: string
+        nombrePortal:
+          type: string
+        adminEmail:
+          type: string
+
+    InitResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        tenantId:
+          type: string
+        schemaName:
+          type: string
+        clinicName:
+          type: string
+        adminNickname:
+          type: string
+        activationToken:
+          type: string
+
+    CrearDocumentoRequest:
+      type: object
+      required:
+        - contenido
+        - documentoIdPaciente
+      properties:
+        contenido:
+          type: string
+        documentoIdPaciente:
+          type: string
+        tenantId:
+          type: string
+        documentoId:
+          type: string
+          description: Si no se proporciona, se genera automáticamente
+        especialidad:
+          type: string
+        formato:
+          type: string
+        autor:
+          type: string
+        titulo:
+          type: string
+        languageCode:
+          type: string
+        breakingTheGlass:
+          type: boolean
+        descripcion:
+          type: string
+        datosPatronimicos:
+          type: object
+          properties:
+            nombre:
+              type: string
+            apellido:
+              type: string
+            fechaNacimiento:
+              type: string
+              format: date
+
+    CrearDocumentoResponse:
+      type: object
+      properties:
+        documentoId:
+          type: string
+          description: ID único del documento (UUID)
+          example: "7ca525ad-bea6-466b-ae31-6a1ed745825f"
+        mongoId:
+          type: string
+          description: ID de MongoDB del documento guardado
+          example: "691cd3b557817d262bd76b93"
+        urlAcceso:
+          type: string
+          description: URL para acceder al contenido del documento (apunta a /contenido)
+          example: "http://127.0.0.1:8080/hcen-web/api/documentos/691cd3b557817d262bd76b93/contenido"
+        documentoIdPaciente:
+          type: string
+          description: CI del paciente
+          example: "12345678"
+        tienePdf:
+          type: boolean
+          description: Indica si se generó y guardó el PDF
+          example: true
+        tieneArchivoAdjunto:
+          type: boolean
+          description: Indica si se guardó un archivo adjunto (solo para /completo-con-archivo)
+          example: false
+
+    Profesional:
+      type: object
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        apellido:
+          type: string
+        especialidad:
+          type: string
+
+    ProfesionalDTO:
+      type: object
+      required:
+        - nombre
+        - apellido
+      properties:
+        nombre:
+          type: string
+        apellido:
+          type: string
+        especialidad:
+          type: string
+
+    ConfiguracionPortal:
+      type: object
+      properties:
+        colorPrimario:
+          type: string
+        nombrePortal:
+          type: string
+
+    MetadatosDocumento:
+      type: object
+      description: |
+        Metadatos completos de un documento clínico. 
+        Incluye información de identificación, autoría, formato y acceso.
+      properties:
+        documentoId:
+          type: string
+          description: ID único del documento
+          example: "dbe1515b-b56d-4f46-8b61-1299c88f5d2e"
+        documentoIdPaciente:
+          type: string
+          description: CI o documento de identidad del paciente
+          example: "12345678"
+        tenantId:
+          type: string
+          description: ID del tenant (clínica/prestador) que generó el documento
+          example: "101"
+        especialidad:
+          type: string
+          description: Especialidad médica
+          example: "Medicina General"
+        formato:
+          type: string
+          description: MIME type del documento
+          example: "text/plain"
+        autor:
+          type: string
+          description: Nombre del profesional o sistema que generó el documento
+          example: "Dr. Juan Pérez"
+        titulo:
+          type: string
+          description: Título visible del documento
+          example: "Consulta Médica"
+        languageCode:
+          type: string
+          description: Código de idioma del contenido
+          example: "es"
+        breakingTheGlass:
+          type: boolean
+          description: Indica si se rompió el vidrio (acceso de emergencia)
+          example: false
+        urlAcceso:
+          type: string
+          description: URL para acceder al contenido completo del documento en el componente periférico
+          example: "http://127.0.0.1:8080/hcen-web/api/documentos/690bb94df439e34986bf1ab7/contenido"
+        fechaCreacion:
+          type: string
+          format: date-time
+          description: Fecha/hora de creación del documento
+          example: "2025-01-15T10:30:00"
+        fechaRegistro:
+          type: string
+          format: date-time
+          description: Fecha/hora de registro en HCEN
+          example: "2025-01-15T10:31:00"
+        aaPrestador:
+          type: string
+          description: Identificador del Prestador (AA)
+          nullable: true
+          example: "AA123456"
+        emisorDocumentoOID:
+          type: string
+          description: OID del emisor del documento
+          nullable: true
+          example: "1.2.840.113619.2.1.1.1"
+        hashDocumento:
+          type: string
+          description: Hash del documento para verificar integridad
+          nullable: true
+          example: "a1b2c3d4e5f6..."
+        descripcion:
+          type: string
+          description: Descripción libre o resumen del documento
+          nullable: true
+          example: "Consulta de rutina"
+      required:
+        - documentoId
+        - documentoIdPaciente
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        detail:
+          type: string
+
+    PoliticaAcceso:
+      type: object
+      description: |
+        Política de acceso a documentos clínicos. Define qué profesional puede acceder
+        a qué documentos de qué paciente, con diferentes alcances, duraciones y tipos de gestión.
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: ID único de la política
+          example: 1
+        alcance:
+          type: string
+          enum: [TODOS_LOS_DOCUMENTOS, DOCUMENTOS_POR_TIPO, UN_DOCUMENTO_ESPECIFICO]
+          description: Alcance de la política
+          example: "TODOS_LOS_DOCUMENTOS"
+        duracion:
+          type: string
+          enum: [INDEFINIDA, TEMPORAL]
+          description: Duración de la política
+          example: "INDEFINIDA"
+        gestion:
+          type: string
+          enum: [AUTOMATICA, MANUAL]
+          description: Tipo de gestión de acceso
+          example: "AUTOMATICA"
+        fechaCreacion:
+          type: string
+          format: date-time
+          description: Fecha de creación de la política
+          example: "2025-01-15T10:30:00Z"
+        codDocumPaciente:
+          type: string
+          description: CI o documento de identidad del paciente
+          example: "12345678"
+          nullable: true
+        profesionalAutorizado:
+          type: string
+          description: ID o nickname del profesional autorizado
+          example: "admin_c101"
+        tipoDocumento:
+          type: string
+          description: Tipo de documento (opcional)
+          example: "text/plain"
+          nullable: true
+        fechaVencimiento:
+          type: string
+          format: date-time
+          description: Fecha de vencimiento (opcional, requerida si duracion es TEMPORAL)
+          example: "2025-12-31T23:59:59Z"
+          nullable: true
+        referencia:
+          type: string
+          description: Referencia o descripción de la política
+          example: "Política de acceso para consulta"
+          nullable: true
+        activa:
+          type: boolean
+          description: Indica si la política está activa
+          example: true
+      required:
+        - id
+        - alcance
+        - duracion
+        - gestion
+        - profesionalAutorizado
+
+tags:
+  - name: Health
+    description: Endpoints de salud del servicio
+  - name: Autenticación
+    description: Endpoints de autenticación y autorización
+  - name: Configuración
+    description: Configuración de tenants y usuarios
+  - name: Documentos
+    description: Gestión de documentos clínicos
+  - name: Políticas
+    description: Configuración de políticas de acceso a documentos
+  - name: Profesionales
+    description: Gestión de profesionales de salud
+  - name: Portal
+    description: Configuración del portal de la clínica
+

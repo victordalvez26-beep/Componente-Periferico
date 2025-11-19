@@ -1,6 +1,6 @@
 package uy.edu.tse.hcen.rest;
 
-import uy.edu.tse.hcen.dto.ConfiguracionPortalDTO;
+import uy.edu.tse.hcen.dto.DTConfiguracionPortal;
 import uy.edu.tse.hcen.model.PortalConfiguracion;
 import uy.edu.tse.hcen.service.PortalConfiguracionService;
 import jakarta.inject.Inject;
@@ -28,11 +28,11 @@ public class PortalConfiguracionResource {
      */
     @GET
     @Path("/public")
-    public ConfiguracionPortalDTO getPublicConfiguracion() {
+    public DTConfiguracionPortal getPublicConfiguracion() {
         PortalConfiguracion config = configService.getConfiguracion();
         
         // Mapeo Entidad a DTO para la respuesta
-        ConfiguracionPortalDTO dto = new ConfiguracionPortalDTO();
+        DTConfiguracionPortal dto = new DTConfiguracionPortal();
         dto.colorPrimario = config.getColorPrimario();
         dto.colorSecundario = config.getColorSecundario();
         dto.logoUrl = config.getLogoUrl();
@@ -51,7 +51,7 @@ public class PortalConfiguracionResource {
      */
     @PUT
     @RolesAllowed("ADMINISTRADOR") 
-    public Response updateConfiguracion(ConfiguracionPortalDTO dto) {
+    public Response updateConfiguracion(DTConfiguracionPortal dto) {
         PortalConfiguracion updatedConfig = configService.updateConfiguracion(dto);
         return Response.ok(updatedConfig).build();
     }

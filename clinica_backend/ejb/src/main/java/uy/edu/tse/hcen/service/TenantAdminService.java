@@ -42,8 +42,9 @@ public class TenantAdminService {
             "CREATE TABLE IF NOT EXISTS %s.portal_configuracion (id BIGSERIAL PRIMARY KEY, color_primario VARCHAR(7) DEFAULT '%s', color_secundario VARCHAR(7) DEFAULT '#6c757d', logo_url VARCHAR(512), nombre_portal VARCHAR(100));",
             tenantSchema, escColor);
 
+        // H2 no soporta ON CONFLICT, usar MERGE (UPSERT) compatible
         String insertPortal = String.format(
-            "INSERT INTO %s.portal_configuracion (id, color_primario, color_secundario, logo_url, nombre_portal) VALUES (1, '%s', '#6c757d', '', '%s') ON CONFLICT (id) DO NOTHING;",
+            "MERGE INTO %s.portal_configuracion (id, color_primario, color_secundario, logo_url, nombre_portal) KEY(id) VALUES (1, '%s', '#6c757d', '', '%s');",
             tenantSchema, escColor, escNombre);
 
         // Crear secuencia para IDs auto-incrementables
@@ -248,8 +249,8 @@ public class TenantAdminService {
             throw new IllegalArgumentException("schemaName is required");
         }
 
-        String sql = "INSERT INTO public.nodoperiferico (id, nombre, rut, schema_name) VALUES (?, ?, ?, ?) " +
-                     "ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre, rut = EXCLUDED.rut, schema_name = EXCLUDED.schema_name";
+        // H2 no soporta ON CONFLICT, usar MERGE para UPSERT
+        String sql = "MERGE INTO public.nodoperiferico (id, nombre, rut, schema_name) KEY(id) VALUES (?, ?, ?, ?)";
         
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
@@ -344,17 +345,18 @@ public class TenantAdminService {
             }
 
             // 3. Crear usuario en public.usuario (tabla global) con ID auto-generada
+            // H2 no soporta RETURNING, usar getGeneratedKeys() en su lugar
             String insertUsuarioPublic = 
                 "INSERT INTO public.usuario (nombre, email) " +
-                "VALUES (?, ?) " +
-                "RETURNING id"; // Devuelve la ID auto-generada
+                "VALUES (?, ?)";
             
             long userId;
-            try (PreparedStatement ps = c.prepareStatement(insertUsuarioPublic)) {
+            try (PreparedStatement ps = c.prepareStatement(insertUsuarioPublic, PreparedStatement.RETURN_GENERATED_KEYS)) {
                 ps.setString(1, "Administrador Clínica " + tenantId);
                 ps.setString(2, adminEmail != null ? adminEmail : "admin" + tenantId + "@pendiente.local");
+                ps.executeUpdate();
                 
-                try (ResultSet rs = ps.executeQuery()) {
+                try (ResultSet rs = ps.getGeneratedKeys()) {
                     if (rs.next()) {
                         userId = rs.getLong(1);
                         LOG.infof("Created user in public.usuario with auto-generated ID: %d", userId);
@@ -365,10 +367,9 @@ public class TenantAdminService {
             }
 
             // 4. Crear registro en public.usuarioperiferico (SIN contraseña todavía, estado pendiente)
+            // H2 no soporta ON CONFLICT, usar MERGE para UPSERT
             String insertUsuarioPeriferico = 
-                "INSERT INTO public.usuarioperiferico (id, nickname, password_hash, dtype, tenant_id, role) " +
-                "VALUES (?, ?, ?, ?, ?, ?) " +
-                "ON CONFLICT (nickname) DO UPDATE SET tenant_id = EXCLUDED.tenant_id";
+                "MERGE INTO public.usuarioperiferico (id, nickname, password_hash, dtype, tenant_id, role) KEY(nickname) VALUES (?, ?, ?, ?, ?, ?)";
             
             try (PreparedStatement ps = c.prepareStatement(insertUsuarioPeriferico)) {
                 ps.setLong(1, userId);
@@ -382,9 +383,9 @@ public class TenantAdminService {
             }
 
             // 5. Crear registro en public.administradorclinica
+            // H2 no soporta ON CONFLICT DO NOTHING, usar MERGE
             String insertAdminClinica = 
-                "INSERT INTO public.administradorclinica (id, nodo_periferico_id) VALUES (?, ?) " +
-                "ON CONFLICT (id) DO NOTHING";
+                "MERGE INTO public.administradorclinica (id, nodo_periferico_id) KEY(id) VALUES (?, ?)";
             
             try (PreparedStatement ps = c.prepareStatement(insertAdminClinica)) {
                 ps.setLong(1, userId);
@@ -520,17 +521,18 @@ public class TenantAdminService {
             String passwordHash = hashPassword(password);
 
             // 3. Crear usuario en public.usuario con ID auto-generada
+            // H2 no soporta RETURNING, usar getGeneratedKeys() en su lugar
             String insertUsuarioPublic = 
                 "INSERT INTO public.usuario (nombre, email) " +
-                "VALUES (?, ?) " +
-                "RETURNING id";
+                "VALUES (?, ?)";
             
             long userId;
-            try (PreparedStatement ps = c.prepareStatement(insertUsuarioPublic)) {
+            try (PreparedStatement ps = c.prepareStatement(insertUsuarioPublic, PreparedStatement.RETURN_GENERATED_KEYS)) {
                 ps.setString(1, "Administrador");
                 ps.setString(2, customUsername + "@clinic.local");
+                ps.executeUpdate();
                 
-                try (ResultSet rs = ps.executeQuery()) {
+                try (ResultSet rs = ps.getGeneratedKeys()) {
                     if (rs.next()) {
                         userId = rs.getLong(1);
                     } else {
@@ -540,10 +542,9 @@ public class TenantAdminService {
             }
 
             // 4. Crear registro en public.usuarioperiferico
+            // H2 no soporta ON CONFLICT, usar MERGE para UPSERT
             String insertUsuarioPeriferico = 
-                "INSERT INTO public.usuarioperiferico (id, nickname, password_hash, dtype, tenant_id, role) " +
-                "VALUES (?, ?, ?, ?, ?, ?) " +
-                "ON CONFLICT (nickname) DO UPDATE SET password_hash = EXCLUDED.password_hash";
+                "MERGE INTO public.usuarioperiferico (id, nickname, password_hash, dtype, tenant_id, role) KEY(nickname) VALUES (?, ?, ?, ?, ?, ?)";
             
             try (PreparedStatement ps = c.prepareStatement(insertUsuarioPeriferico)) {
                 ps.setLong(1, userId);
@@ -556,9 +557,9 @@ public class TenantAdminService {
             }
 
             // 5. Crear registro en public.administradorclinica
+            // H2 no soporta ON CONFLICT DO NOTHING, usar MERGE
             String insertAdminClinica = 
-                "INSERT INTO public.administradorclinica (id, nodo_periferico_id) VALUES (?, ?) " +
-                "ON CONFLICT (id) DO NOTHING";
+                "MERGE INTO public.administradorclinica (id, nodo_periferico_id) KEY(id) VALUES (?, ?)";
             
             try (PreparedStatement ps = c.prepareStatement(insertAdminClinica)) {
                 ps.setLong(1, userId);

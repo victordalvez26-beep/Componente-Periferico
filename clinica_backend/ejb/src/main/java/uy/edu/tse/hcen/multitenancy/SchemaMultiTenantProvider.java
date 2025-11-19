@@ -30,9 +30,8 @@ public class SchemaMultiTenantProvider implements MultiTenantConnectionProvider<
         // If resource injection did not occur yet (Hibernate instantiates this class),
         // perform a one-time JNDI lookup and cache the DataSource reference.
         initializeDataSourceIfNeeded();
-        Connection c = dataSource.getConnection();
         
-        return c;
+        return dataSource.getConnection();
     }
 
     private synchronized void initializeDataSourceIfNeeded() throws SQLException {

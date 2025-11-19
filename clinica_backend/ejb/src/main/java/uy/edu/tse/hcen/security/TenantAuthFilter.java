@@ -39,11 +39,25 @@ public class TenantAuthFilter implements ContainerRequestFilter {
     public void filter(ContainerRequestContext requestContext) throws IOException {
         
         String path = requestContext.getUriInfo().getPath();
+        String method = requestContext.getMethod();
+        
+        // Log temporal para debugging (remover en producción)
+        System.out.println("[TenantAuthFilter] Path: " + path + ", Method: " + method);
         
         // Permitir acceso SIN token a endpoints públicos:
         // - /auth/login : Login de usuarios
         // - /config/* : Endpoints llamados por HCEN central (init, update, delete, activate, health)
-        if (path.contains("/auth/login") || path.contains("config/") || path.equals("config/health")) {
+        // Verificar múltiples formatos del path (con/sin ApplicationPath, con/sin barra inicial)
+        boolean isPublicEndpoint = path.contains("/auth/login") || 
+            path.contains("auth/login") || 
+            path.equals("auth/login") ||
+            path.endsWith("/auth/login") ||
+            path.startsWith("config/") || 
+            path.contains("config/") || 
+            path.equals("config/health");
+            
+        if (isPublicEndpoint) {
+            System.out.println("[TenantAuthFilter] Permitiendo acceso público a: " + path);
             return; 
         }
 
@@ -84,6 +98,7 @@ public class TenantAuthFilter implements ContainerRequestFilter {
             final String userNickname = nickname != null ? nickname : "";
             final SecurityContext previous = requestContext.getSecurityContext();
 
+            // Nuevo SecurityContext personalizado para JAX-RS y @RolesAllowed 
             SecurityContext sc = new SecurityContext() {
                 @Override
                 public Principal getUserPrincipal() {

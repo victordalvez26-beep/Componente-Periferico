@@ -30,7 +30,7 @@ cd componente-periferico/backend
 mvn clean package
 ```
 - Desplegar el EAR en tu WildFly (copiar a `standalone/deployments` o usar la consola web `http://localhost:9990`).
-- Verificar que el contexto está desplegado (ej: `http://localhost:8080/nodo-periferico/api/config/init`).
+- Verificar que el contexto está desplegado (ej: `http://127.0.0.1:8080/nodo-periferico/api/config/init`).
 
 ### 2) Frontend (desarrollo)
 ```powershell
@@ -43,7 +43,7 @@ npm start
 ## Pruebas E2E rápidas (manualmente)
 1. Verificar que HCEN está desplegado y que existe un nodo con `RUT=<rut>` o crea uno con el payload apropiado.
 2. Desde el Management UI de RabbitMQ o usando scripts, publicar un mensaje a `clinica_config_exchange` con `routing_key=alta.clinica` y `payload={"id_clinica": 123, "action":"alta"}` para forzar la llamada desde el consumer.
-3. Si el periphery está en WildFly, la URL que HCEN debe usar será algo como `http://localhost:8080/nodo-periferico/api`.
+3. Si el periphery está en WildFly, la URL que HCEN debe usar será algo como `http://127.0.0.1:8080/nodo-periferico/api`.
 4. Comprobar logs de WildFly para ver la llamada entrante y la respuesta (`server.log`).
 
 ## Debugging y notas

@@ -13,7 +13,7 @@ import jakarta.ws.rs.core.Response;
 import org.bson.Document;
 import com.mongodb.client.MongoCollection;
 
-import uy.edu.tse.hcen.repository.DocumentoClinicoRepository;
+import uy.edu.tse.hcen.service.DocumentoService;
 import uy.edu.tse.hcen.service.MongoDBService;
 
 
@@ -23,7 +23,7 @@ import uy.edu.tse.hcen.service.MongoDBService;
 public class MongoTestResource {
 
     @Inject
-    private DocumentoClinicoRepository documentoClinicoRepository;
+    private DocumentoService documentoService;
     @EJB
     private MongoDBService mongoDBService;
 
@@ -68,7 +68,7 @@ public class MongoTestResource {
     public Response createDocumentoClinico(String bodyJson){
         try {
             String contenido = "";
-            documentoClinicoRepository.crearDocumentoClinico(contenido,contenido); //ver 
+            documentoService.guardarContenido("", contenido); //ver 
             return Response.status(Response.Status.CREATED).build();
         } catch (Exception e) {
             Document err = new Document("error", e.getMessage());

@@ -8,6 +8,7 @@ import HomePage from './pages/HomePage';
 import ProfesionalesPage from './pages/ProfesionalesPage';
 import UsuariosSaludPage from './pages/UsuariosSaludPage';
 import ConfiguracionPage from './pages/ConfiguracionPage';
+import DocumentosPage from './pages/DocumentosPage';
 import './index.css';
 
 /**

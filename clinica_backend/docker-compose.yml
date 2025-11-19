@@ -64,7 +64,8 @@ services:
       
     volumes:
       # Deploy ONLY the EAR file (not the whole directory to avoid WildFly deploying extracted contents)
-      - ./ear/target/hcen.ear:/opt/jboss/wildfly/standalone/deployments/hcen.ear
+      # El nombre del EAR es hcen_clinica.ear según el pom.xml (finalName = ${project.parent.artifactId})
+      - ./ear/target/hcen_clinica.ear:/opt/jboss/wildfly/standalone/deployments/hcen_clinica.ear
       - ./wildfly/configure-wildfly.cli:/opt/jboss/wildfly/configure-wildfly.cli
       # Módulos globales persistentes (JWT, Spring Security, MongoDB)
       - ./wildfly-modules/io/jsonwebtoken:/opt/jboss/wildfly/modules/system/layers/base/io/jsonwebtoken:ro

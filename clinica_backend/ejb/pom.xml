@@ -20,7 +20,7 @@
 
     <parent>
         <groupId>uy.edu.tse</groupId>
-        <artifactId>hcen</artifactId>
+        <artifactId>hcen_clinica</artifactId>
         <version>0.0.1-SNAPSHOT</version>
     </parent>
     <artifactId>hcen-ejb</artifactId>
@@ -41,6 +41,20 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        
+        <!-- Mockito for unit tests -->
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>5.4.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>5.4.0</version>
             <scope>test</scope>
         </dependency>
 
@@ -83,6 +97,13 @@
             <artifactId>jakarta.xml.bind-api</artifactId>
             <scope>provided</scope>
         </dependency>
+        <!-- JSON-B API for Jsonb/JsonbBuilder (provided by application server at runtime) -->
+        <dependency>
+            <groupId>jakarta.json.bind</groupId>
+            <artifactId>jakarta.json.bind-api</artifactId>
+            <version>2.0.0</version>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>jakarta.annotation</groupId>
             <artifactId>jakarta.annotation-api</artifactId>
@@ -94,6 +115,13 @@
             <groupId>jakarta.ws.rs</groupId>
             <artifactId>jakarta.ws.rs-api</artifactId>
             <version>3.1.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- MicroProfile Fault Tolerance API -->
+        <dependency>
+            <groupId>org.eclipse.microprofile.fault-tolerance</groupId>
+            <artifactId>microprofile-fault-tolerance-api</artifactId>
+            <version>4.0.1</version>
             <scope>provided</scope>
         </dependency>
         
@@ -112,40 +140,58 @@
         </dependency>
         
         <!-- Password hashing / crypto utilities -->
+        <!-- Changed from provided to compile so it's available for tests -->
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-crypto</artifactId>
             <version>6.1.4</version>
-            <scope>provided</scope>
+        </dependency>
+        
+        <!-- Commons Logging for Spring Security Crypto -->
+        <dependency>
+            <groupId>commons-logging</groupId>
+            <artifactId>commons-logging</artifactId>
+            <version>1.2</version>
         </dependency>
 
         <!-- JSON Web Token (JJWT) dependencies -->
+        <!-- Changed from provided to compile so they're available for tests -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
             <version>0.11.5</version>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-impl</artifactId>
             <version>0.11.5</version>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-jackson</artifactId>
             <version>0.11.5</version>
-            <scope>provided</scope>
         </dependency>
 
-        <!-- MongoDB Driver - provided by EAR/lib -->
+        <!-- iText 7 Core for PDF generation -->
         <dependency>
-            <groupId>org.mongodb</groupId>
-            <artifactId>mongodb-driver-sync</artifactId>
-            <version>4.11.1</version>
-            <scope>provided</scope>
+            <groupId>com.itextpdf</groupId>
+            <artifactId>itext7-core</artifactId>
+            <version>8.0.2</version>
+            <type>pom</type>
         </dependency>
+        <!-- iText 7 Layout module (for advanced PDF features) -->
+        <dependency>
+            <groupId>com.itextpdf</groupId>
+            <artifactId>layout</artifactId>
+            <version>8.0.2</version>
+        </dependency>
+        <!-- iText 7 Kernel module -->
+        <dependency>
+            <groupId>com.itextpdf</groupId>
+            <artifactId>kernel</artifactId>
+            <version>8.0.2</version>
+        </dependency>
+
     </dependencies>
 
     <build>

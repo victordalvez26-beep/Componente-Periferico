@@ -29,7 +29,32 @@ function ActivatePage() {
     if (!token) {
       setError('Token de activación no válido. Verifique el enlace recibido por email.');
     }
+    // Health check opcional - no bloquea la activación
+    checkBackendHealth();
   }, [token]);
+
+  const checkBackendHealth = async () => {
+    try {
+      const response = await fetch('/hcen-web/api/config/health', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!response.ok) {
+        console.warn('Backend health check failed:', response.status);
+        // No bloquear la activación, solo mostrar un warning
+        if (response.status === 503) {
+          console.warn('⚠️ Backend no disponible. La activación puede fallar.');
+        } else if (response.status === 404) {
+          console.warn('⚠️ Endpoint no encontrado. Verifica que el backend esté desplegado correctamente.');
+        }
+      } else {
+        console.log('✅ Backend está disponible');
+      }
+    } catch (err) {
+      console.warn('⚠️ No se pudo verificar el backend:', err.message);
+      // No bloquear, solo loguear el warning
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -70,7 +95,8 @@ function ActivatePage() {
 
     try {
       // Llamada al backend periférico con TODOS los datos de la clínica
-      const response = await fetch('http://localhost:8081/hcen-web/api/config/activate', {
+      // Usar ruta relativa para que el proxy funcione
+      const response = await fetch('/hcen-web/api/config/activate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -89,22 +115,69 @@ function ActivatePage() {
         })
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setUsername(data.username);
-        setSuccess(true);
-        
-        // Redirigir al login después de 3 segundos (con formato correcto /clinica/ID)
-        setTimeout(() => {
-          navigate(`/portal/clinica/${tenantId}/login`);
-        }, 3000);
+      // Leer el body solo una vez
+      const contentType = response.headers.get('content-type');
+      let data = null;
+      let errorText = null;
+      
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          data = await response.json();
+        } catch (jsonErr) {
+          console.error('Error parsing JSON response:', jsonErr);
+          // Si falla el parseo JSON, intentar leer como texto
+          const text = await response.text();
+          errorText = text;
+        }
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Error al activar la cuenta');
+        // Si no es JSON, leer como texto
+        errorText = await response.text();
+      }
+
+      if (response.ok) {
+        if (data) {
+          setUsername(data.username || data.nickname || username);
+          setSuccess(true);
+          
+          // Redirigir al login después de 3 segundos (con formato correcto /clinica/ID)
+          setTimeout(() => {
+            navigate(`/portal/clinica/${tenantId}/login`);
+          }, 3000);
+        } else {
+          setError('Error: Respuesta inválida del servidor');
+        }
+      } else {
+        let errorMessage = 'Error al activar la cuenta';
+        if (data) {
+          errorMessage = data.error || data.message || errorMessage;
+        } else if (errorText) {
+          // Intentar parsear el texto como JSON si es posible
+          try {
+            const parsed = JSON.parse(errorText);
+            errorMessage = parsed.error || parsed.message || errorMessage;
+          } catch {
+            errorMessage = errorText || `Error HTTP ${response.status}`;
+          }
+        } else {
+          errorMessage = `Error HTTP ${response.status}`;
+        }
+        setError(errorMessage);
       }
     } catch (err) {
       console.error('Error activating account:', err);
-      setError('Error de conexión. Intente nuevamente.');
+      let errorMessage = 'Error al activar la cuenta';
+      
+      if (err.name === 'TypeError' && err.message.includes('fetch')) {
+        errorMessage = 'Error de conexión. Verifique que el backend periférico esté corriendo en el puerto 8081 (o 8080 si está en WildFly local).';
+      } else if (err.message && err.message.includes('JSON')) {
+        errorMessage = 'Error: Respuesta inválida del servidor. Verifique los logs del backend.';
+      } else if (err.message && err.message.includes('timeout')) {
+        errorMessage = 'El servidor tardó demasiado en responder. La activación puede estar en proceso. Verifique los logs del backend.';
+      } else {
+        errorMessage = `Error de conexión: ${err.message || 'Intente nuevamente'}`;
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
