@@ -12,10 +12,14 @@ import uy.edu.tse.hcen.multitenancy.TenantContext;
 import uy.edu.tse.hcen.repository.DocumentoPdfRepository;
 import uy.edu.tse.hcen.repository.UsuarioSaludRepository;
 import uy.edu.tse.hcen.repository.ProfesionalSaludRepository;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -172,51 +176,231 @@ public class DocumentoPdfService {
     }
 
     /**
-     * Obtiene un PDF por su ID de MongoDB.
+     * Obtiene el CI del paciente de un documento por su ID de MongoDB.
+     * Busca en ambas colecciones: documentos_pdf y documentos_clinicos.
      * 
      * @param mongoId ID del documento en MongoDB (ObjectId hex)
      * @param tenantId ID de la clínica (para validación)
-     * @return Bytes del PDF
+     * @return CI del paciente o null si no se encuentra
+     */
+    public String obtenerCiPacientePorId(String mongoId, Long tenantId) {
+        LOG.info(String.format("🔍 [PERIFERICO] Obteniendo CI del paciente - ID: %s, Clínica: %d", mongoId, tenantId));
+        
+        // 1. Buscar en documentos_pdf
+        Document documentoPdf = documentoPdfRepository.buscarPorId(mongoId, tenantId);
+        if (documentoPdf != null) {
+            String ciPaciente = documentoPdf.getString("ciPaciente");
+            if (ciPaciente != null && !ciPaciente.isBlank()) {
+                LOG.info(String.format("✅ [PERIFERICO] CI encontrado en documentos_pdf - ID: %s, CI: %s", mongoId, ciPaciente));
+                return ciPaciente;
+            }
+        }
+
+        // 2. Buscar en documentos_clinicos
+        MongoDatabase database = documentoPdfRepository.getDatabase();
+        MongoCollection<Document> clinicosCollection = database.getCollection("documentos_clinicos");
+        try {
+            ObjectId objectId = new ObjectId(mongoId);
+            Document query = new Document("_id", objectId);
+            Document documentoClinico = clinicosCollection.find(query).first();
+
+            if (documentoClinico != null) {
+                String ciPaciente = documentoClinico.getString("documentoIdPaciente");
+                if (ciPaciente == null || ciPaciente.isBlank()) {
+                    ciPaciente = documentoClinico.getString("pacienteDoc");
+                }
+                if (ciPaciente != null && !ciPaciente.isBlank()) {
+                    LOG.info(String.format("✅ [PERIFERICO] CI encontrado en documentos_clinicos - ID: %s, CI: %s", mongoId, ciPaciente));
+                    return ciPaciente;
+                }
+            }
+        } catch (IllegalArgumentException ex) {
+            LOG.warn(String.format("ID de MongoDB inválido al buscar CI del paciente: %s", mongoId));
+        }
+        
+        LOG.warn(String.format("❌ [PERIFERICO] CI del paciente no encontrado - ID: %s, Tenant: %d", mongoId, tenantId));
+        return null;
+    }
+
+    /**
+     * Obtiene el documentoId (UUID) de un documento por su ID de MongoDB.
+     * Busca en ambas colecciones: documentos_pdf y documentos_clinicos.
+     * 
+     * @param mongoId ID del documento en MongoDB (ObjectId hex)
+     * @param tenantId ID de la clínica (para validación)
+     * @return documentoId (UUID) o null si no se encuentra
+     */
+    public String obtenerDocumentoIdPorId(String mongoId, Long tenantId) {
+        // 1. Buscar en documentos_pdf
+        Document documentoPdf = documentoPdfRepository.buscarPorId(mongoId, tenantId);
+        if (documentoPdf != null) {
+            String documentoId = documentoPdf.getString("documentoId");
+            if (documentoId != null && !documentoId.isBlank()) {
+                return documentoId;
+            }
+        }
+
+        // 2. Buscar en documentos_clinicos
+        MongoDatabase database = documentoPdfRepository.getDatabase();
+        MongoCollection<Document> clinicosCollection = database.getCollection("documentos_clinicos");
+        try {
+            ObjectId objectId = new ObjectId(mongoId);
+            Document query = new Document("_id", objectId);
+            Document documentoClinico = clinicosCollection.find(query).first();
+
+            if (documentoClinico != null) {
+                String documentoId = documentoClinico.getString("documentoId");
+                if (documentoId != null && !documentoId.isBlank()) {
+                    return documentoId;
+                }
+            }
+        } catch (IllegalArgumentException ex) {
+            LOG.warn(String.format("ID de MongoDB inválido al buscar documentoId: %s", mongoId));
+        }
+        
+        return null;
+    }
+
+    /**
+     * Obtiene el tipoDocumento de un documento por su ID de MongoDB.
+     * Busca en ambas colecciones: documentos_pdf y documentos_clinicos.
+     * 
+     * @param mongoId ID del documento en MongoDB (ObjectId hex)
+     * @param tenantId ID de la clínica (para validación)
+     * @return tipoDocumento o null si no se encuentra
+     */
+    public String obtenerTipoDocumentoPorId(String mongoId, Long tenantId) {
+        // 1. Buscar en documentos_pdf
+        Document documentoPdf = documentoPdfRepository.buscarPorId(mongoId, tenantId);
+        if (documentoPdf != null) {
+            String tipoDocumento = documentoPdf.getString("tipoDocumento");
+            if (tipoDocumento != null && !tipoDocumento.isBlank()) {
+                return tipoDocumento;
+            }
+        }
+
+        // 2. Buscar en documentos_clinicos
+        MongoDatabase database = documentoPdfRepository.getDatabase();
+        MongoCollection<Document> clinicosCollection = database.getCollection("documentos_clinicos");
+        try {
+            ObjectId objectId = new ObjectId(mongoId);
+            Document query = new Document("_id", objectId);
+            Document documentoClinico = clinicosCollection.find(query).first();
+
+            if (documentoClinico != null) {
+                // En documentos_clinicos, el tipo puede estar en "especialidad"
+                String tipoDocumento = documentoClinico.getString("especialidad");
+                if (tipoDocumento == null || tipoDocumento.isBlank()) {
+                    tipoDocumento = documentoClinico.getString("tipoDocumento");
+                }
+                if (tipoDocumento != null && !tipoDocumento.isBlank()) {
+                    return tipoDocumento;
+                }
+            }
+        } catch (IllegalArgumentException ex) {
+            LOG.warn(String.format("ID de MongoDB inválido al buscar tipoDocumento: %s", mongoId));
+        }
+        
+        return null;
+    }
+
+    /**
+     * Obtiene un PDF por su ID de MongoDB.
+     * Busca en ambas colecciones: documentos_pdf y documentos_clinicos
+     * 
+     * @param mongoId ID del documento en MongoDB (ObjectId hex)
+     * @param tenantId ID de la clínica (para validación)
+     * @return Bytes del PDF o null si no se encuentra
      */
     public byte[] obtenerPdfPorId(String mongoId, Long tenantId) {
         LOG.info(String.format("🔍 [PERIFERICO] Obteniendo PDF de MongoDB - ID: %s, Clínica: %d", mongoId, tenantId));
         
-        // El repositorio ya valida el tenantId en la consulta, así que no necesitamos validar después
+        // 1. Buscar primero en documentos_pdf
         Document documento = documentoPdfRepository.buscarPorId(mongoId, tenantId);
-        if (documento == null) {
-            LOG.warn(String.format("❌ [PERIFERICO] Documento no encontrado o no pertenece al tenant %d - ID: %s", tenantId, mongoId));
-            return null;
-        }
-
-        LOG.info(String.format("✅ [PERIFERICO] Documento encontrado en MongoDB - ID: %s", mongoId));
-
-        // Extraer bytes del PDF
-        Binary pdfBinary = documento.get("pdfBytes", Binary.class);
-        if (pdfBinary == null) {
-            LOG.warn(String.format("❌ [PERIFERICO] El documento no tiene campo pdfBytes - ID: %s", mongoId));
-            return null;
-        }
-
-        byte[] pdfData = pdfBinary.getData();
-        LOG.info(String.format("✅ [PERIFERICO] PDF extraído de MongoDB - ID: %s, Tamaño: %d bytes", mongoId, pdfData.length));
-        
-        // Verificar que los primeros bytes sean de un PDF válido
-        if (pdfData.length >= 4) {
-            String header = new String(pdfData, 0, 4);
-            if (!header.startsWith("%PDF")) {
-                LOG.warn(String.format("⚠️ [PERIFERICO] Los primeros bytes no son de un PDF válido: %s", header));
-                LOG.warn(String.format("⚠️ [PERIFERICO] Primeros 200 bytes: %s", 
-                        new String(pdfData, 0, Math.min(200, pdfData.length))));
-            } else {
-                LOG.info(String.format("✅ [PERIFERICO] PDF válido detectado en MongoDB - Header: %s", header));
+        if (documento != null) {
+            LOG.info(String.format("✅ [PERIFERICO] Documento encontrado en documentos_pdf - ID: %s", mongoId));
+            Binary pdfBinary = documento.get("pdfBytes", Binary.class);
+            if (pdfBinary != null && pdfBinary.getData() != null && pdfBinary.getData().length > 0) {
+                byte[] pdfData = pdfBinary.getData();
+                LOG.info(String.format("✅ [PERIFERICO] PDF extraído de documentos_pdf - ID: %s, Tamaño: %d bytes", mongoId, pdfData.length));
+                return pdfData;
             }
         }
-
-        return pdfData;
+        
+        // 2. Si no se encuentra en documentos_pdf, buscar en documentos_clinicos
+        LOG.info(String.format("🔍 [PERIFERICO] Buscando en documentos_clinicos - ID: %s", mongoId));
+        try {
+            com.mongodb.client.MongoDatabase database = documentoPdfRepository.getDatabase();
+            com.mongodb.client.MongoCollection<Document> collection = database.getCollection("documentos_clinicos");
+            
+            try {
+                org.bson.types.ObjectId objectId = new org.bson.types.ObjectId(mongoId);
+                Document query = new Document("_id", objectId);
+                documento = collection.find(query).first();
+                
+                if (documento != null) {
+                    LOG.info(String.format("✅ [PERIFERICO] Documento encontrado en documentos_clinicos - ID: %s", mongoId));
+                    // Buscar PDF en el campo "pdf"
+                    Binary pdfBinary = documento.get("pdf", Binary.class);
+                    if (pdfBinary != null && pdfBinary.getData() != null && pdfBinary.getData().length > 0) {
+                        byte[] pdfData = pdfBinary.getData();
+                        LOG.info(String.format("✅ [PERIFERICO] PDF extraído de documentos_clinicos - ID: %s, Tamaño: %d bytes", mongoId, pdfData.length));
+                        return pdfData;
+                    }
+                }
+            } catch (IllegalArgumentException e) {
+                LOG.warn(String.format("⚠️ [PERIFERICO] ID inválido para ObjectId: %s", mongoId));
+            }
+        } catch (Exception e) {
+            LOG.warn(String.format("⚠️ [PERIFERICO] Error buscando en documentos_clinicos: %s", e.getMessage()));
+        }
+        
+        LOG.warn(String.format("❌ [PERIFERICO] Documento no encontrado en ninguna colección - ID: %s, Tenant: %d", mongoId, tenantId));
+        return null;
+    }
+    
+    /**
+     * Obtiene el contenido de texto de un documento por su ID de MongoDB.
+     * Busca en ambas colecciones: documentos_pdf y documentos_clinicos
+     * 
+     * @param mongoId ID del documento en MongoDB (ObjectId hex)
+     * @param tenantId ID de la clínica (para validación)
+     * @return Contenido de texto del documento o null si no se encuentra
+     */
+    public String obtenerContenidoPorId(String mongoId, Long tenantId) {
+        LOG.info(String.format("🔍 [PERIFERICO] Obteniendo contenido de MongoDB - ID: %s, Clínica: %d", mongoId, tenantId));
+        
+        // 1. Buscar primero en documentos_clinicos (más probable que tenga contenido de texto)
+        try {
+            com.mongodb.client.MongoDatabase database = documentoPdfRepository.getDatabase();
+            com.mongodb.client.MongoCollection<Document> collection = database.getCollection("documentos_clinicos");
+            
+            try {
+                org.bson.types.ObjectId objectId = new org.bson.types.ObjectId(mongoId);
+                Document query = new Document("_id", objectId);
+                Document documento = collection.find(query).first();
+                
+                if (documento != null) {
+                    String contenido = documento.getString("contenido");
+                    if (contenido != null && !contenido.isBlank()) {
+                        LOG.info(String.format("✅ [PERIFERICO] Contenido encontrado en documentos_clinicos - ID: %s", mongoId));
+                        return contenido;
+                    }
+                }
+            } catch (IllegalArgumentException e) {
+                LOG.warn(String.format("⚠️ [PERIFERICO] ID inválido para ObjectId: %s", mongoId));
+            }
+        } catch (Exception e) {
+            LOG.warn(String.format("⚠️ [PERIFERICO] Error buscando contenido en documentos_clinicos: %s", e.getMessage()));
+        }
+        
+        LOG.warn(String.format("❌ [PERIFERICO] Contenido no encontrado - ID: %s, Tenant: %d", mongoId, tenantId));
+        return null;
     }
 
     /**
      * Lista todos los documentos PDF de un paciente por su CI.
+     * Busca en ambas colecciones: documentos_pdf y documentos_clinicos
      * 
      * @param ciPaciente CI del paciente
      * @param tenantId ID de la clínica (para validación)
@@ -225,51 +409,207 @@ public class DocumentoPdfService {
     public java.util.List<Map<String, Object>> listarDocumentosPorPaciente(String ciPaciente, Long tenantId) {
         LOG.info(String.format("Listando documentos - Paciente: %s, Clínica: %d", ciPaciente, tenantId));
         
-        java.util.List<Document> documentos = documentoPdfRepository.buscarPorPaciente(ciPaciente, tenantId);
+        java.util.List<Map<String, Object>> resultado = new java.util.ArrayList<>();
+        
+        // 1. Buscar en documentos_pdf (colección antigua)
+        java.util.List<Document> documentosPdf = documentoPdfRepository.buscarPorPaciente(ciPaciente, tenantId);
+        for (Document doc : documentosPdf) {
+            Map<String, Object> metadata = convertirDocumentoPdfAMetadata(doc);
+            resultado.add(metadata);
+        }
+        
+        // 2. Buscar en documentos_clinicos (colección nueva usada por crearDocumentoCompleto)
+        java.util.List<Document> documentosClinicos = buscarDocumentosClinicosPorPaciente(ciPaciente, tenantId);
+        for (Document doc : documentosClinicos) {
+            Map<String, Object> metadata = convertirDocumentoClinicoAMetadata(doc);
+            resultado.add(metadata);
+        }
         
         // Obtener información del paciente una sola vez
         var paciente = usuarioSaludRepository.findByCiAndTenant(ciPaciente, tenantId);
         String nombrePaciente = paciente != null ? paciente.getNombre() : null;
         String apellidoPaciente = paciente != null ? paciente.getApellido() : null;
         
-        java.util.List<Map<String, Object>> resultado = new java.util.ArrayList<>();
-        for (Document doc : documentos) {
-            Map<String, Object> metadata = new HashMap<>();
-            
-            ObjectId objectId = doc.getObjectId("_id");
-            if (objectId != null) {
-                metadata.put("id", objectId.toHexString());
-            }
-            
-            metadata.put("documentoId", doc.getString("documentoId"));
-            metadata.put("ciPaciente", doc.getString("ciPaciente"));
-            
-            // Fecha de creación
-            java.util.Date fechaCreacion = doc.getDate("fechaCreacion");
-            if (fechaCreacion != null) {
-                metadata.put("fechaCreacion", fechaCreacion);
-            }
-            
-            metadata.put("contentType", doc.getString("contentType"));
-            
-            // Metadata adicional
-            metadata.put("tipoDocumento", doc.getString("tipoDocumento"));
-            metadata.put("descripcion", doc.getString("descripcion"));
-            metadata.put("profesionalId", doc.getString("profesionalId"));
-            
-            // Información del paciente
+        // Agregar información del paciente a todos los documentos
+        for (Map<String, Object> metadata : resultado) {
             if (nombrePaciente != null) {
                 metadata.put("nombrePaciente", nombrePaciente);
             }
             if (apellidoPaciente != null) {
                 metadata.put("apellidoPaciente", apellidoPaciente);
             }
-            
-            resultado.add(metadata);
         }
         
-        LOG.info(String.format("Encontrados %d documentos para el paciente %s", resultado.size(), ciPaciente));
+        LOG.info(String.format("Encontrados %d documentos para el paciente %s (%d de documentos_pdf, %d de documentos_clinicos)", 
+                resultado.size(), ciPaciente, documentosPdf.size(), documentosClinicos.size()));
         return resultado;
+    }
+    
+    /**
+     * Busca documentos en la colección documentos_clinicos por CI del paciente.
+     */
+    private java.util.List<Document> buscarDocumentosClinicosPorPaciente(String ciPaciente, Long tenantId) {
+        try {
+            // Obtener la base de datos desde el repositorio
+            com.mongodb.client.MongoDatabase database = documentoPdfRepository.getDatabase();
+            com.mongodb.client.MongoCollection<Document> collection = database.getCollection("documentos_clinicos");
+            
+            Document query = new Document();
+            // Buscar por documentoIdPaciente o pacienteDoc (ambos campos se usan)
+            query.append("$or", Arrays.asList(
+                new Document("documentoIdPaciente", ciPaciente),
+                new Document("pacienteDoc", ciPaciente)
+            ));
+            
+            java.util.List<Document> resultados = new java.util.ArrayList<>();
+            var cursor = collection.find(query).iterator();
+            try {
+                while (cursor.hasNext()) {
+                    resultados.add(cursor.next());
+                }
+            } finally {
+                cursor.close();
+            }
+            return resultados;
+        } catch (Exception e) {
+            LOG.warn(String.format("Error buscando en documentos_clinicos: %s", e.getMessage()));
+            return new java.util.ArrayList<>();
+        }
+    }
+    
+    /**
+     * Convierte un Document de documentos_pdf a Map de metadata.
+     */
+    private Map<String, Object> convertirDocumentoPdfAMetadata(Document doc) {
+        Map<String, Object> metadata = new HashMap<>();
+        
+        ObjectId objectId = doc.getObjectId("_id");
+        if (objectId != null) {
+            metadata.put("id", objectId.toHexString());
+        }
+        
+        metadata.put("documentoId", doc.getString("documentoId"));
+        metadata.put("ciPaciente", doc.getString("ciPaciente"));
+        
+        // Fecha de creación
+        java.util.Date fechaCreacion = doc.getDate("fechaCreacion");
+        if (fechaCreacion != null) {
+            metadata.put("fechaCreacion", fechaCreacion);
+        }
+        
+        metadata.put("contentType", doc.getString("contentType"));
+        
+        // Metadata adicional
+        metadata.put("tipoDocumento", doc.getString("tipoDocumento"));
+        metadata.put("descripcion", doc.getString("descripcion"));
+        metadata.put("titulo", doc.getString("titulo"));
+        metadata.put("autor", doc.getString("autor"));
+        metadata.put("profesionalId", doc.getString("profesionalId"));
+        
+        return metadata;
+    }
+    
+    /**
+     * Convierte un Document de documentos_clinicos a Map de metadata.
+     */
+    private Map<String, Object> convertirDocumentoClinicoAMetadata(Document doc) {
+        Map<String, Object> metadata = new HashMap<>();
+        
+        ObjectId objectId = doc.getObjectId("_id");
+        if (objectId != null) {
+            metadata.put("id", objectId.toHexString());
+        }
+        
+        metadata.put("documentoId", doc.getString("documentoId"));
+        
+        // En documentos_clinicos, el CI puede estar en documentoIdPaciente o pacienteDoc
+        String ciPaciente = doc.getString("documentoIdPaciente");
+        if (ciPaciente == null || ciPaciente.isBlank()) {
+            ciPaciente = doc.getString("pacienteDoc");
+        }
+        metadata.put("ciPaciente", ciPaciente);
+        
+        // Fecha de creación
+        java.util.Date fechaCreacion = doc.getDate("fechaCreacion");
+        if (fechaCreacion == null) {
+            Object fechaObj = doc.get("fecha");
+            if (fechaObj instanceof java.util.Date) {
+                fechaCreacion = (java.util.Date) fechaObj;
+            }
+        }
+        if (fechaCreacion == null && objectId != null) {
+            fechaCreacion = new Date(objectId.getTimestamp() * 1000L);
+        }
+        if (fechaCreacion == null) {
+            fechaCreacion = new Date();
+        }
+        metadata.put("fechaCreacion", fechaCreacion);
+        
+        // Verificar si tiene PDF
+        Binary pdfBinary = doc.get("pdf", Binary.class);
+        boolean tienePdf = pdfBinary != null && pdfBinary.getData() != null && pdfBinary.getData().length > 0;
+        metadata.put("tienePdf", tienePdf);
+        metadata.put("contentType", tienePdf ? "application/pdf" : "text/plain");
+        
+        String tipoDocumento = doc.getString("tipoDocumento");
+        if (tipoDocumento == null || tipoDocumento.isBlank()) {
+            tipoDocumento = doc.getString("especialidad");
+        }
+        if (tipoDocumento == null || tipoDocumento.isBlank()) {
+            tipoDocumento = "DOCUMENTO_CLINICO";
+        }
+        metadata.put("tipoDocumento", tipoDocumento);
+
+        String contenido = doc.getString("contenido");
+        String descripcion = doc.getString("descripcion");
+        if ((descripcion == null || descripcion.isBlank()) && contenido != null && !contenido.isBlank()) {
+            descripcion = contenido.length() > 180 ? contenido.substring(0, 180) + "..." : contenido;
+        }
+        if (descripcion != null && !descripcion.isBlank()) {
+            metadata.put("descripcion", descripcion);
+        }
+
+        String titulo = doc.getString("titulo");
+        if (titulo == null || titulo.isBlank()) {
+            if (descripcion != null && !descripcion.isBlank()) {
+                titulo = descripcion.split("\\n")[0];
+                if (titulo.length() > 80) {
+                    titulo = titulo.substring(0, 80) + "...";
+                }
+            }
+        }
+        if (titulo == null || titulo.isBlank()) {
+            if (contenido != null && !contenido.isBlank()) {
+                String primerLinea = contenido.stripLeading();
+                int salto = primerLinea.indexOf('\n');
+                titulo = (salto > 0 ? primerLinea.substring(0, salto) : primerLinea);
+                if (titulo.length() > 80) {
+                    titulo = titulo.substring(0, 80) + "...";
+                }
+            }
+        }
+        if (titulo == null || titulo.isBlank()) {
+            titulo = tipoDocumento != null ? tipoDocumento : "Documento clínico";
+        }
+        metadata.put("titulo", titulo);
+
+        String autor = doc.getString("autor");
+        if (autor == null || autor.isBlank()) {
+            autor = doc.getString("profesionalId");
+        }
+        if (autor != null && !autor.isBlank()) {
+            metadata.put("autor", autor);
+        }
+
+        String profesionalId = doc.getString("profesionalId");
+        if (profesionalId == null || profesionalId.isBlank()) {
+            profesionalId = autor;
+        }
+        if (profesionalId != null && !profesionalId.isBlank()) {
+            metadata.put("profesionalId", profesionalId);
+        }
+        
+        return metadata;
     }
 
     /**

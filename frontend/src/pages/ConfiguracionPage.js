@@ -67,7 +67,7 @@ function ConfiguracionPage() {
   };
 
   return (
-    <div>
+    <div style={{ padding: '16px', boxSizing: 'border-box' }}>
       {message && (
         <div style={{
           padding: '16px',
@@ -75,7 +75,7 @@ function ConfiguracionPage() {
           color: message.includes('✅') ? '#065f46' : '#991b1b',
           borderRadius: '8px',
           marginBottom: '24px',
-          fontSize: '15px',
+          fontSize: 'clamp(14px, 2.5vw, 15px)',
           fontWeight: '500'
         }}>
           {message}
@@ -85,13 +85,13 @@ function ConfiguracionPage() {
       <div style={{
         backgroundColor: 'white',
         borderRadius: '12px',
-        padding: '32px',
+        padding: '20px',
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
       }}>
-        <h3 style={{ margin: '0 0 8px 0', fontSize: '20px', fontWeight: '700' }}>
+        <h3 style={{ margin: '0 0 8px 0', fontSize: 'clamp(18px, 3vw, 20px)', fontWeight: '700' }}>
           ⚙️ Configuración del Portal
         </h3>
-        <p style={{ margin: '0 0 32px 0', color: '#6b7280', fontSize: '15px' }}>
+        <p style={{ margin: '0 0 32px 0', color: '#6b7280', fontSize: 'clamp(14px, 2.5vw, 15px)' }}>
           Personalice la apariencia y configuración de su clínica
         </p>
 
@@ -121,12 +121,12 @@ function ConfiguracionPage() {
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
                 Color Primario
               </label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                 <input
                   type="color"
                   value={config.colorPrimario}
                   onChange={(e) => setConfig({...config, colorPrimario: e.target.value})}
-                  style={{ width: '60px', height: '50px', border: '2px solid #e5e7eb', borderRadius: '8px', cursor: 'pointer' }}
+                  style={{ width: '60px', height: '50px', border: '2px solid #e5e7eb', borderRadius: '8px', cursor: 'pointer', flexShrink: 0 }}
                 />
                 <input
                   type="text"
@@ -148,12 +148,12 @@ function ConfiguracionPage() {
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
                 Color Secundario
               </label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                 <input
                   type="color"
                   value={config.colorSecundario}
                   onChange={(e) => setConfig({...config, colorSecundario: e.target.value})}
-                  style={{ width: '60px', height: '50px', border: '2px solid #e5e7eb', borderRadius: '8px', cursor: 'pointer' }}
+                  style={{ width: '60px', height: '50px', border: '2px solid #e5e7eb', borderRadius: '8px', cursor: 'pointer', flexShrink: 0 }}
                 />
                 <input
                   type="text"
@@ -192,12 +192,12 @@ function ConfiguracionPage() {
 
             {/* Preview */}
             <div style={{
-              padding: '24px',
+              padding: '20px',
               backgroundColor: '#f9fafb',
               borderRadius: '8px',
               border: '2px dashed #e5e7eb'
             }}>
-              <h4 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: '600', color: '#6b7280' }}>
+              <h4 style={{ margin: '0 0 16px 0', fontSize: 'clamp(13px, 2.5vw, 14px)', fontWeight: '600', color: '#6b7280' }}>
                 👁️ Vista Previa
               </h4>
               <div style={{
@@ -207,10 +207,10 @@ function ConfiguracionPage() {
                 borderRadius: '8px',
                 textAlign: 'center'
               }}>
-                <div style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px' }}>
+                <div style={{ fontSize: 'clamp(20px, 4vw, 24px)', fontWeight: '700', marginBottom: '8px' }}>
                   {config.nombrePortal || 'Nombre del Portal'}
                 </div>
-                <div style={{ fontSize: '14px', opacity: 0.9 }}>
+                <div style={{ fontSize: 'clamp(13px, 2.5vw, 14px)', opacity: 0.9 }}>
                   Clínica {tenantId} - Portal Personalizado
                 </div>
               </div>
@@ -241,14 +241,14 @@ function ConfiguracionPage() {
       <div style={{
         backgroundColor: 'white',
         borderRadius: '12px',
-        padding: '32px',
+        padding: '20px',
         marginTop: '24px',
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
       }}>
-        <h3 style={{ margin: '0 0 16px 0', fontSize: '20px', fontWeight: '700' }}>
+        <h3 style={{ margin: '0 0 16px 0', fontSize: 'clamp(18px, 3vw, 20px)', fontWeight: '700' }}>
           🔗 Conexión como Nodo Periférico
         </h3>
-        <p style={{ margin: '0 0 20px 0', color: '#6b7280', fontSize: '15px' }}>
+        <p style={{ margin: '0 0 20px 0', color: '#6b7280', fontSize: 'clamp(14px, 2.5vw, 15px)' }}>
           Estado de la integración con HCEN Central
         </p>
         <div style={{
@@ -257,12 +257,13 @@ function ConfiguracionPage() {
           gap: '12px',
           padding: '16px',
           backgroundColor: '#d1fae5',
-          borderRadius: '8px'
+          borderRadius: '8px',
+          flexWrap: 'wrap'
         }}>
-          <span style={{ fontSize: '24px' }}>✅</span>
+          <span style={{ fontSize: 'clamp(20px, 4vw, 24px)', flexShrink: 0 }}>✅</span>
           <div>
-            <div style={{ fontWeight: '600', color: '#065f46' }}>Conectado a HCEN</div>
-            <div style={{ fontSize: '14px', color: '#047857' }}>Tenant ID: {tenantId}</div>
+            <div style={{ fontWeight: '600', color: '#065f46', fontSize: 'clamp(14px, 2.5vw, 16px)' }}>Conectado a HCEN</div>
+            <div style={{ fontSize: 'clamp(13px, 2.5vw, 14px)', color: '#047857' }}>Tenant ID: {tenantId}</div>
           </div>
         </div>
       </div>

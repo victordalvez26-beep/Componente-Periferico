@@ -8,9 +8,8 @@ services:
     image: mongo:latest
     container_name: mongodb
     restart: always
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: "admin"
-      MONGO_INITDB_ROOT_PASSWORD: "adminpassword"
+    # Sin autenticación para desarrollo
+    command: mongod --bind_ip_all
     volumes:
       - mongo-volumen:/data/db
     ports:
@@ -59,13 +58,15 @@ services:
       JWT_SECRET_BASE64: "bXlzdXBlcnNlY3JldGtleWZvcmhjZW5qd3R0b2tlbnNzaG91bGRiZWxvbmdlcg=="
       MONGO_HOST: mongodb # Host para la conexión desde Java
       MONGO_PORT: 27017
-      MONGO_USER: "admin"
-      MONGO_PASSWORD: "adminpassword"
-      MONGODB_URI: "mongodb://admin:adminpassword@mongodb:27017/hcen_db?authSource=admin"
+      MONGODB_URI: "mongodb://mongodb:27017/hcen_db"
       MONGODB_DB: "hcen_db"
       # URL base del nodo periférico para construir URIs de acceso a documentos
       # Desde el backend HCEN se convertirá a hcen-wildfly-app:8080 para acceso interno Docker
       NODO_BASE_URL: "http://localhost:8081"
+      # URL del servicio de políticas (backend HCEN central)
+      # Si el backend HCEN está en la misma red Docker, usar el nombre del contenedor
+      # Si está en el host, usar host.docker.internal o la IP del host
+      POLITICAS_SERVICE_URL: "http://hcen-backend:8080/hcen-politicas-service/api"
       
     volumes:
       # Deploy ONLY the EAR file (not the whole directory to avoid WildFly deploying extracted contents)
@@ -82,6 +83,24 @@ services:
     networks:
       - hcen_network
       - hcen_backend_network
+
+  # ----------------------------------------------------
+  # 4. Frontend React (Nginx)
+  # ----------------------------------------------------
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    image: periferico-frontend:latest
+    container_name: periferico-frontend
+    depends_on:
+      - wildfly
+    ports:
+      - "3001:3001"
+    networks:
+      - hcen_network
+    environment:
+      - REACT_APP_BACKEND_URL=
 
 # Definición de Redes y Volúmenes
 networks:

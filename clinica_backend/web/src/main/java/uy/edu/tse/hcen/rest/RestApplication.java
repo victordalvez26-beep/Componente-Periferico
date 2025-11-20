@@ -19,6 +19,7 @@ public class RestApplication extends Application {
         classes.add(DocumentoClinicoResource.class);
         classes.add(DocumentoPdfResource.class);
         classes.add(DocumentoPacienteResource.class);
+        classes.add(DocumentoSolicitudesResource.class);
         classes.add(ProfesionalSaludResource.class);
         classes.add(PortalConfiguracionResource.class);
         classes.add(AdminTenantResource.class);

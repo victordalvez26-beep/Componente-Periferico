@@ -53,18 +53,27 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
         // Excluir endpoints públicos que NO requieren autenticación JWT:
         // - /config/* : Llamados por HCEN central (init, update, delete, activate, health)
         // - /auth/login : Login de usuarios
-        // - /api/documentos-pdf/{id} : Descarga individual de PDFs (el backend HCEN ya valida autenticación)
-        // NO incluir /api/documentos-pdf/paciente/{ci} que requiere autenticación
+        // - /api/documentos-pdf/{id} SIN token: Descarga desde backend HCEN (sin token)
+        // - /api/documentos-pdf/{id} CON token: Requiere autenticación (procesar el token)
+        // NO incluir /api/documentos-pdf/paciente/{ci} que siempre requiere autenticación
         String path = requestContext.getUriInfo().getPath();
-        if (path.startsWith("config/") || path.equals("auth/login") || 
-            (path.matches("documentos-pdf/[^/]+") && "GET".equals(requestContext.getMethod()) && !path.contains("/paciente/"))) {
+        String auth = requestContext.getHeaderString(HttpHeaders.AUTHORIZATION);
+        boolean hasBearerToken = auth != null && auth.startsWith("Bearer ");
+        
+        // El path puede venir con o sin prefijo, verificar ambas variantes
+        boolean isPublicEndpoint = 
+            path.contains("/config/") || path.startsWith("config/") || 
+            path.endsWith("/auth/login") || path.equals("auth/login") ||
+            (path.matches(".*documentos-pdf/[^/]+") && "GET".equals(requestContext.getMethod()) && !path.contains("/paciente/") && !hasBearerToken);
+        
+        if (isPublicEndpoint) {
             // Permitir acceso sin JWT a estos endpoints públicos
             return;
         }
         
-        // Para el resto de endpoints, verificar JWT si está presente
-        String auth = requestContext.getHeaderString(HttpHeaders.AUTHORIZATION);
-        if (auth != null && auth.startsWith("Bearer ")) {
+        // Para el resto de endpoints, verificar JWT - es requerido
+        // (auth ya fue obtenido arriba para verificar isPublicEndpoint)
+        if (hasBearerToken) {
             String token = auth.substring("Bearer ".length()).trim();
             try {
                 Claims claims = TokenUtils.parseToken(token);
@@ -115,15 +124,21 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
 
             } catch (Exception ex) {
                 // Token inválido: abortar con 401
-                Map<String, String> err = Map.of("error", "Token inválido o expirado");
+                Map<String, String> err = Map.of("error", "Token inválido o expirado: " + ex.getMessage());
                 requestContext.abortWith(Response.status(Response.Status.UNAUTHORIZED)
                         .type(MediaType.APPLICATION_JSON_TYPE)
                         .entity(err)
                         .build());
+                return;
             }
+        } else {
+            // No hay header Authorization y el endpoint no es público: rechazar con 401
+            Map<String, String> err = Map.of("error", "Autenticación requerida. Por favor inicie sesión.");
+            requestContext.abortWith(Response.status(Response.Status.UNAUTHORIZED)
+                    .type(MediaType.APPLICATION_JSON_TYPE)
+                    .entity(err)
+                    .build());
         }
-        // Si no hay header Authorization, dejamos pasar la request
-        // (algunos endpoints pueden ser públicos, otros pueden validar manualmente)
     }
 
     @Override

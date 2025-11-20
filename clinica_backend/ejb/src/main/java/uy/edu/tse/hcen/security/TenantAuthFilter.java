@@ -75,13 +75,21 @@ public class TenantAuthFilter implements ContainerRequestFilter {
             return; 
         }
         
-        // Para documentos-pdf/{id} GET (descarga individual), permitir acceso siempre
-        // El backend HCEN ya valida la autenticación del usuario del frontend
-        // Puede venir con token de servicio o sin token
+        // Para documentos-pdf/{id} GET (descarga individual), verificar si hay token
+        // Si hay token, dejar que AuthTokenFilter lo procese (no hacer nada aquí)
+        // Si no hay token, permitir acceso desde backend HCEN (token de servicio)
         // NO incluir /paciente/{ci} que requiere autenticación y tenant
         // El path puede venir como /documentos-pdf/{id} o /hcen-web/api/documentos-pdf/{id}
         if (path.contains("documentos-pdf/") && "GET".equals(method) && !path.contains("/paciente/") && !path.contains("documentos-pdf/paciente/")) {
-            // Establecer un SecurityContext básico para permitir acceso
+            String auth = requestContext.getHeaderString("Authorization");
+            // Si hay un token Bearer, dejar que AuthTokenFilter lo procese
+            if (auth != null && auth.startsWith("Bearer ")) {
+                // No hacer nada aquí, dejar que AuthTokenFilter procese el token
+                java.util.logging.Logger.getLogger(TenantAuthFilter.class.getName())
+                    .info("TenantAuthFilter - Token Bearer detectado, dejando que AuthTokenFilter lo procese: " + path);
+                return;
+            }
+            // Si no hay token, permitir acceso desde backend HCEN (token de servicio o sin token)
             final SecurityContext previous = requestContext.getSecurityContext();
             SecurityContext sc = new SecurityContext() {
                 @Override
@@ -103,7 +111,7 @@ public class TenantAuthFilter implements ContainerRequestFilter {
             };
             requestContext.setSecurityContext(sc);
             java.util.logging.Logger.getLogger(TenantAuthFilter.class.getName())
-                .info("TenantAuthFilter - Acceso permitido para documentos-pdf/{id} (con o sin token): " + path);
+                .info("TenantAuthFilter - Acceso permitido sin token para documentos-pdf/{id} (backend HCEN): " + path);
             return;
         }
 

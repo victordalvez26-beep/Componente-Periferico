@@ -9,6 +9,7 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.SecurityContext;
 import java.util.Map;
 import uy.edu.tse.hcen.service.PoliticasClient;
+import org.jboss.logging.Logger;
 
 /**
  * Recurso REST para gestión de solicitudes de acceso a documentos clínicos.
@@ -19,14 +20,16 @@ import uy.edu.tse.hcen.service.PoliticasClient;
 @RequestScoped
 public class DocumentoSolicitudesResource {
 
-    private final PoliticasClient politicasClient;
-    private final SecurityContext securityContext;
+    private static final Logger LOG = Logger.getLogger(DocumentoSolicitudesResource.class);
 
     @Inject
-    public DocumentoSolicitudesResource(PoliticasClient politicasClient,
-                                       SecurityContext securityContext) {
-        this.politicasClient = politicasClient;
-        this.securityContext = securityContext;
+    private PoliticasClient politicasClient;
+    
+    @Inject
+    private SecurityContext securityContext;
+
+    public DocumentoSolicitudesResource() {
+        // Constructor sin parámetros requerido por RESTEasy
     }
 
     /**
@@ -56,12 +59,24 @@ public class DocumentoSolicitudesResource {
         String razonSolicitud = (String) body.get(DocumentoConstants.FIELD_RAZON_SOLICITUD);
         String especialidad = (String) body.getOrDefault(DocumentoConstants.FIELD_ESPECIALIDAD, DocumentoConstants.DEFAULT_ESPECIALIDAD);
 
-        Long solicitudId = politicasClient.crearSolicitudAcceso(
-                profesionalId, especialidad, codDocumPaciente,
-                tipoDocumento, documentoId, razonSolicitud);
+        Long solicitudId;
+        try {
+            solicitudId = politicasClient.crearSolicitudAcceso(
+                    profesionalId, especialidad, codDocumPaciente,
+                    tipoDocumento, documentoId, razonSolicitud);
+        } catch (Exception ex) {
+            LOG.warnf("No se pudo crear solicitud de acceso (servicio de políticas no disponible): %s", ex.getMessage());
+            return DocumentoResponseBuilder.serviceUnavailable(
+                "El servicio de políticas no está disponible. No se puede procesar la solicitud de acceso en este momento."
+            );
+        }
 
         if (solicitudId == null) {
-            return DocumentoResponseBuilder.internalServerError("Error al crear solicitud de acceso");
+            // Si el servicio devolvió null, probablemente no está disponible
+            LOG.warnf("No se pudo crear solicitud de acceso: el servicio de políticas devolvió null (probablemente no está disponible)");
+            return DocumentoResponseBuilder.serviceUnavailable(
+                "El servicio de políticas no está disponible. No se puede procesar la solicitud de acceso en este momento."
+            );
         }
 
         return Response.status(Response.Status.CREATED)
@@ -105,14 +120,26 @@ public class DocumentoSolicitudesResource {
         String especialidad = (String) body.getOrDefault(DocumentoConstants.FIELD_ESPECIALIDAD, DocumentoConstants.DEFAULT_ESPECIALIDAD);
 
         // tipoDocumento y documentoId son null para indicar acceso a todos los documentos
-        Long solicitudId = politicasClient.crearSolicitudAcceso(
-                profesionalId, especialidad, codDocumPaciente,
-                null, // tipoDocumento = null indica todos los tipos
-                null, // documentoId = null indica todos los documentos
-                razonSolicitud);
+        Long solicitudId;
+        try {
+            solicitudId = politicasClient.crearSolicitudAcceso(
+                    profesionalId, especialidad, codDocumPaciente,
+                    null, // tipoDocumento = null indica todos los tipos
+                    null, // documentoId = null indica todos los documentos
+                    razonSolicitud);
+        } catch (Exception ex) {
+            LOG.warnf("No se pudo crear solicitud de acceso (servicio de políticas no disponible): %s", ex.getMessage());
+            return DocumentoResponseBuilder.serviceUnavailable(
+                "El servicio de políticas no está disponible. No se puede procesar la solicitud de acceso en este momento."
+            );
+        }
 
         if (solicitudId == null) {
-            return DocumentoResponseBuilder.internalServerError("Error al crear solicitud de acceso");
+            // Si el servicio devolvió null, probablemente no está disponible
+            LOG.warnf("No se pudo crear solicitud de acceso: el servicio de políticas devolvió null (probablemente no está disponible)");
+            return DocumentoResponseBuilder.serviceUnavailable(
+                "El servicio de políticas no está disponible. No se puede procesar la solicitud de acceso en este momento."
+            );
         }
 
         return Response.status(Response.Status.CREATED)

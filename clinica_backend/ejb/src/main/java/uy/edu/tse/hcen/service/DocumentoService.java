@@ -22,6 +22,7 @@ import uy.edu.tse.hcen.util.PdfGenerator;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -235,8 +236,9 @@ public class DocumentoService {
         }
 
         // Guardar contenido con información del paciente y PDF
+        Map<String, Object> storageMetadata = buildStorageMetadata(body, contenido);
         Document saved = repo.guardarContenidoConPacienteYArchivos(
-            documentoId, contenido, pdfBytes, null, null, null, documentoIdPaciente);
+            documentoId, contenido, pdfBytes, null, null, null, documentoIdPaciente, storageMetadata);
         String documentoIdLocal = extractMongoId(saved);
         String urlAcceso = buildUrlAcceso(documentoIdLocal);
 
@@ -293,13 +295,20 @@ public class DocumentoService {
         }
 
         // Guardar contenido con información del paciente, PDF y archivo adjunto
-        LOGGER.log(Level.INFO, "Guardando documento con archivo adjunto - documentoId: {0}, archivoAdjunto: {1} bytes, nombreArchivo: {2}, tipoArchivo: {3}", 
-                new Object[]{documentoId, 
-                    archivoAdjunto != null ? archivoAdjunto.length : 0, 
-                    nombreArchivo, 
+        LOGGER.log(Level.INFO, "Guardando documento con archivo adjunto - documentoId: {0}, archivoAdjunto: {1} bytes, nombreArchivo: {2}, tipoArchivo: {3}",
+                new Object[]{documentoId,
+                    archivoAdjunto != null ? archivoAdjunto.length : 0,
+                    nombreArchivo,
                     tipoArchivo});
+
+        Map<String, Object> bodyCompleto = new HashMap<>(metadatos);
+        bodyCompleto.put(KEY_CONTENIDO, contenido);
+        bodyCompleto.put(KEY_DOCUMENTO_ID_PACIENTE, documentoIdPaciente);
+        bodyCompleto.put(KEY_DOCUMENTO_ID, documentoId);
+
+        Map<String, Object> storageMetadata = buildStorageMetadata(bodyCompleto, contenido);
         Document saved = repo.guardarContenidoConPacienteYArchivos(
-            documentoId, contenido, pdfBytes, archivoAdjunto, nombreArchivo, tipoArchivo, documentoIdPaciente);
+            documentoId, contenido, pdfBytes, archivoAdjunto, nombreArchivo, tipoArchivo, documentoIdPaciente, storageMetadata);
         String documentoIdLocal = extractMongoId(saved);
         String urlAcceso = buildUrlAcceso(documentoIdLocal);
         
@@ -315,12 +324,6 @@ public class DocumentoService {
         } else {
             LOGGER.log(Level.WARNING, "No se pudo verificar el documento guardado - mongoId: {0}", documentoIdLocal);
         }
-
-        // Construir metadatos combinando los parámetros con el map
-        Map<String, Object> bodyCompleto = new HashMap<>(metadatos);
-        bodyCompleto.put(KEY_CONTENIDO, contenido);
-        bodyCompleto.put(KEY_DOCUMENTO_ID_PACIENTE, documentoIdPaciente);
-        bodyCompleto.put(KEY_DOCUMENTO_ID, documentoId);
 
         DTMetadatos dtMetadatos = buildMetadatos(bodyCompleto, documentoId, documentoIdPaciente, tenantId, urlAcceso);
         Map<String, Object> payloadCompleto = buildPayload(dtMetadatos, bodyCompleto);
@@ -517,5 +520,64 @@ public class DocumentoService {
         if (value != null) {
             payload.put(key, value);
         }
+    }
+
+    private Map<String, Object> buildStorageMetadata(Map<String, Object> source, String contenido) {
+        Map<String, Object> metadata = new HashMap<>();
+
+        String titulo = normalizeString(source.get(KEY_TITULO));
+        if (titulo == null || titulo.isBlank()) {
+            titulo = normalizeString(source.get(KEY_ESPECIALIDAD));
+        }
+        if (titulo == null || titulo.isBlank()) {
+            titulo = "Documento clínico";
+        }
+        metadata.put("titulo", titulo);
+
+        String descripcion = normalizeString(source.get(KEY_DESCRIPCION));
+        if ((descripcion == null || descripcion.isBlank()) && contenido != null) {
+            descripcion = contenido.length() > 140 ? contenido.substring(0, 140) + "..." : contenido;
+        }
+        if (descripcion != null && !descripcion.isBlank()) {
+            metadata.put("descripcion", descripcion);
+        }
+
+        String tipoDocumento = normalizeString(source.get("tipoDocumento"));
+        if (tipoDocumento == null || tipoDocumento.isBlank()) {
+            tipoDocumento = normalizeString(source.get(KEY_ESPECIALIDAD));
+        }
+        if (tipoDocumento == null || tipoDocumento.isBlank()) {
+            tipoDocumento = "DOCUMENTO_CLINICO";
+        }
+        metadata.put("tipoDocumento", tipoDocumento);
+
+        String autor = normalizeString(source.get(KEY_AUTOR));
+        if (autor != null && !autor.isBlank()) {
+            metadata.put("autor", autor);
+        }
+
+        String especialidad = normalizeString(source.get(KEY_ESPECIALIDAD));
+        if (especialidad != null && !especialidad.isBlank()) {
+            metadata.put("especialidad", especialidad);
+        }
+
+        String profesionalId = normalizeString(source.get("profesionalId"));
+        if ((profesionalId == null || profesionalId.isBlank()) && autor != null && !autor.isBlank()) {
+            profesionalId = autor;
+        }
+        if (profesionalId != null && !profesionalId.isBlank()) {
+            metadata.put("profesionalId", profesionalId);
+        }
+
+        metadata.put("fechaCreacion", new Date());
+        return metadata;
+    }
+
+    private String normalizeString(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String str = value.toString();
+        return str != null ? str.trim() : null;
     }
 }

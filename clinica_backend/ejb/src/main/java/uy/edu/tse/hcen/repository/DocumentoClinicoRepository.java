@@ -8,7 +8,9 @@ import org.bson.types.ObjectId;
 import jakarta.inject.Inject;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class DocumentoClinicoRepository {
@@ -102,9 +104,9 @@ public class DocumentoClinicoRepository {
      * @param documentoIdPaciente CI o documento de identidad del paciente
      * @return el Document insertado
      */
-    public Document guardarContenidoConPacienteYArchivos(String documentoId, String contenido, 
-            byte[] pdfBytes, byte[] archivoAdjunto, String nombreArchivo, String tipoArchivo, 
-            String documentoIdPaciente) {
+    public Document guardarContenidoConPacienteYArchivos(String documentoId, String contenido,
+            byte[] pdfBytes, byte[] archivoAdjunto, String nombreArchivo, String tipoArchivo,
+            String documentoIdPaciente, Map<String, Object> metadata) {
         Document documento = new Document();
         documento.append("documentoId", documentoId);
         documento.append("contenido", contenido);
@@ -135,6 +137,25 @@ public class DocumentoClinicoRepository {
             documento.append("documentoIdPaciente", documentoIdPaciente);
             documento.append("pacienteDoc", documentoIdPaciente); // También para compatibilidad
         }
+
+        if (metadata != null) {
+            appendIfNotBlank(documento, "titulo", metadata.get("titulo"));
+            appendIfNotBlank(documento, "descripcion", metadata.get("descripcion"));
+            appendIfNotBlank(documento, "tipoDocumento", metadata.get("tipoDocumento"));
+            appendIfNotBlank(documento, "autor", metadata.get("autor"));
+            appendIfNotBlank(documento, "especialidad", metadata.get("especialidad"));
+            appendIfNotBlank(documento, "profesionalId", metadata.get("profesionalId"));
+
+            Object fechaCreacionObj = metadata.get("fechaCreacion");
+            if (fechaCreacionObj instanceof Date fechaCreacion) {
+                documento.append("fechaCreacion", fechaCreacion);
+            }
+        }
+
+        if (!documento.containsKey("fechaCreacion")) {
+            documento.append("fechaCreacion", new Date());
+        }
+
         guardarDocumento(documento);
         return documento;
     }
@@ -174,6 +195,16 @@ public class DocumentoClinicoRepository {
             cursor.close();
         }
         return ids;
+    }
+
+    private void appendIfNotBlank(Document documento, String key, Object value) {
+        if (value instanceof String str) {
+            if (!str.isBlank()) {
+                documento.append(key, str);
+            }
+        } else if (value != null) {
+            documento.append(key, value);
+        }
     }
 
 }

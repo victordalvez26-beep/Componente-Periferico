@@ -26,6 +26,7 @@ function Layout({ children }) {
       { icon: '🏠', label: 'Inicio', path: `/portal/clinica/${tenantId}/home` },
       { icon: '🩺', label: 'Profesionales', path: `/portal/clinica/${tenantId}/profesionales` },
       { icon: '👥', label: 'Usuarios de Salud', path: `/portal/clinica/${tenantId}/usuarios` },
+      { icon: '📄', label: 'Documentos', path: `/portal/clinica/${tenantId}/documentos` },
       { icon: '⚙️', label: 'Configuración', path: `/portal/clinica/${tenantId}/configuracion` },
     ],
     PROFESIONAL: [
@@ -150,7 +151,9 @@ const styles = {
     display: 'flex',
     minHeight: '100vh',
     backgroundColor: '#f3f4f6',
-    fontFamily: 'system-ui, -apple-system, sans-serif'
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+    width: '100%',
+    overflow: 'hidden'
   },
   sidebar: {
     backgroundColor: '#1f2937',
@@ -158,14 +161,18 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     transition: 'width 0.3s ease',
-    position: 'relative'
+    position: 'relative',
+    minHeight: '100vh',
+    overflow: 'hidden'
   },
   logoContainer: {
-    padding: '24px 20px',
+    padding: '20px 16px',
     borderBottom: '1px solid rgba(255,255,255,0.1)',
     display: 'flex',
     alignItems: 'center',
-    gap: '12px'
+    gap: '12px',
+    minHeight: '70px',
+    boxSizing: 'border-box'
   },
   logo: {
     fontSize: '32px'
@@ -198,25 +205,29 @@ const styles = {
   },
   nav: {
     flex: 1,
-    padding: '20px 0',
-    overflowY: 'auto'
+    padding: '16px 0',
+    overflowY: 'auto',
+    overflowX: 'hidden'
   },
   navItem: {
     width: '100%',
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
-    padding: '14px 20px',
+    padding: '12px 16px',
     backgroundColor: 'transparent',
     borderTop: 'none',
     borderRight: 'none',
     borderBottom: 'none',
     borderLeft: '4px solid transparent',
     color: 'white',
-    fontSize: '15px',
+    fontSize: '14px',
     cursor: 'pointer',
     transition: 'all 0.2s',
-    textAlign: 'left'
+    textAlign: 'left',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis'
   },
   navItemActive: {
     backgroundColor: 'rgba(59, 130, 246, 0.2)',
@@ -227,10 +238,13 @@ const styles = {
   },
   userSection: {
     borderTop: '1px solid rgba(255,255,255,0.1)',
-    padding: '16px 20px',
+    padding: '16px',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between'
+    justifyContent: 'space-between',
+    gap: '12px',
+    minHeight: '70px',
+    boxSizing: 'border-box'
   },
   userInfo: {
     display: 'flex',
@@ -274,24 +288,33 @@ const styles = {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    overflow: 'hidden'
+    overflow: 'hidden',
+    minWidth: 0
   },
   header: {
     backgroundColor: 'white',
     borderBottom: '1px solid #e5e7eb',
-    padding: '0 32px'
+    padding: '0 24px',
+    position: 'sticky',
+    top: 0,
+    zIndex: 10,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
   },
   headerContent: {
     height: '70px',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between'
+    justifyContent: 'space-between',
+    gap: '16px'
   },
   headerTitle: {
     margin: 0,
-    fontSize: '24px',
+    fontSize: 'clamp(18px, 3vw, 24px)',
     fontWeight: '700',
-    color: '#111827'
+    color: '#111827',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis'
   },
   headerActions: {
     display: 'flex',
@@ -309,7 +332,8 @@ const styles = {
   content: {
     flex: 1,
     overflow: 'auto',
-    padding: '32px'
+    padding: '24px',
+    boxSizing: 'border-box'
   }
 };
 

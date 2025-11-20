@@ -128,8 +128,16 @@ public class DocumentoPdfRepository {
     public MongoCollection<Document> getCollectionPublic() {
         return getCollection();
     }
+    
+    /**
+     * Obtiene la base de datos MongoDB de forma pública.
+     * Usado para acceder a otras colecciones.
+     */
+    public MongoDatabase getDatabase() {
+        return database;
+    }
 }
-}
+
 
 
 

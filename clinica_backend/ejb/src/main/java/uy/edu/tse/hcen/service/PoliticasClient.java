@@ -213,17 +213,34 @@ public class PoliticasClient {
     public void registrarAcceso(String profesionalId, String codDocumPaciente,
                                 String documentoId, String tipoDocumento,
                                 boolean exito, String motivoRechazo, String referencia) {
-        String url = getPoliticasUrl() + "/registros";
+        // Validar que los campos requeridos no sean null ni vacíos
+        if (profesionalId == null || profesionalId.isBlank() || 
+            codDocumPaciente == null || codDocumPaciente.isBlank()) {
+            LOG.warning(String.format("No se puede registrar acceso: profesionalId o codDocumPaciente son null/vacíos. Profesional: %s, Paciente: %s", 
+                    profesionalId, codDocumPaciente));
+            return;
+        }
 
-        Map<String, Object> body = Map.of(
-            FIELD_PROFESIONAL_ID, nullToEmpty(profesionalId),
-            FIELD_COD_DOCUM_PACIENTE, nullToEmpty(codDocumPaciente),
-            FIELD_DOCUMENTO_ID, nullToEmpty(documentoId),
-            FIELD_TIPO_DOCUMENTO, nullToEmpty(tipoDocumento),
-            FIELD_EXITO, exito,
-            FIELD_MOTIVO_RECHAZO, nullToEmpty(motivoRechazo),
-            FIELD_REFERENCIA, nullToEmpty(referencia)
-        );
+        String url = getPoliticasUrl() + "/registros";
+        LOG.info(String.format("Registrando acceso - URL: %s, Profesional: %s, Paciente: %s, Documento: %s, Éxito: %s", 
+                url, profesionalId, codDocumPaciente, documentoId, exito));
+
+        Map<String, Object> body = new HashMap<>();
+        body.put(FIELD_PROFESIONAL_ID, profesionalId);
+        body.put(FIELD_COD_DOCUM_PACIENTE, codDocumPaciente);
+        if (documentoId != null && !documentoId.isBlank()) {
+            body.put(FIELD_DOCUMENTO_ID, documentoId);
+        }
+        if (tipoDocumento != null && !tipoDocumento.isBlank()) {
+            body.put(FIELD_TIPO_DOCUMENTO, tipoDocumento);
+        }
+        body.put(FIELD_EXITO, exito);
+        if (motivoRechazo != null && !motivoRechazo.isBlank()) {
+            body.put(FIELD_MOTIVO_RECHAZO, motivoRechazo);
+        }
+        if (referencia != null && !referencia.isBlank()) {
+            body.put(FIELD_REFERENCIA, referencia);
+        }
 
         executePostSilently(url, body, "registrando acceso");
     }
@@ -457,11 +474,24 @@ public class PoliticasClient {
                     .post(Entity.json(body))) {
 
             int status = response.getStatus();
-            if (status != HTTP_CREATED) {
+            if (status == HTTP_CREATED) {
+                LOG.info(String.format("✅ %s exitoso - URL: %s", operation, url));
+            } else {
                 logError(ERROR_PREFIX + operation, status, response);
+                // Leer el cuerpo de la respuesta para más detalles
+                if (response.hasEntity()) {
+                    try {
+                        String errorBody = response.readEntity(String.class);
+                        LOG.warning(String.format("Error %s - Status: %d, Body: %s", operation, status, errorBody));
+                    } catch (Exception e) {
+                        // Ignorar si no se puede leer
+                    }
+                }
             }
         } catch (ProcessingException ex) {
-            LOG.warning(String.format(ERROR_FORMAT, operation, ex.getMessage()));
+            LOG.warning(String.format(ERROR_FORMAT + " - URL: %s", operation, ex.getMessage(), url));
+        } catch (Exception ex) {
+            LOG.warning(String.format("Error inesperado %s: %s - URL: %s", operation, ex.getMessage(), url));
         }
     }
 

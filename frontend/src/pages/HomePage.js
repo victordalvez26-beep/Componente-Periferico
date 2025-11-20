@@ -197,39 +197,42 @@ const styles = {
   banner: {
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     borderRadius: '12px',
-    padding: '32px',
+    padding: '24px',
     color: 'white',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '32px'
+    marginBottom: '32px',
+    flexWrap: 'wrap',
+    gap: '16px'
   },
   bannerTitle: {
     margin: '0 0 8px 0',
-    fontSize: '28px',
+    fontSize: 'clamp(22px, 4vw, 28px)',
     fontWeight: '700'
   },
   bannerSubtitle: {
     margin: 0,
-    fontSize: '16px',
+    fontSize: 'clamp(14px, 2.5vw, 16px)',
     opacity: 0.9
   },
   bannerIcon: {
-    fontSize: '64px'
+    fontSize: 'clamp(48px, 8vw, 64px)',
+    flexShrink: 0
   },
   statsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-    gap: '20px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gap: '16px',
     marginBottom: '32px'
   },
   statCard: {
     backgroundColor: 'white',
     borderRadius: '12px',
-    padding: '24px',
+    padding: '20px',
     display: 'flex',
     alignItems: 'center',
-    gap: '20px',
+    gap: '16px',
     boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
     borderTop: 'none',
     borderRight: 'none',
@@ -237,16 +240,17 @@ const styles = {
     borderLeft: '4px solid transparent'
   },
   statIcon: {
-    width: '56px',
-    height: '56px',
+    width: 'clamp(48px, 10vw, 56px)',
+    height: 'clamp(48px, 10vw, 56px)',
     borderRadius: '12px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '28px'
+    fontSize: 'clamp(24px, 5vw, 28px)',
+    flexShrink: 0
   },
   statValue: {
-    fontSize: '32px',
+    fontSize: 'clamp(24px, 5vw, 32px)',
     fontWeight: '700',
     color: '#111827',
     marginBottom: '4px'
@@ -291,22 +295,24 @@ const styles = {
   },
   actionsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: '16px'
+    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+    gap: '12px'
   },
   actionButton: {
     backgroundColor: 'white',
     border: '2px solid #e5e7eb',
     borderRadius: '12px',
-    padding: '20px',
+    padding: '16px',
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
-    fontSize: '15px',
+    gap: '10px',
+    fontSize: 'clamp(13px, 2.5vw, 15px)',
     fontWeight: '600',
     color: '#374151',
     cursor: 'pointer',
-    transition: 'all 0.2s'
+    transition: 'all 0.2s',
+    flexWrap: 'wrap',
+    justifyContent: 'center'
   },
   actionIcon: {
     fontSize: '24px'

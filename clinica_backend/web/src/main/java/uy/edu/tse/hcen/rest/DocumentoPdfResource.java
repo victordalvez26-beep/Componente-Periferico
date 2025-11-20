@@ -14,6 +14,7 @@ import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import uy.edu.tse.hcen.multitenancy.TenantContext;
 import uy.edu.tse.hcen.service.DocumentoPdfService;
 import uy.edu.tse.hcen.service.ProfesionalSaludService;
+import uy.edu.tse.hcen.service.PoliticasClient;
 
 import java.io.InputStream;
 import java.net.URI;
@@ -40,6 +41,9 @@ public class DocumentoPdfResource {
 
     @Inject
     private ProfesionalSaludService profesionalSaludService;
+
+    @Inject
+    private PoliticasClient politicasClient;
 
     @Context
     private jakarta.ws.rs.core.SecurityContext securityContext;
@@ -174,6 +178,18 @@ public class DocumentoPdfResource {
     @RolesAllowed("PROFESIONAL")
     public Response listarDocumentosPorPaciente(@PathParam("ci") String ci) {
         try {
+            // Obtener información del profesional autenticado
+            String profesionalId = null;
+            if (securityContext != null && securityContext.getUserPrincipal() != null) {
+                profesionalId = securityContext.getUserPrincipal().getName();
+            }
+
+            if (profesionalId == null || profesionalId.isBlank()) {
+                return Response.status(Response.Status.UNAUTHORIZED)
+                        .entity(Map.of("error", "Autenticación requerida"))
+                        .build();
+            }
+
             // Obtener tenant actual
             String tenantIdStr = TenantContext.getCurrentTenant();
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
@@ -183,8 +199,25 @@ public class DocumentoPdfResource {
             }
             Long tenantId = Long.parseLong(tenantIdStr);
 
-            // Validar que el paciente pertenece a esta clínica
-            // (esto se valida implícitamente en el servicio al buscar por tenant)
+            // Verificar permisos antes de listar documentos
+            LOG.info(String.format("🔒 [PERIFERICO] Verificando permisos para listar documentos - Profesional: %s, Paciente: %s", profesionalId, ci));
+            boolean tienePermiso = false;
+            try {
+                tienePermiso = politicasClient.verificarPermiso(profesionalId, ci, null, tenantIdStr);
+            } catch (Exception ex) {
+                LOG.warnf("No se pudo verificar permisos con el servicio de políticas: %s", ex.getMessage());
+                // Si el servicio no está disponible, denegar acceso por seguridad
+                return Response.status(Response.Status.SERVICE_UNAVAILABLE)
+                        .entity(Map.of("error", "No se puede verificar permisos. El servicio de políticas no está disponible."))
+                        .build();
+            }
+
+            if (!tienePermiso) {
+                LOG.warnf("❌ [PERIFERICO] Acceso denegado - Profesional %s no tiene permiso para listar documentos del paciente %s", profesionalId, ci);
+                return Response.status(Response.Status.FORBIDDEN)
+                        .entity(Map.of("error", "No tiene permisos para acceder a los documentos de este paciente. Debe solicitar acceso primero."))
+                        .build();
+            }
             
             // Listar documentos
             java.util.List<Map<String, Object>> documentos = 
@@ -203,19 +236,33 @@ public class DocumentoPdfResource {
     /**
      * GET /api/documentos-pdf/{id}
      * 
-     * Descarga un PDF por su ID.
+     * Descarga un PDF o devuelve contenido de texto por su ID.
+     * Busca en ambas colecciones: documentos_pdf y documentos_clinicos
      * 
      * @param id ID del documento (MongoDB ObjectId en hex)
-     * @return Stream del PDF
+     * @return Stream del PDF o contenido de texto
      */
     @GET
     @Path("/{id}")
-    @Produces("application/pdf")
-    // @RolesAllowed("PROFESIONAL") // Temporalmente deshabilitado para pruebas
+    @Produces({"application/pdf", MediaType.APPLICATION_OCTET_STREAM, MediaType.TEXT_PLAIN, MediaType.APPLICATION_JSON})
+    @RolesAllowed("PROFESIONAL")
     public Response descargarPdf(@PathParam("id") String id, @QueryParam("tenantId") Long tenantIdParam) {
-        LOG.info(String.format("📥 [BACKEND→PERIFERICO] Petición recibida para descargar PDF - ID: %s, TenantId (query): %s", id, tenantIdParam));
+        LOG.info(String.format("📥 [BACKEND→PERIFERICO] Petición recibida para descargar documento - ID: %s, TenantId (query): %s", id, tenantIdParam));
         
         try {
+            // Obtener información del profesional autenticado
+            String profesionalId = null;
+            if (securityContext != null && securityContext.getUserPrincipal() != null) {
+                profesionalId = securityContext.getUserPrincipal().getName();
+            }
+
+            if (profesionalId == null || profesionalId.isBlank()) {
+                return Response.status(Response.Status.UNAUTHORIZED)
+                        .type(MediaType.APPLICATION_JSON)
+                        .entity(Map.of("error", "Autenticación requerida"))
+                        .build();
+            }
+
             String tenantIdStr = TenantContext.getCurrentTenant();
             LOG.info(String.format("📋 [PERIFERICO] Tenant en contexto: %s", tenantIdStr));
             
@@ -233,42 +280,113 @@ public class DocumentoPdfResource {
                 tenantId = 1L;
             }
 
-            LOG.info(String.format("🔍 [PERIFERICO] Buscando PDF en MongoDB - ID: %s, Tenant: %d", id, tenantId));
-            byte[] pdfBytes = documentoPdfService.obtenerPdfPorId(id, tenantId);
+            LOG.info(String.format("🔍 [PERIFERICO] Buscando documento en MongoDB - ID: %s, Tenant: %d", id, tenantId));
             
-            if (pdfBytes == null) {
-                LOG.warn(String.format("❌ [PERIFERICO] PDF no encontrado - ID: %s, Tenant: %d", id, tenantId));
+            // Obtener información del documento para verificar permisos
+            String ciPaciente = documentoPdfService.obtenerCiPacientePorId(id, tenantId);
+            if (ciPaciente == null || ciPaciente.isBlank()) {
+                LOG.warn(String.format("⚠️ [PERIFERICO] No se pudo obtener CI del paciente para documento %s", id));
                 return Response.status(Response.Status.NOT_FOUND)
-                        .entity("Documento no encontrado")
+                        .type(MediaType.APPLICATION_JSON)
+                        .entity(Map.of("error", "Documento no encontrado"))
                         .build();
             }
 
-            LOG.info(String.format("✅ [PERIFERICO] PDF obtenido de MongoDB - ID: %s, Tamaño: %d bytes", id, pdfBytes.length));
-            
-            // Verificar que los primeros bytes sean de un PDF válido
-            if (pdfBytes.length >= 4) {
-                String header = new String(pdfBytes, 0, 4);
-                if (!header.startsWith("%PDF")) {
-                    LOG.warn(String.format("⚠️ [PERIFERICO] Los primeros bytes no son de un PDF válido: %s", header));
-                    LOG.warn(String.format("⚠️ [PERIFERICO] Primeros 200 bytes: %s", 
-                            new String(pdfBytes, 0, Math.min(200, pdfBytes.length))));
-                } else {
-                    LOG.info(String.format("✅ [PERIFERICO] PDF válido detectado - Header: %s", header));
+            // Verificar permisos antes de permitir la descarga
+            LOG.info(String.format("🔒 [PERIFERICO] Verificando permisos - Profesional: %s, Paciente: %s", profesionalId, ciPaciente));
+            boolean tienePermiso = false;
+            try {
+                tienePermiso = politicasClient.verificarPermiso(profesionalId, ciPaciente, null, tenantIdStr);
+            } catch (Exception ex) {
+                LOG.warnf("No se pudo verificar permisos con el servicio de políticas: %s", ex.getMessage());
+                // Si el servicio no está disponible, denegar acceso por seguridad
+                return Response.status(Response.Status.SERVICE_UNAVAILABLE)
+                        .type(MediaType.APPLICATION_JSON)
+                        .entity(Map.of("error", "No se puede verificar permisos. El servicio de políticas no está disponible."))
+                        .build();
+            }
+
+            if (!tienePermiso) {
+                LOG.warnf("❌ [PERIFERICO] Acceso denegado - Profesional %s no tiene permiso para acceder a documentos del paciente %s", profesionalId, ciPaciente);
+                // Obtener el documentoId (UUID) del documento para registrar el acceso denegado
+                String documentoId = documentoPdfService.obtenerDocumentoIdPorId(id, tenantId);
+                String tipoDocumento = documentoPdfService.obtenerTipoDocumentoPorId(id, tenantId);
+                // Registrar el intento de acceso denegado
+                try {
+                    politicasClient.registrarAcceso(profesionalId, ciPaciente, documentoId, tipoDocumento, false,
+                            "No tiene permisos para acceder a este documento", "Intento de descarga desde componente periférico");
+                } catch (Exception ex) {
+                    LOG.warnf("No se pudo registrar el acceso denegado: %s", ex.getMessage());
                 }
+                return Response.status(Response.Status.FORBIDDEN)
+                        .type(MediaType.APPLICATION_JSON)
+                        .entity(Map.of("error", "No tiene permisos para acceder a este documento. Debe solicitar acceso primero."))
+                        .build();
+            }
+
+            // Obtener el documentoId (UUID) del documento para registrar el acceso
+            String documentoId = documentoPdfService.obtenerDocumentoIdPorId(id, tenantId);
+            String tipoDocumento = documentoPdfService.obtenerTipoDocumentoPorId(id, tenantId);
+            
+            // Registrar el acceso permitido
+            try {
+                politicasClient.registrarAcceso(profesionalId, ciPaciente, documentoId, tipoDocumento, true,
+                        null, "Descarga desde componente periférico");
+            } catch (Exception ex) {
+                LOG.warnf("No se pudo registrar el acceso: %s", ex.getMessage());
+            }
+
+            // 1. Intentar obtener PDF
+            byte[] pdfBytes = documentoPdfService.obtenerPdfPorId(id, tenantId);
+            
+            if (pdfBytes != null) {
+                LOG.info(String.format("✅ [PERIFERICO] PDF obtenido de MongoDB - ID: %s, Tamaño: %d bytes", id, pdfBytes.length));
+                
+                // Verificar que los primeros bytes sean de un PDF válido
+                if (pdfBytes.length >= 4) {
+                    String header = new String(pdfBytes, 0, 4);
+                    if (!header.startsWith("%PDF")) {
+                        LOG.warn(String.format("⚠️ [PERIFERICO] Los primeros bytes no son de un PDF válido: %s", header));
+                    } else {
+                        LOG.info(String.format("✅ [PERIFERICO] PDF válido detectado - Header: %s", header));
+                    }
+                }
+                
+                LOG.info(String.format("📤 [PERIFERICO→BACKEND] Enviando PDF - Tamaño: %d bytes", pdfBytes.length));
+
+                return Response.ok(pdfBytes)
+                        .header("Content-Type", "application/pdf")
+                        .header("Content-Length", String.valueOf(pdfBytes.length))
+                        .header("Content-Disposition", "attachment; filename=\"documento-" + id + ".pdf\"")
+                        .build();
             }
             
-            LOG.info(String.format("📤 [PERIFERICO→BACKEND] Enviando PDF al backend HCEN - Tamaño: %d bytes", pdfBytes.length));
-
-            return Response.ok(pdfBytes)
-                    .header("Content-Type", "application/pdf")
-                    .header("Content-Length", String.valueOf(pdfBytes.length))
-                    .header("Content-Disposition", "attachment; filename=\"documento-" + id + ".pdf\"")
+            // 2. Si no hay PDF, intentar obtener contenido de texto
+            LOG.info(String.format("🔍 [PERIFERICO] PDF no encontrado, buscando contenido de texto - ID: %s", id));
+            String contenido = documentoPdfService.obtenerContenidoPorId(id, tenantId);
+            
+            if (contenido != null && !contenido.isBlank()) {
+                LOG.info(String.format("✅ [PERIFERICO] Contenido de texto obtenido - ID: %s, Tamaño: %d caracteres", id, contenido.length()));
+                
+                return Response.ok(contenido)
+                        .header("Content-Type", "text/plain; charset=UTF-8")
+                        .header("Content-Length", String.valueOf(contenido.getBytes(java.nio.charset.StandardCharsets.UTF_8).length))
+                        .header("Content-Disposition", "inline; filename=\"documento-" + id + ".txt\"")
+                        .build();
+            }
+            
+            // 3. Si no se encuentra ni PDF ni contenido
+            LOG.warn(String.format("❌ [PERIFERICO] Documento no encontrado - ID: %s, Tenant: %d", id, tenantId));
+            return Response.status(Response.Status.NOT_FOUND)
+                    .type(MediaType.APPLICATION_JSON)
+                    .entity(Map.of("error", "Documento no encontrado"))
                     .build();
 
         } catch (Exception ex) {
-            LOG.error(String.format("❌ [PERIFERICO] Error al descargar PDF - ID: %s", id), ex);
+            LOG.error(String.format("❌ [PERIFERICO] Error al obtener documento - ID: %s", id), ex);
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity("Error al obtener el documento: " + ex.getMessage())
+                    .type(MediaType.APPLICATION_JSON)
+                    .entity(Map.of("error", "Error al obtener el documento: " + ex.getMessage()))
                     .build();
         }
     }

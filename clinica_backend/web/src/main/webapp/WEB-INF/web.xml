@@ -19,6 +19,12 @@
         <url-pattern>*.xhtml</url-pattern>
         <url-pattern>/faces/*</url-pattern>
     </servlet-mapping>
+
+    <!-- Asegurar que las rutas /api/* se atienden por JAX-RS antes que el servlet raíz -->
+    <servlet-mapping>
+        <servlet-name>jakarta.ws.rs.core.Application</servlet-name>
+        <url-pattern>/api/*</url-pattern>
+    </servlet-mapping>
     
     <!-- JAX-RS manejará automáticamente las rutas /api/* a través de RestApplication -->
     <!-- No necesitamos configurar servlet mapping para JAX-RS, se detecta automáticamente -->

@@ -71,10 +71,10 @@ function UsuariosPage() {
   };
 
   return (
-    <div>
-      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ padding: '16px', boxSizing: 'border-box' }}>
+      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: '16px', color: '#6b7280' }}>
+          <h3 style={{ margin: 0, fontSize: 'clamp(16px, 3vw, 18px)', color: '#6b7280' }}>
             Gestión de Usuarios de Salud (INUS)
           </h3>
         </div>
@@ -84,11 +84,12 @@ function UsuariosPage() {
             backgroundColor: '#3b82f6',
             color: 'white',
             border: 'none',
-            padding: '12px 24px',
+            padding: '12px 20px',
             borderRadius: '8px',
-            fontSize: '15px',
+            fontSize: 'clamp(13px, 2.5vw, 15px)',
             fontWeight: '600',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            whiteSpace: 'nowrap'
           }}
         >
           {showForm ? '❌ Cancelar' : '➕ Registrar en INUS'}
@@ -99,7 +100,7 @@ function UsuariosPage() {
         <div style={{
           backgroundColor: 'white',
           borderRadius: '12px',
-          padding: '32px',
+          padding: '20px',
           marginBottom: '24px',
           boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
         }}>
@@ -107,7 +108,7 @@ function UsuariosPage() {
             ➕ Registrar Usuario en INUS
           </h3>
           <form onSubmit={handleSubmit}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '24px' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>
                   Cédula de Identidad *
@@ -190,8 +191,8 @@ function UsuariosPage() {
         </div>
       )}
 
-      <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-        <h3 style={{ margin: '0 0 20px 0', fontSize: '18px', fontWeight: '700' }}>
+      <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflowX: 'auto' }}>
+        <h3 style={{ margin: '0 0 20px 0', fontSize: 'clamp(16px, 3vw, 18px)', fontWeight: '700' }}>
           📋 Usuarios Registrados ({usuarios.length})
         </h3>
         {loading ? (
@@ -201,26 +202,28 @@ function UsuariosPage() {
             No hay usuarios registrados. Agregue el primero.
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid #e5e7eb', fontSize: '13px', fontWeight: '600', color: '#6b7280' }}>CI</th>
-                <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid #e5e7eb', fontSize: '13px', fontWeight: '600', color: '#6b7280' }}>Nombre</th>
-                <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid #e5e7eb', fontSize: '13px', fontWeight: '600', color: '#6b7280' }}>Email</th>
-                <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid #e5e7eb', fontSize: '13px', fontWeight: '600', color: '#6b7280' }}>Teléfono</th>
-              </tr>
-            </thead>
-            <tbody>
-              {usuarios.map((user) => (
-                <tr key={user.ci} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                  <td style={{ padding: '16px 12px', fontSize: '14px' }}>{user.ci}</td>
-                  <td style={{ padding: '16px 12px', fontSize: '14px' }}>{user.nombre} {user.apellido}</td>
-                  <td style={{ padding: '16px 12px', fontSize: '14px' }}>{user.email || 'N/A'}</td>
-                  <td style={{ padding: '16px 12px', fontSize: '14px' }}>{user.telefono || 'N/A'}</td>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid #e5e7eb', fontSize: 'clamp(12px, 2vw, 13px)', fontWeight: '600', color: '#6b7280' }}>CI</th>
+                  <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid #e5e7eb', fontSize: 'clamp(12px, 2vw, 13px)', fontWeight: '600', color: '#6b7280' }}>Nombre</th>
+                  <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid #e5e7eb', fontSize: 'clamp(12px, 2vw, 13px)', fontWeight: '600', color: '#6b7280' }}>Email</th>
+                  <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid #e5e7eb', fontSize: 'clamp(12px, 2vw, 13px)', fontWeight: '600', color: '#6b7280' }}>Teléfono</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {usuarios.map((user) => (
+                  <tr key={user.ci} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <td style={{ padding: '16px 12px', fontSize: 'clamp(13px, 2.5vw, 14px)' }}>{user.ci}</td>
+                    <td style={{ padding: '16px 12px', fontSize: 'clamp(13px, 2.5vw, 14px)' }}>{user.nombre} {user.apellido}</td>
+                    <td style={{ padding: '16px 12px', fontSize: 'clamp(13px, 2.5vw, 14px)' }}>{user.email || 'N/A'}</td>
+                    <td style={{ padding: '16px 12px', fontSize: 'clamp(13px, 2.5vw, 14px)' }}>{user.telefono || 'N/A'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
