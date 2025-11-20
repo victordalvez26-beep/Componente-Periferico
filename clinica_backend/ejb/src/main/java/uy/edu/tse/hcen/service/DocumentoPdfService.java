@@ -11,6 +11,7 @@ import uy.edu.tse.hcen.exceptions.HcenUnavailableException;
 import uy.edu.tse.hcen.multitenancy.TenantContext;
 import uy.edu.tse.hcen.repository.DocumentoPdfRepository;
 import uy.edu.tse.hcen.repository.UsuarioSaludRepository;
+import uy.edu.tse.hcen.client.PoliticasAccesoClient;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -171,6 +172,35 @@ public class DocumentoPdfService {
     }
 
     /**
+     * Obtiene la metadata de un documento por su ID sin descargar el PDF completo.
+     * 
+     * @param mongoId ID de MongoDB (ObjectId en hex string)
+     * @param tenantId ID de la clínica (para validación de seguridad multi-tenant)
+     * @return Map con la metadata del documento o null si no existe
+     */
+    public Map<String, Object> obtenerMetadataPorId(String mongoId, Long tenantId) {
+        LOG.info(String.format("Obteniendo metadata - ID: %s, Tenant: %d", mongoId, tenantId));
+        
+        Document doc = documentoPdfRepository.buscarPorId(mongoId, tenantId);
+        if (doc == null) {
+            LOG.warn(String.format("Documento no encontrado - ID: %s, Tenant: %d", mongoId, tenantId));
+            return null;
+        }
+        
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("id", mongoId);
+        metadata.put("ciPaciente", doc.getString("ciPaciente"));
+        metadata.put("tipoDocumento", doc.getString("tipoDocumento"));
+        metadata.put("profesionalId", doc.getString("profesionalId"));
+        metadata.put("tenantId", tenantId);
+        
+        LOG.info(String.format("Metadata obtenida - CI Paciente: %s, Tipo: %s", 
+                metadata.get("ciPaciente"), metadata.get("tipoDocumento")));
+        
+        return metadata;
+    }
+    
+    /**
      * Obtiene un PDF por su ID de MongoDB.
      * 
      * @param mongoId ID del documento en MongoDB (ObjectId hex)
@@ -216,58 +246,74 @@ public class DocumentoPdfService {
 
     /**
      * Lista todos los documentos PDF de un paciente por su CI.
+     * Consulta los metadatos desde el HCEN backend (tabla metadata_documento).
+     * El filtrado por políticas de acceso se hace en el HCEN backend.
      * 
      * @param ciPaciente CI del paciente
-     * @param tenantId ID de la clínica (para validación)
-     * @return Lista de metadatos de documentos (sin el contenido del PDF)
+     * @param profesionalId ID del profesional que está buscando (nickname)
+     * @param tenantIdProfesional ID de la clínica del profesional
+     * @return Lista de metadatos de documentos (ya filtrados por políticas en el backend)
      */
-    public java.util.List<Map<String, Object>> listarDocumentosPorPaciente(String ciPaciente, Long tenantId) {
-        LOG.info(String.format("Listando documentos - Paciente: %s, Clínica: %d", ciPaciente, tenantId));
+    public java.util.List<Map<String, Object>> listarDocumentosPorPaciente(String ciPaciente, String profesionalId, String tenantIdProfesional) {
+        LOG.info(String.format("Listando documentos - Paciente: %s, Profesional: %s, Clínica Profesional: %s", 
+                ciPaciente, profesionalId, tenantIdProfesional));
         
-        java.util.List<Document> documentos = documentoPdfRepository.buscarPorPaciente(ciPaciente, tenantId);
-        
-        // Obtener información del paciente una sola vez
-        var paciente = usuarioSaludRepository.findByCiAndTenant(ciPaciente, tenantId);
-        String nombrePaciente = paciente != null ? paciente.getNombre() : null;
-        String apellidoPaciente = paciente != null ? paciente.getApellido() : null;
-        
-        java.util.List<Map<String, Object>> resultado = new java.util.ArrayList<>();
-        for (Document doc : documentos) {
-            Map<String, Object> metadata = new HashMap<>();
-            
-            ObjectId objectId = doc.getObjectId("_id");
-            if (objectId != null) {
-                metadata.put("id", objectId.toHexString());
+        // Obtener especialidad del profesional
+        String especialidad = null;
+        if (profesionalId != null && !profesionalId.isBlank()) {
+            try {
+                var profesionalOpt = profesionalSaludRepository.findByNickname(profesionalId);
+                if (profesionalOpt.isPresent()) {
+                    var profesional = profesionalOpt.get();
+                    if (profesional.getEspecialidad() != null) {
+                        especialidad = profesional.getEspecialidad().name();
+                        LOG.info(String.format("Especialidad del profesional %s: %s", profesionalId, especialidad));
+                    }
+                }
+            } catch (Exception e) {
+                LOG.warn(String.format("No se pudo obtener especialidad del profesional %s: %s", profesionalId, e.getMessage()));
             }
-            
-            metadata.put("documentoId", doc.getString("documentoId"));
-            metadata.put("ciPaciente", doc.getString("ciPaciente"));
-            
-            // Fecha de creación
-            java.util.Date fechaCreacion = doc.getDate("fechaCreacion");
-            if (fechaCreacion != null) {
-                metadata.put("fechaCreacion", fechaCreacion);
-            }
-            
-            metadata.put("contentType", doc.getString("contentType"));
-            
-            // Metadata adicional
-            metadata.put("tipoDocumento", doc.getString("tipoDocumento"));
-            metadata.put("descripcion", doc.getString("descripcion"));
-            metadata.put("profesionalId", doc.getString("profesionalId"));
-            
-            // Información del paciente
-            if (nombrePaciente != null) {
-                metadata.put("nombrePaciente", nombrePaciente);
-            }
-            if (apellidoPaciente != null) {
-                metadata.put("apellidoPaciente", apellidoPaciente);
-            }
-            
-            resultado.add(metadata);
         }
         
-        LOG.info(String.format("Encontrados %d documentos para el paciente %s", resultado.size(), ciPaciente));
+        // Consultar metadatos desde HCEN backend (tabla metadata_documento)
+        // El backend filtra por políticas de acceso automáticamente
+        java.util.List<Map<String, Object>> metadatosFiltrados;
+        try {
+            metadatosFiltrados = hcenClient.obtenerMetadatosDocumentosPorCI(
+                    ciPaciente, 
+                    profesionalId, 
+                    tenantIdProfesional, 
+                    especialidad);
+            LOG.info(String.format("Obtenidos %d metadatos (ya filtrados por políticas) desde HCEN backend para el paciente %s", 
+                    metadatosFiltrados.size(), ciPaciente));
+        } catch (HcenUnavailableException e) {
+            LOG.error(String.format("Error al consultar HCEN backend para obtener metadatos: %s", e.getMessage()), e);
+            // Retornar lista vacía si HCEN no está disponible
+            return new java.util.ArrayList<>();
+        }
+        
+        // Mapear los metadatos del HCEN al formato esperado por el frontend
+        java.util.List<Map<String, Object>> resultado = new java.util.ArrayList<>();
+        for (Map<String, Object> metadata : metadatosFiltrados) {
+            Map<String, Object> documentoMapeado = new HashMap<>();
+            documentoMapeado.put("id", metadata.get("id"));
+            documentoMapeado.put("documentoId", metadata.get("documentoId"));
+            documentoMapeado.put("ciPaciente", ciPaciente);
+            documentoMapeado.put("tenantId", metadata.get("tenantId")); // Incluir tenantId para saber de qué clínica es
+            documentoMapeado.put("fechaCreacion", metadata.get("fechaCreacion"));
+            documentoMapeado.put("contentType", "application/pdf"); // Los documentos son PDFs
+            documentoMapeado.put("tipoDocumento", metadata.get("tipoDocumento"));
+            documentoMapeado.put("descripcion", metadata.get("descripcion"));
+            documentoMapeado.put("profesionalId", metadata.get("profesionalSalud"));
+            documentoMapeado.put("nombrePaciente", metadata.get("nombrePaciente"));
+            documentoMapeado.put("apellidoPaciente", metadata.get("apellidoPaciente"));
+            documentoMapeado.put("uriDocumento", metadata.get("uriDocumento")); // URI para descargar el documento
+            
+            resultado.add(documentoMapeado);
+        }
+        
+        LOG.info(String.format("Retornando %d documentos autorizados para el profesional %s", 
+                resultado.size(), profesionalId));
         return resultado;
     }
 

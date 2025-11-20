@@ -214,6 +214,69 @@ public class HcenClient {
     }
 
     /**
+     * Obtiene todos los metadatos de documentos de un paciente desde HCEN central.
+     * El filtrado por políticas de acceso se hace en el HCEN backend.
+     * 
+     * @param ciPaciente CI del paciente
+     * @param profesionalId ID del profesional que está consultando
+     * @param tenantId ID de la clínica del profesional
+     * @param especialidad Especialidad del profesional
+     * @return Lista de metadatos de documentos (ya filtrados por políticas)
+     */
+    public java.util.List<Map<String, Object>> obtenerMetadatosDocumentosPorCI(
+            String ciPaciente, String profesionalId, String tenantId, String especialidad) 
+            throws HcenUnavailableException {
+        // Construir URL del endpoint de metadatos por CI
+        String baseUrl = System.getProperty(ENV_HCEN_CENTRAL_URL,
+                System.getenv().getOrDefault(ENV_HCEN_CENTRAL_URL, "http://hcen-backend:8080/api"));
+        String metadatosUrl = baseUrl.replace("/metadatos-documento", "") + "/metadatos-documento/paciente/" + ciPaciente;
+        
+        // Agregar query parameters si están disponibles
+        if (profesionalId != null && !profesionalId.isBlank()) {
+            metadatosUrl += "?profesionalId=" + java.net.URLEncoder.encode(profesionalId, java.nio.charset.StandardCharsets.UTF_8);
+            if (tenantId != null && !tenantId.isBlank()) {
+                metadatosUrl += "&tenantId=" + java.net.URLEncoder.encode(tenantId, java.nio.charset.StandardCharsets.UTF_8);
+            }
+            if (especialidad != null && !especialidad.isBlank()) {
+                metadatosUrl += "&especialidad=" + java.net.URLEncoder.encode(especialidad, java.nio.charset.StandardCharsets.UTF_8);
+            }
+        }
+        
+        LOG.info(String.format("Consultando metadatos desde HCEN - URL: %s, CI: %s, Profesional: %s, Tenant: %s, Especialidad: %s", 
+                metadatosUrl, ciPaciente, profesionalId, tenantId, especialidad));
+        
+        // Obtener token de servicio
+        String serviceToken = getServiceToken();
+        
+        try (Client client = ClientBuilder.newClient()) {
+            Builder requestBuilder = client.target(metadatosUrl)
+                    .request(MediaType.APPLICATION_JSON);
+            
+            // Agregar token de servicio si está disponible
+            if (serviceToken != null) {
+                requestBuilder.header(HEADER_AUTHORIZATION, BEARER_PREFIX + serviceToken);
+            }
+            
+            try (Response response = requestBuilder.get()) {
+                int status = response.getStatus();
+                if (status == 200) {
+                    @SuppressWarnings("unchecked")
+                    java.util.List<Map<String, Object>> metadatos = response.readEntity(java.util.List.class);
+                    LOG.info(String.format("Obtenidos %d metadatos (ya filtrados por políticas) desde HCEN para CI: %s", 
+                            metadatos.size(), ciPaciente));
+                    return metadatos;
+                } else {
+                    String errorMsg = response.hasEntity() ? response.readEntity(String.class) : ERROR_UNKNOWN;
+                    throw new HcenUnavailableException(
+                        String.format("Error al obtener metadatos: HTTP %d - %s", status, errorMsg));
+                }
+            }
+        } catch (ProcessingException ex) {
+            throw new HcenUnavailableException("HCEN no disponible", ex);
+        }
+    }
+    
+    /**
      * Consulta metadatos de un paciente desde HCEN central.
      * 
      * @param documentoIdPaciente CI o documento de identidad del paciente

@@ -127,5 +127,28 @@ public class DocumentoPdfRepository {
         }
         return resultados;
     }
+    
+    /**
+     * Busca PDFs por CI del paciente en TODAS las clínicas (sin filtrar por tenant).
+     * 
+     * @param ciPaciente CI del paciente
+     * @return Lista de documentos encontrados de todas las clínicas
+     */
+    public java.util.List<Document> buscarPorPacienteTodasClinicas(String ciPaciente) {
+        Document query = new Document();
+        query.append("ciPaciente", ciPaciente);
+        // NO filtrar por tenantId - buscar en todas las clínicas
+
+        java.util.List<Document> resultados = new java.util.ArrayList<>();
+        var cursor = getCollection().find(query).iterator();
+        try {
+            while (cursor.hasNext()) {
+                resultados.add(cursor.next());
+            }
+        } finally {
+            cursor.close();
+        }
+        return resultados;
+    }
 }
 
