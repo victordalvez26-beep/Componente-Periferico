@@ -10,5 +10,18 @@ module.exports = function(app) {
       logLevel: 'debug'
     })
   );
+  
+  // Proxy para /nodo-periferico/* (usado por ClinicAdmin.js)
+  app.use(
+    '/nodo-periferico',
+    createProxyMiddleware({
+      target: 'http://localhost:8081',
+      changeOrigin: true,
+      logLevel: 'debug',
+      pathRewrite: {
+        '^/nodo-periferico': '/hcen-web' // Reescribir /nodo-periferico a /hcen-web
+      }
+    })
+  );
 };
 
