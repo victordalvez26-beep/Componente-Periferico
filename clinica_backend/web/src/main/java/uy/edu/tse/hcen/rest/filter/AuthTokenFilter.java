@@ -22,7 +22,7 @@ import java.util.Map;
  * seleccione el esquema adecuado en llamadas posteriores.
  */
 @Provider
-@Priority(Priorities.AUTHENTICATION)
+@Priority(Priorities.AUTHENTICATION - 100) // Prioridad más alta para manejar OPTIONS antes que otros filtros
 public class AuthTokenFilter implements ContainerRequestFilter, ContainerResponseFilter {
 
     @Override
@@ -30,18 +30,21 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
         // Manejar peticiones OPTIONS (CORS preflight) - siempre permitir con headers CORS
         if ("OPTIONS".equalsIgnoreCase(requestContext.getMethod())) {
             String origin = requestContext.getHeaderString("Origin");
-            Response.ResponseBuilder responseBuilder = Response.ok();
+            Response.ResponseBuilder responseBuilder = Response.status(Response.Status.OK);
             
             // Agregar headers CORS al preflight
             if (origin != null && (origin.startsWith("http://localhost:3000") || origin.startsWith("http://localhost:3001"))) {
                 responseBuilder.header("Access-Control-Allow-Origin", origin);
+                responseBuilder.header("Access-Control-Allow-Credentials", "true");
+            } else if (origin != null) {
+                responseBuilder.header("Access-Control-Allow-Origin", origin);
             } else {
                 responseBuilder.header("Access-Control-Allow-Origin", "*");
             }
-            responseBuilder.header("Access-Control-Allow-Credentials", "true");
             responseBuilder.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH");
-            responseBuilder.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+            responseBuilder.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
             responseBuilder.header("Access-Control-Max-Age", "3600");
+            responseBuilder.header("Access-Control-Expose-Headers", "Content-Type, Authorization");
             
             requestContext.abortWith(responseBuilder.build());
             return;

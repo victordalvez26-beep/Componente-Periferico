@@ -406,7 +406,16 @@ public class ConfigResource {
             long step2Start = System.currentTimeMillis();
             LOG.infof("STEP 2 START: Registering clinic in public schema with RUT: %s", req.rut);
             try {
-                tenantAdminService.registerNodoInPublic(Long.parseLong(req.tenantId), "Clínica " + req.tenantId, req.rut, schemaName);
+                tenantAdminService.registerNodoInPublic(
+                    Long.parseLong(req.tenantId), 
+                    "Clínica " + req.tenantId, 
+                    req.rut, 
+                    schemaName,
+                    req.departamento,
+                    req.localidad,
+                    req.direccion,
+                    req.telefono
+                );
                 LOG.infof("STEP 2 COMPLETE: Clinic registered in %d ms", System.currentTimeMillis() - step2Start);
             } catch (Exception e) {
                 LOG.errorf(e, "STEP 2 FAILED: Error registering clinic after %d ms", System.currentTimeMillis() - step2Start);

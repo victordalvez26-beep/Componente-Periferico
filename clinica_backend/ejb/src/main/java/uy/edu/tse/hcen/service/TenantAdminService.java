@@ -42,9 +42,13 @@ public class TenantAdminService {
             "CREATE TABLE IF NOT EXISTS %s.portal_configuracion (id BIGSERIAL PRIMARY KEY, color_primario VARCHAR(7) DEFAULT '%s', color_secundario VARCHAR(7) DEFAULT '#6c757d', logo_url VARCHAR(512), nombre_portal VARCHAR(100));",
             tenantSchema, escColor);
 
-        // H2 no soporta ON CONFLICT, usar MERGE (UPSERT) compatible
+        // PostgreSQL soporta ON CONFLICT, usar INSERT ... ON CONFLICT DO UPDATE
         String insertPortal = String.format(
-            "MERGE INTO %s.portal_configuracion (id, color_primario, color_secundario, logo_url, nombre_portal) KEY(id) VALUES (1, '%s', '#6c757d', '', '%s');",
+            "INSERT INTO %s.portal_configuracion (id, color_primario, color_secundario, logo_url, nombre_portal) " +
+            "VALUES (1, '%s', '#6c757d', '', '%s') " +
+            "ON CONFLICT (id) DO UPDATE SET color_primario = EXCLUDED.color_primario, " +
+            "color_secundario = EXCLUDED.color_secundario, logo_url = EXCLUDED.logo_url, " +
+            "nombre_portal = EXCLUDED.nombre_portal;",
             tenantSchema, escColor, escNombre);
 
         // Crear secuencia para IDs auto-incrementables
@@ -233,9 +237,15 @@ public class TenantAdminService {
      * @param id ID del nodo (debe ser único)
      * @param nombre Nombre de la clínica
      * @param rut RUT de la clínica (debe ser único)
+     * @param schemaName Nombre del schema del tenant
+     * @param departamento Departamento de la clínica (opcional)
+     * @param localidad Localidad de la clínica (opcional)
+     * @param direccion Dirección de la clínica (opcional)
+     * @param telefono Teléfono de la clínica (opcional)
      * @throws SQLException si hay error en la operación SQL
      */
-    public void registerNodoInPublic(Long id, String nombre, String rut, String schemaName) throws SQLException {
+    public void registerNodoInPublic(Long id, String nombre, String rut, String schemaName, 
+                                     String departamento, String localidad, String direccion, String telefono) throws SQLException {
         if (id == null) {
             throw new IllegalArgumentException("id is required");
         }
@@ -249,23 +259,56 @@ public class TenantAdminService {
             throw new IllegalArgumentException("schemaName is required");
         }
 
-        // H2 no soporta ON CONFLICT, usar MERGE para UPSERT
-        String sql = "MERGE INTO public.nodoperiferico (id, nombre, rut, schema_name) KEY(id) VALUES (?, ?, ?, ?)";
+        // PostgreSQL soporta ON CONFLICT, pero H2 usa MERGE. Usar UPDATE/INSERT para compatibilidad
+        // Primero intentar UPDATE, si no hay filas afectadas, hacer INSERT
+        String updateSql = "UPDATE public.nodoperiferico SET nombre = ?, rut = ?, schema_name = ?, " +
+                          "departamento = ?, localidad = ?, direccion = ?, telefono = ? WHERE id = ?";
+        String insertSql = "INSERT INTO public.nodoperiferico (id, nombre, rut, schema_name, departamento, localidad, direccion, telefono) " +
+                          "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setLong(1, id);
-            ps.setString(2, nombre);
-            ps.setString(3, rut);
-            ps.setString(4, schemaName);
-            int rowsAffected = ps.executeUpdate();
+        try (Connection c = dataSource.getConnection()) {
+            // Intentar UPDATE primero
+            try (PreparedStatement ps = c.prepareStatement(updateSql)) {
+                ps.setString(1, nombre);
+                ps.setString(2, rut);
+                ps.setString(3, schemaName);
+                ps.setString(4, departamento);
+                ps.setString(5, localidad);
+                ps.setString(6, direccion);
+                ps.setString(7, telefono);
+                ps.setLong(8, id);
+                int rowsAffected = ps.executeUpdate();
+                
+                if (rowsAffected > 0) {
+                    LOG.infof("Updated nodo in public.nodoperiferico: id=%s, nombre=%s, rut=%s", id, nombre, rut);
+                    return;
+                }
+            }
             
-            LOG.infof("Registered nodo in public.nodoperiferico: id=%s, nombre=%s, rut=%s, schema=%s (rows affected: %d)", 
-                      id, nombre, rut, schemaName, rowsAffected);
+            // Si no se actualizó nada, hacer INSERT
+            try (PreparedStatement ps = c.prepareStatement(insertSql)) {
+                ps.setLong(1, id);
+                ps.setString(2, nombre);
+                ps.setString(3, rut);
+                ps.setString(4, schemaName);
+                ps.setString(5, departamento);
+                ps.setString(6, localidad);
+                ps.setString(7, direccion);
+                ps.setString(8, telefono);
+                ps.executeUpdate();
+                LOG.infof("Inserted nodo in public.nodoperiferico: id=%s, nombre=%s, rut=%s", id, nombre, rut);
+            }
         } catch (SQLException ex) {
             LOG.errorf(ex, "Error registering nodo in public schema: id=%s, rut=%s", id, rut);
             throw ex;
         }
+    }
+    
+    /**
+     * Versión simplificada del método para compatibilidad con código existente.
+     */
+    public void registerNodoInPublic(Long id, String nombre, String rut, String schemaName) throws SQLException {
+        registerNodoInPublic(id, nombre, rut, schemaName, null, null, null, null);
     }
 
     /**
@@ -383,9 +426,11 @@ public class TenantAdminService {
             }
 
             // 5. Crear registro en public.administradorclinica
-            // H2 no soporta ON CONFLICT DO NOTHING, usar MERGE
+            // PostgreSQL soporta ON CONFLICT, usar INSERT ... ON CONFLICT DO UPDATE
             String insertAdminClinica = 
-                "MERGE INTO public.administradorclinica (id, nodo_periferico_id) KEY(id) VALUES (?, ?)";
+                "INSERT INTO public.administradorclinica (id, nodo_periferico_id) " +
+                "VALUES (?, ?) " +
+                "ON CONFLICT (id) DO UPDATE SET nodo_periferico_id = EXCLUDED.nodo_periferico_id";
             
             try (PreparedStatement ps = c.prepareStatement(insertAdminClinica)) {
                 ps.setLong(1, userId);
@@ -542,9 +587,13 @@ public class TenantAdminService {
             }
 
             // 4. Crear registro en public.usuarioperiferico
-            // H2 no soporta ON CONFLICT, usar MERGE para UPSERT
+            // PostgreSQL soporta ON CONFLICT, usar INSERT ... ON CONFLICT DO UPDATE
             String insertUsuarioPeriferico = 
-                "MERGE INTO public.usuarioperiferico (id, nickname, password_hash, dtype, tenant_id, role) KEY(nickname) VALUES (?, ?, ?, ?, ?, ?)";
+                "INSERT INTO public.usuarioperiferico (id, nickname, password_hash, dtype, tenant_id, role) " +
+                "VALUES (?, ?, ?, ?, ?, ?) " +
+                "ON CONFLICT (nickname) DO UPDATE SET " +
+                "id = EXCLUDED.id, password_hash = EXCLUDED.password_hash, dtype = EXCLUDED.dtype, " +
+                "tenant_id = EXCLUDED.tenant_id, role = EXCLUDED.role";
             
             try (PreparedStatement ps = c.prepareStatement(insertUsuarioPeriferico)) {
                 ps.setLong(1, userId);
@@ -557,9 +606,11 @@ public class TenantAdminService {
             }
 
             // 5. Crear registro en public.administradorclinica
-            // H2 no soporta ON CONFLICT DO NOTHING, usar MERGE
+            // PostgreSQL soporta ON CONFLICT, usar INSERT ... ON CONFLICT DO UPDATE
             String insertAdminClinica = 
-                "MERGE INTO public.administradorclinica (id, nodo_periferico_id) KEY(id) VALUES (?, ?)";
+                "INSERT INTO public.administradorclinica (id, nodo_periferico_id) " +
+                "VALUES (?, ?) " +
+                "ON CONFLICT (id) DO UPDATE SET nodo_periferico_id = EXCLUDED.nodo_periferico_id";
             
             try (PreparedStatement ps = c.prepareStatement(insertAdminClinica)) {
                 ps.setLong(1, userId);

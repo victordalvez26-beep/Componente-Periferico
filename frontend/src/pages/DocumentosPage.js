@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { getApiUrl } from '../utils/api';
 
 function DocumentosPage() {
   const { tenantId } = useParams();
@@ -26,7 +27,7 @@ function DocumentosPage() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/hcen-web/api/documentos-pdf/paciente/${ciPaciente}`, {
+      const response = await fetch(getApiUrl(`/hcen-web/api/documentos-pdf/paciente/${ciPaciente}`), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -53,7 +54,7 @@ function DocumentosPage() {
   const descargarDocumento = async (documentoId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/hcen-web/api/documentos-pdf/${documentoId}`, {
+      const response = await fetch(getApiUrl(`/hcen-web/api/documentos-pdf/${documentoId}`), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -99,7 +100,7 @@ function DocumentosPage() {
         formData.append('descripcion', uploadForm.descripcion);
       }
 
-      const response = await fetch(`/hcen-web/api/documentos-pdf/upload`, {
+      const response = await fetch(getApiUrl(`/hcen-web/api/documentos-pdf/upload`), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

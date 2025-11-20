@@ -4,6 +4,7 @@ import uy.edu.tse.hcen.dto.DTProfesionalSalud;
 import uy.edu.tse.hcen.dto.ProfesionalResponse;
 import uy.edu.tse.hcen.model.ProfesionalSalud;
 import uy.edu.tse.hcen.service.ProfesionalSaludService;
+import uy.edu.tse.hcen.multitenancy.TenantContext;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -31,10 +32,20 @@ public class ProfesionalSaludResource {
     private ProfesionalSaludService profesionalService;
 
     @GET
-    public Response listAll() {
-        List<ProfesionalSalud> all = profesionalService.findAllInCurrentTenant();
-        List<ProfesionalResponse> resp = all.stream().map(ProfesionalResponse::fromEntity).toList();
-        return Response.ok(resp).build();
+    public Response listAll(@QueryParam("tenantId") String tenantId) {
+        try {
+            // Establecer el tenant context si se proporciona como query parameter
+            if (tenantId != null && !tenantId.isBlank()) {
+                TenantContext.setCurrentTenant(tenantId);
+            }
+            
+            List<ProfesionalSalud> all = profesionalService.findAllInCurrentTenant();
+            List<ProfesionalResponse> resp = all.stream().map(ProfesionalResponse::fromEntity).toList();
+            return Response.ok(resp).build();
+        } finally {
+            // Limpiar el tenant context al finalizar
+            TenantContext.clear();
+        }
     }
 
     @GET

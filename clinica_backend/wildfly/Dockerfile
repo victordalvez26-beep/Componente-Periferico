@@ -11,7 +11,9 @@ COPY wildfly/module.xml /opt/jboss/wildfly/modules/system/layers/base/org/postgr
 # Copy the CLI file (will be executed in embedded mode by the entrypoint) and entrypoint
 COPY wildfly/configure-wildfly.cli /opt/jboss/wildfly/configure-wildfly.cli
 COPY wildfly/entrypoint.sh /opt/jboss/wildfly/entrypoint.sh
-RUN chmod +x /opt/jboss/wildfly/entrypoint.sh
+# Convertir finales de línea a Unix (LF) y dar permisos de ejecución
+RUN sed -i 's/\r$//' /opt/jboss/wildfly/entrypoint.sh && \
+    chmod +x /opt/jboss/wildfly/entrypoint.sh
 
 USER jboss
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { getApiUrl } from '../utils/api';
 
 function HomePage() {
   const { tenantId } = useParams();
@@ -18,8 +19,8 @@ function HomePage() {
   const fetchStats = async () => {
     try {
       const token = localStorage.getItem('token');
-      const backendBase = process.env.REACT_APP_BACKEND_URL || '';
-      const res = await fetch(`${backendBase}/hcen-web/api/stats/${tenantId}`, {
+      const url = getApiUrl(`/hcen-web/api/stats/${tenantId}`);
+      const res = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -229,7 +230,11 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '20px',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    borderTop: 'none',
+    borderRight: 'none',
+    borderBottom: 'none',
+    borderLeft: '4px solid transparent'
   },
   statIcon: {
     width: '56px',

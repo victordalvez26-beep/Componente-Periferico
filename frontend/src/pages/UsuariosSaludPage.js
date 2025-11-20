@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { getApiUrl } from '../utils/api';
 import './UsuariosSaludPage.css';
 
 /**
@@ -43,7 +44,7 @@ function UsuariosSaludPage() {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(
-        `/hcen-web/api/clinica/${tenantId}/usuarios-salud`,
+        getApiUrl(`/hcen-web/api/clinica/${tenantId}/usuarios-salud`),
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -85,8 +86,8 @@ function UsuariosSaludPage() {
     try {
       const token = localStorage.getItem('token');
       const url = editingId 
-        ? `/hcen-web/api/clinica/${tenantId}/usuarios-salud/${editingId}`
-        : `/hcen-web/api/clinica/${tenantId}/usuarios-salud`;
+        ? getApiUrl(`/hcen-web/api/clinica/${tenantId}/usuarios-salud/${editingId}`)
+        : getApiUrl(`/hcen-web/api/clinica/${tenantId}/usuarios-salud`);
       
       const method = editingId ? 'PUT' : 'POST';
       

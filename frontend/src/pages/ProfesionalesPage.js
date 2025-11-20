@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { getApiUrl } from '../utils/api';
 
 function ProfesionalesPage() {
   const { tenantId } = useParams();
@@ -60,7 +61,7 @@ function ProfesionalesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/hcen-web/api/profesionales?tenantId=${tenantId}`, {
+      const res = await fetch(getApiUrl(`/hcen-web/api/profesionales?tenantId=${tenantId}`), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -82,8 +83,8 @@ function ProfesionalesPage() {
     try {
       const token = localStorage.getItem('token');
       const url = editingId
-        ? `/hcen-web/api/profesionales/${editingId}`
-        : `/hcen-web/api/profesionales`;
+        ? getApiUrl(`/hcen-web/api/profesionales/${editingId}`)
+        : getApiUrl(`/hcen-web/api/profesionales`);
       
       const method = editingId ? 'PUT' : 'POST';
       
@@ -134,7 +135,7 @@ function ProfesionalesPage() {
 
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/hcen-web/api/profesionales/${id}`, {
+      const res = await fetch(getApiUrl(`/hcen-web/api/profesionales/${id}`), {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });

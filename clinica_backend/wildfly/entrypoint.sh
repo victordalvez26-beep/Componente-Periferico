@@ -13,4 +13,4 @@ else
 fi
 
 echo "Starting WildFly server"
-exec $WILDFLY_HOME/bin/standalone.sh -c standalone.xml -b 0.0.0.0
+exec $WILDFLY_HOME/bin/standalone.sh -c standalone-full.xml -b 0.0.0.0 -bmanagement 0.0.0.0

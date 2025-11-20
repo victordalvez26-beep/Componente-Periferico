@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { getApiUrl } from '../utils/api';
 
 function ConfiguracionPage() {
   const { tenantId } = useParams();
-  // Usar variable de entorno o ruta relativa por defecto
-  const backendBase = process.env.REACT_APP_BACKEND_URL || '';
   
   const [config, setConfig] = useState({
     nombrePortal: '',
@@ -22,7 +21,8 @@ function ConfiguracionPage() {
   const loadConfig = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${backendBase}/hcen-web/api/config/${tenantId}`, {
+      const url = getApiUrl(`/hcen-web/api/config/${tenantId}`);
+      const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -41,7 +41,8 @@ function ConfiguracionPage() {
 
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${backendBase}/hcen-web/api/config/${tenantId}`, {
+      const url = getApiUrl(`/hcen-web/api/config/${tenantId}`);
+      const res = await fetch(url, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
