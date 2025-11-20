@@ -477,21 +477,24 @@ public class PoliticasClient {
             if (status == HTTP_CREATED) {
                 LOG.info(String.format("✅ %s exitoso - URL: %s", operation, url));
             } else {
-                logError(ERROR_PREFIX + operation, status, response);
-                // Leer el cuerpo de la respuesta para más detalles
+                // Usar SEVERE en vez de WARNING para que los errores sean más visibles
+                String errorBody = "No response body";
                 if (response.hasEntity()) {
                     try {
-                        String errorBody = response.readEntity(String.class);
-                        LOG.warning(String.format("Error %s - Status: %d, Body: %s", operation, status, errorBody));
+                        errorBody = response.readEntity(String.class);
                     } catch (Exception e) {
-                        // Ignorar si no se puede leer
+                        errorBody = "Could not read response body: " + e.getMessage();
                     }
                 }
+                LOG.log(Level.SEVERE, String.format("❌ Error %s - Status: %d, URL: %s, Body enviado: %s, Respuesta: %s", 
+                        operation, status, url, body, errorBody));
             }
         } catch (ProcessingException ex) {
-            LOG.warning(String.format(ERROR_FORMAT + " - URL: %s", operation, ex.getMessage(), url));
+            LOG.log(Level.SEVERE, String.format("❌ Error de conexión %s: %s - URL: %s, Body enviado: %s", 
+                    operation, ex.getMessage(), url, body), ex);
         } catch (Exception ex) {
-            LOG.warning(String.format("Error inesperado %s: %s - URL: %s", operation, ex.getMessage(), url));
+            LOG.log(Level.SEVERE, String.format("❌ Error inesperado %s: %s - URL: %s, Body enviado: %s", 
+                    operation, ex.getMessage(), url, body), ex);
         }
     }
 

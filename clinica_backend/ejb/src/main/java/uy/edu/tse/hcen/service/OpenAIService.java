@@ -14,20 +14,20 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Servicio para interactuar con OpenAI o3 a través de GitHub Models API.
+ * Servicio para interactuar con OpenAI a través de OpenRouter API.
  */
 @ApplicationScoped
 public class OpenAIService {
 
     private static final Logger LOG = Logger.getLogger(OpenAIService.class.getName());
     
-    private static final String GITHUB_MODELS_BASE_URL = "https://models.github.ai/inference/v1";
+    private static final String OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
     private static final String CHAT_COMPLETIONS_ENDPOINT = "/chat/completions";
-    private static final String MODEL_NAME = "openai/o3";
+    private static final String MODEL_NAME = "openai/gpt-oss-20b:free";
     
-    // Token de GitHub (debe configurarse como variable de entorno)
-    private static final String ENV_GITHUB_TOKEN = "GITHUB_TOKEN";
-    private static final String DEFAULT_TOKEN = "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";
+    // Token de OpenRouter (debe configurarse como variable de entorno)
+    private static final String ENV_OPENROUTER_API_KEY = "OPENROUTER_API_KEY";
+    private static final String DEFAULT_TOKEN = "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";
 
     /**
      * Genera un resumen de la historia clínica usando OpenAI o3.
@@ -40,10 +40,18 @@ public class OpenAIService {
             throw new IllegalArgumentException("La historia clínica no puede estar vacía");
         }
 
-        String token = System.getProperty(ENV_GITHUB_TOKEN,
-                System.getenv().getOrDefault(ENV_GITHUB_TOKEN, DEFAULT_TOKEN));
+        String token = System.getProperty(ENV_OPENROUTER_API_KEY,
+                System.getenv().getOrDefault(ENV_OPENROUTER_API_KEY, DEFAULT_TOKEN));
+        
+        if (token == null || token.isBlank()) {
+            LOG.log(Level.WARNING, "OPENROUTER_API_KEY no está configurado, usando token por defecto");
+            token = DEFAULT_TOKEN;
+        }
+        
+        LOG.log(Level.INFO, "Usando OPENROUTER_API_KEY (primeros 10 caracteres): {0}", 
+                token != null && token.length() > 10 ? token.substring(0, 10) + "..." : "null");
 
-        String url = GITHUB_MODELS_BASE_URL + CHAT_COMPLETIONS_ENDPOINT;
+        String url = OPENROUTER_BASE_URL + CHAT_COMPLETIONS_ENDPOINT;
 
         // Construir el prompt para el resumen
         String prompt = "Genera un resumen médico profesional y estructurado de la siguiente historia clínica. " +
@@ -56,7 +64,6 @@ public class OpenAIService {
         requestBody.put("model", MODEL_NAME);
         
         List<Map<String, String>> messages = List.of(
-            Map.of("role", "developer", "content", ""),
             Map.of("role", "user", "content", prompt)
         );
         requestBody.put("messages", messages);
@@ -96,8 +103,8 @@ public class OpenAIService {
                         // Usar mensaje por defecto
                     }
                 }
-                LOG.log(Level.WARNING, "Error generando resumen: HTTP {0} - {1}", 
-                        new Object[]{status, errorMsg});
+                LOG.log(Level.WARNING, "Error generando resumen: HTTP {0} - {1}. URL: {2}, Token configurado: {3}", 
+                        new Object[]{status, errorMsg, url, token != null && token.length() > 10 ? token.substring(0, 10) + "..." : "null"});
                 throw new RuntimeException("Error al generar resumen: HTTP " + status + " - " + errorMsg);
             }
         } catch (ProcessingException ex) {

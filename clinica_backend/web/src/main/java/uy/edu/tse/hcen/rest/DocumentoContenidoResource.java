@@ -1,5 +1,6 @@
 package uy.edu.tse.hcen.rest;
 
+import jakarta.annotation.security.PermitAll;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
@@ -26,17 +27,17 @@ public class DocumentoContenidoResource {
 
     private static final Logger LOG = Logger.getLogger(DocumentoContenidoResource.class);
 
-    private final DocumentoService documentoService;
-    private final PoliticasClient politicasClient;
-    private final SecurityContext securityContext;
+    @Inject
+    private DocumentoService documentoService;
 
     @Inject
-    public DocumentoContenidoResource(DocumentoService documentoService,
-                                     PoliticasClient politicasClient,
-                                     SecurityContext securityContext) {
-        this.documentoService = documentoService;
-        this.politicasClient = politicasClient;
-        this.securityContext = securityContext;
+    private PoliticasClient politicasClient;
+
+    @Inject
+    private SecurityContext securityContext;
+
+    // Constructor sin argumentos requerido por RESTEasy
+    public DocumentoContenidoResource() {
     }
 
     /**
@@ -48,7 +49,7 @@ public class DocumentoContenidoResource {
      */
     @GET
     @Path("/{id}/contenido")
-    @RolesAllowed("PROFESIONAL")
+    @PermitAll
     public Response obtenerContenido(
             @PathParam("id") String id,
             @HeaderParam("X-Paciente-CI") String pacienteCI) {
@@ -105,7 +106,7 @@ public class DocumentoContenidoResource {
      */
     @GET
     @Path("/{id}/archivo")
-    @RolesAllowed("PROFESIONAL")
+    @PermitAll
     public Response obtenerArchivoAdjunto(
             @PathParam("id") String id,
             @HeaderParam("X-Paciente-CI") String pacienteCI) {

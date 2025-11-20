@@ -46,7 +46,7 @@ public class DocumentoService {
     private static final String PROP_RNDC_METADATOS_URL = "RNDC_METADATOS_URL";
     private static final String PROP_NODO_BASE_URL = "NODO_BASE_URL";
     private static final String DEFAULT_RNDC_METADATOS_URL = "http://127.0.0.1:8080/api/metadatos";
-    private static final String DEFAULT_NODO_BASE_URL = "http://127.0.0.1:8080";
+    private static final String DEFAULT_NODO_BASE_URL = "http://localhost:8081";
 
     private static final String KEY_CONTENIDO = "contenido";
     private static final String KEY_DOCUMENTO_ID = "documentoId";

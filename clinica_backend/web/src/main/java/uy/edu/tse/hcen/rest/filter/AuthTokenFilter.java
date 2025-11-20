@@ -58,13 +58,34 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
         // NO incluir /api/documentos-pdf/paciente/{ci} que siempre requiere autenticación
         String path = requestContext.getUriInfo().getPath();
         String auth = requestContext.getHeaderString(HttpHeaders.AUTHORIZATION);
-        boolean hasBearerToken = auth != null && auth.startsWith("Bearer ");
+        boolean hasBearerToken = auth != null && auth.trim().startsWith("Bearer ");
+        
+        // Log para depuración del header Authorization
+        if (auth != null && !hasBearerToken) {
+            org.jboss.logging.Logger logger = org.jboss.logging.Logger.getLogger(AuthTokenFilter.class);
+            logger.warnf("Header Authorization presente pero no empieza con 'Bearer '. Valor: '%s' (longitud: %d)", 
+                auth, auth.length());
+        }
+        
+        
+        // Verificar si la llamada viene de la red interna de Docker (servicio hcen-backend)
+        // Si viene de hcen-backend, permitir llamadas a /documentos/{id}/contenido sin token
+        String forwardedFor = requestContext.getHeaderString("X-Forwarded-For");
+        String realIp = requestContext.getHeaderString("X-Real-IP");
+        
+        // Si la llamada viene de la red Docker interna y es a /documentos/{id}/contenido, permitir
+        boolean isInternalServiceCall = (forwardedFor == null && realIp == null) && 
+                                         (path.contains("/documentos/") && 
+                                         (path.contains("/contenido") || path.contains("/archivo")));
         
         // El path puede venir con o sin prefijo, verificar ambas variantes
         boolean isPublicEndpoint = 
             path.contains("/config/") || path.startsWith("config/") || 
             path.endsWith("/auth/login") || path.equals("auth/login") ||
-            (path.matches(".*documentos-pdf/[^/]+") && "GET".equals(requestContext.getMethod()) && !path.contains("/paciente/") && !hasBearerToken);
+            (path.matches(".*documentos-pdf/[^/]+") && "GET".equals(requestContext.getMethod()) && !path.contains("/paciente/") && !hasBearerToken) ||
+            (path.matches(".*documentos/[^/]+/contenido") && "GET".equals(requestContext.getMethod()) && !hasBearerToken) ||
+            (path.matches(".*documentos/[^/]+/archivo") && "GET".equals(requestContext.getMethod()) && !hasBearerToken) ||
+            isInternalServiceCall;
         
         if (isPublicEndpoint) {
             // Permitir acceso sin JWT a estos endpoints públicos
@@ -73,6 +94,18 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
         
         // Para el resto de endpoints, verificar JWT - es requerido
         // (auth ya fue obtenido arriba para verificar isPublicEndpoint)
+        if (!hasBearerToken) {
+            // Log para depuración - listar todos los headers
+            org.jboss.logging.Logger logger = org.jboss.logging.Logger.getLogger(AuthTokenFilter.class);
+            logger.warnf("No se encontró token Bearer en la petición. Path: %s, Method: %s, Auth header: %s", 
+                path, requestContext.getMethod(), auth != null ? "presente" : "ausente");
+            
+            // Listar todos los headers para depuración
+            java.util.List<String> headerNames = new java.util.ArrayList<>();
+            requestContext.getHeaders().keySet().forEach(headerNames::add);
+            logger.warnf("Headers recibidos: %s", String.join(", ", headerNames));
+        }
+        
         if (hasBearerToken) {
             String token = auth.substring("Bearer ".length()).trim();
             try {

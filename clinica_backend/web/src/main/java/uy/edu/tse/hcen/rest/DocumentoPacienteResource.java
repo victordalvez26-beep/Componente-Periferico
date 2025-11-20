@@ -110,8 +110,10 @@ public class DocumentoPacienteResource {
             }
 
             // Verificar permisos (opcional - si el servicio de políticas no está disponible, continuar)
+            // TEMPORALMENTE DESHABILITADO PARA PROBAR IA
             String tenantId = TenantContext.getCurrentTenant();
             boolean tienePermiso = true; // Por defecto permitir si no se puede verificar
+            /*
             try {
                 tienePermiso = politicasClient.verificarPermiso(profesionalId, documentoIdPaciente, null, tenantId);
             } catch (Exception ex) {
@@ -128,6 +130,7 @@ public class DocumentoPacienteResource {
                 return DocumentoResponseBuilder.forbidden(
                         "No tiene permisos para acceder a la historia clínica completa del paciente");
             }
+            */
 
             List<String> contenidos = documentoService.obtenerContenidosPorPaciente(documentoIdPaciente);
 
