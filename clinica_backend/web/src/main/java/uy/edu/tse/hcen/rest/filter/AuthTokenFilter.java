@@ -22,29 +22,30 @@ import java.util.Map;
  * seleccione el esquema adecuado en llamadas posteriores.
  */
 @Provider
-@Priority(Priorities.AUTHENTICATION)
+@Priority(Priorities.AUTHENTICATION - 100) // Prioridad más alta para manejar OPTIONS antes que otros filtros
 public class AuthTokenFilter implements ContainerRequestFilter, ContainerResponseFilter {
 
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
-        // Manejar peticiones OPTIONS (CORS preflight) - siempre permitir
+        // Manejar peticiones OPTIONS (CORS preflight) - siempre permitir con headers CORS
         if ("OPTIONS".equalsIgnoreCase(requestContext.getMethod())) {
-            // Agregar headers CORS en la respuesta OPTIONS
-            Response.ResponseBuilder responseBuilder = Response.ok();
             String origin = requestContext.getHeaderString("Origin");
-            if (origin != null && (
-                origin.equals("http://localhost:3000") || 
-                origin.equals("http://localhost:3001") ||
-                origin.equals("http://127.0.0.1:3000") ||
-                origin.equals("http://127.0.0.1:3001")
-            )) {
+            Response.ResponseBuilder responseBuilder = Response.status(Response.Status.OK);
+            
+            // Agregar headers CORS al preflight
+            if (origin != null && (origin.startsWith("http://localhost:3000") || origin.startsWith("http://localhost:3001"))) {
+                responseBuilder.header("Access-Control-Allow-Origin", origin);
+                responseBuilder.header("Access-Control-Allow-Credentials", "true");
+            } else if (origin != null) {
                 responseBuilder.header("Access-Control-Allow-Origin", origin);
             } else {
-                responseBuilder.header("Access-Control-Allow-Origin", "http://localhost:3000");
+                responseBuilder.header("Access-Control-Allow-Origin", "*");
             }
-            responseBuilder.header("Access-Control-Allow-Credentials", "true");
-            responseBuilder.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD");
-            responseBuilder.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-Profesional-Id, X-Paciente-CI");
+            responseBuilder.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH");
+            responseBuilder.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
+            responseBuilder.header("Access-Control-Max-Age", "3600");
+            responseBuilder.header("Access-Control-Expose-Headers", "Content-Type, Authorization");
+            
             requestContext.abortWith(responseBuilder.build());
             return;
         }
@@ -52,26 +53,11 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
         // Excluir endpoints públicos que NO requieren autenticación JWT:
         // - /config/* : Llamados por HCEN central (init, update, delete, activate, health)
         // - /auth/login : Login de usuarios
+        // - /api/documentos-pdf/{id} : Descarga individual de PDFs (el backend HCEN ya valida autenticación)
+        // NO incluir /api/documentos-pdf/paciente/{ci} que requiere autenticación
         String path = requestContext.getUriInfo().getPath();
-        String method = requestContext.getMethod();
-        
-        // Log temporal para debugging (remover en producción)
-        System.out.println("[AuthTokenFilter] Path: " + path + ", Method: " + method);
-        
-        // El path puede venir con o sin el ApplicationPath, verificar ambos casos
-        // path puede ser "auth/login" o "api/auth/login" dependiendo de cómo JAX-RS lo maneje
-        // También puede venir como "config/health" o solo "health" si el path se parsea diferente
-        boolean isPublicEndpoint = path.startsWith("config/") || 
-            path.contains("config/") ||
-            path.equals("config/health") ||
-            path.endsWith("/config/health") ||
-            path.equals("auth/login") || 
-            path.endsWith("/auth/login") ||
-            path.contains("/auth/login") ||
-            path.contains("auth/login");
-            
-        if (isPublicEndpoint) {
-            System.out.println("[AuthTokenFilter] Permitiendo acceso público a: " + path);
+        if (path.startsWith("config/") || path.equals("auth/login") || 
+            (path.matches("documentos-pdf/[^/]+") && "GET".equals(requestContext.getMethod()) && !path.contains("/paciente/"))) {
             // Permitir acceso sin JWT a estos endpoints públicos
             return;
         }
@@ -142,23 +128,21 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
 
     @Override
     public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) throws IOException {
-        // Agregar headers CORS para permitir llamadas desde el frontend React
-        // Permitir tanto localhost:3000 como localhost:3001 para flexibilidad
+        // Agregar headers CORS para permitir llamadas desde el frontend React (localhost:3000 y 3001)
         String origin = requestContext.getHeaderString("Origin");
-        if (origin != null && (
-            origin.equals("http://localhost:3000") || 
-            origin.equals("http://localhost:3001") ||
-            origin.equals("http://127.0.0.1:3000") ||
-            origin.equals("http://127.0.0.1:3001")
-        )) {
+        if (origin != null && (origin.startsWith("http://localhost:3000") || origin.startsWith("http://localhost:3001"))) {
+            responseContext.getHeaders().add("Access-Control-Allow-Origin", origin);
+            responseContext.getHeaders().add("Access-Control-Allow-Credentials", "true");
+        } else if (origin != null) {
+            // Para otros orígenes, permitir pero sin credentials
             responseContext.getHeaders().add("Access-Control-Allow-Origin", origin);
         } else {
-            // Por defecto, permitir localhost:3000 (puerto estándar de React)
-            responseContext.getHeaders().add("Access-Control-Allow-Origin", "http://localhost:3000");
+            // Si no hay Origin header, permitir cualquier origen (solo para desarrollo)
+            responseContext.getHeaders().add("Access-Control-Allow-Origin", "*");
         }
-        responseContext.getHeaders().add("Access-Control-Allow-Credentials", "true");
-        responseContext.getHeaders().add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD");
-        responseContext.getHeaders().add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-Profesional-Id");
+        responseContext.getHeaders().add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH");
+        responseContext.getHeaders().add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+        responseContext.getHeaders().add("Access-Control-Expose-Headers", "Content-Type, Authorization");
         
         // Limpiar el TenantContext al finalizar la petición para evitar fugas entre hilos
         TenantContext.clear();

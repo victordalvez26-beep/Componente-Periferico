@@ -12,6 +12,7 @@ public class DTProfesionalSalud {
     private Especialidad especialidad;
     private String direccion;
     private String password;
+    private String tenantId; // Opcional: si no viene, se usa el del TenantContext
 
     public DTProfesionalSalud() {
         // DTO vacío
@@ -34,4 +35,7 @@ public class DTProfesionalSalud {
 
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
+
+    public String getTenantId() { return tenantId; }
+    public void setTenantId(String tenantId) { this.tenantId = tenantId; }
 }

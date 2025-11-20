@@ -22,6 +22,8 @@ public class RestApplication extends Application {
         classes.add(ProfesionalSaludResource.class);
         classes.add(PortalConfiguracionResource.class);
         classes.add(AdminTenantResource.class);
+        classes.add(StatsResource.class);
+        classes.add(UsuarioSaludResource.class);
         // Registrar filtros como providers
         classes.add(AuthTokenFilter.class);
         return classes;

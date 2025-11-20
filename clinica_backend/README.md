@@ -25,6 +25,7 @@ Ver la guía completa en [`GUIA-COMPILACION-DESPLIEGUE.md`](../../GUIA-COMPILACI
 
 ### Resumen rápido:
 
+#### 1. Clonar el repositorio
 ```bash
 # Compilar
 cd componente-periferico/clinica_backend

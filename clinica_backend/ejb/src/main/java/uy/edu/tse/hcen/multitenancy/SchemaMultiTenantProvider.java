@@ -56,9 +56,36 @@ public class SchemaMultiTenantProvider implements MultiTenantConnectionProvider<
         // the actual schema name used in the search_path. The resolver class
         // converts tenant ids (e.g. "101") into schema names (e.g. "schema_clinica_101").
         try {
-            // Return the physical connection from the shared DataSource. Schema switching
-            // is handled at a higher level (service layer / integrator) in current deployments.
-            return getAnyConnection();
+            Connection connection = getAnyConnection();
+            
+            // El tenantIdentifierObj ya es el nombre del schema (ej: "schema_clinica_2")
+            // que viene del SchemaTenantResolver.resolveCurrentTenantIdentifier()
+            String schemaName = null;
+            if (tenantIdentifierObj != null) {
+                schemaName = tenantIdentifierObj.toString();
+            } else {
+                // Si no viene el tenant identifier, intentar obtenerlo del TenantContext
+                String tenantId = uy.edu.tse.hcen.multitenancy.TenantContext.getCurrentTenant();
+                if (tenantId != null && !tenantId.isBlank()) {
+                    schemaName = "schema_clinica_" + tenantId;
+                } else {
+                    schemaName = "public";
+                }
+            }
+            
+            // Establecer search_path para que PostgreSQL busque en el schema correcto
+            if (schemaName != null && !schemaName.equals("public")) {
+                try (java.sql.Statement stmt = connection.createStatement()) {
+                    // Establecer search_path para que PostgreSQL busque en el schema correcto
+                    stmt.execute("SET search_path TO " + schemaName + ", public");
+                    LOG.debugf("Set search_path to %s for tenant connection", schemaName);
+                } catch (SQLException e) {
+                    LOG.warnf("Error setting search_path to %s: %s", schemaName, e.getMessage());
+                    // No lanzar excepción aquí, dejar que la conexión se use con el schema por defecto
+                }
+            }
+            
+            return connection;
         } catch (final SQLException e) {
             throw new HibernateException("Error trying to obtain connection", e);
         }

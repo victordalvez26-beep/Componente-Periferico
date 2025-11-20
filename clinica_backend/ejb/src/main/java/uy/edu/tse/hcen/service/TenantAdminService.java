@@ -42,28 +42,135 @@ public class TenantAdminService {
             "CREATE TABLE IF NOT EXISTS %s.portal_configuracion (id BIGSERIAL PRIMARY KEY, color_primario VARCHAR(7) DEFAULT '%s', color_secundario VARCHAR(7) DEFAULT '#6c757d', logo_url VARCHAR(512), nombre_portal VARCHAR(100));",
             tenantSchema, escColor);
 
-        // H2 no soporta ON CONFLICT, usar MERGE (UPSERT) compatible
+        // PostgreSQL soporta ON CONFLICT, usar INSERT ... ON CONFLICT DO UPDATE
         String insertPortal = String.format(
-            "MERGE INTO %s.portal_configuracion (id, color_primario, color_secundario, logo_url, nombre_portal) KEY(id) VALUES (1, '%s', '#6c757d', '', '%s');",
+            "INSERT INTO %s.portal_configuracion (id, color_primario, color_secundario, logo_url, nombre_portal) " +
+            "VALUES (1, '%s', '#6c757d', '', '%s') " +
+            "ON CONFLICT (id) DO UPDATE SET color_primario = EXCLUDED.color_primario, " +
+            "color_secundario = EXCLUDED.color_secundario, logo_url = EXCLUDED.logo_url, " +
+            "nombre_portal = EXCLUDED.nombre_portal;",
             tenantSchema, escColor, escNombre);
 
-        String createUsuario = String.format(
-            "CREATE TABLE IF NOT EXISTS %s.usuario (id BIGINT PRIMARY KEY, nombre VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL);",
+        // Crear secuencia para IDs auto-incrementables
+        String createSequence = String.format(
+            "CREATE SEQUENCE IF NOT EXISTS %s.usuario_id_seq;",
             tenantSchema);
 
-        String createUsuPer = String.format(
-            "CREATE TABLE IF NOT EXISTS %s.usuarioperiferico (id BIGINT PRIMARY KEY, nickname VARCHAR(255) UNIQUE NOT NULL, password_hash VARCHAR(255) NOT NULL, dtype VARCHAR(31) NOT NULL);",
+        String createUsuario = String.format(
+            "CREATE TABLE IF NOT EXISTS %s.usuario (" +
+            "  id BIGINT PRIMARY KEY DEFAULT nextval('%s.usuario_id_seq'), " +
+            "  nombre VARCHAR(255) NOT NULL, " +
+            "  email VARCHAR(255) NOT NULL, " +
+            "  nickname VARCHAR(255) UNIQUE, " +
+            "  password_hash VARCHAR(255), " +
+            "  dtype VARCHAR(31), " +
+            "  role VARCHAR(50), " +
+            "  tenant_id VARCHAR(50), " +
+            "  especialidad VARCHAR(100), " +
+            "  departamento VARCHAR(50), " +
+            "  direccion VARCHAR(255), " +
+            "  nodo_periferico_id BIGINT" +
+            ");",
+            tenantSchema, tenantSchema);
+        
+        // Vincular la secuencia a la tabla
+        String alterSequence = String.format(
+            "ALTER SEQUENCE %s.usuario_id_seq OWNED BY %s.usuario.id;",
+            tenantSchema, tenantSchema);
+
+        // Crear secuencia para usuarioperiferico
+        String createUsuPerSeq = String.format(
+            "CREATE SEQUENCE IF NOT EXISTS %s.usuarioperiferico_id_seq;",
             tenantSchema);
+
+        // Tabla usuarioperiferico con TODAS las columnas (herencia SINGLE_TABLE)
+        // NOTA: Incluye tenant_id por compatibilidad JPA (aunque sea redundante con el schema)
+        String createUsuPer = String.format(
+            "CREATE TABLE IF NOT EXISTS %s.usuarioperiferico (" +
+            "  id BIGINT PRIMARY KEY DEFAULT nextval('%s.usuarioperiferico_id_seq'), " +
+            "  nickname VARCHAR(255) UNIQUE NOT NULL, " +
+            "  password_hash VARCHAR(255) NOT NULL, " +
+            "  dtype VARCHAR(31) NOT NULL, " +
+            "  nombre VARCHAR(255), " +           // De Usuario
+            "  email VARCHAR(255), " +            // De Usuario  
+            "  role VARCHAR(50), " +              // Para facilitar queries
+            "  tenant_id VARCHAR(50), " +         // Redundante pero necesario para JPA
+            "  especialidad VARCHAR(100), " +     // De ProfesionalSalud
+            "  departamento VARCHAR(50), " +      // De ProfesionalSalud
+            "  direccion VARCHAR(255), " +        // De ProfesionalSalud
+            "  nodo_periferico_id BIGINT" +      // Relación con clínica
+            ");",
+            tenantSchema, tenantSchema);
+        
+        String alterUsuPerSeq = String.format(
+            "ALTER SEQUENCE %s.usuarioperiferico_id_seq OWNED BY %s.usuarioperiferico.id;",
+            tenantSchema, tenantSchema);
 
         String createNodo = String.format(
             "CREATE TABLE IF NOT EXISTS %s.nodoperiferico (id BIGINT PRIMARY KEY, nombre VARCHAR(255), rut VARCHAR(255));",
             tenantSchema);
 
+        // Tablas para herencia JOINED de JPA
+        String createProfesionalSalud = String.format(
+            "CREATE TABLE IF NOT EXISTS %s.profesionalsalud (" +
+            "  id BIGINT PRIMARY KEY, " +
+            "  especialidad VARCHAR(100), " +
+            "  departamento VARCHAR(50), " +
+            "  direccion VARCHAR(255), " +
+            "  nodo_periferico_id BIGINT" +
+            ");",
+            tenantSchema);
+
+        String createAdministradorClinica = String.format(
+            "CREATE TABLE IF NOT EXISTS %s.administradorclinica (" +
+            "  id BIGINT PRIMARY KEY, " +
+            "  nodo_periferico_id BIGINT" +
+            ");",
+            tenantSchema);
+
+        // Tabla usuario_salud para gestionar pacientes de la clínica
+        String createUsuarioSalud = String.format(
+            "CREATE TABLE IF NOT EXISTS %s.usuario_salud (" +
+            "  id BIGSERIAL PRIMARY KEY, " +
+            "  ci VARCHAR(20) NOT NULL, " +
+            "  nombre VARCHAR(255), " +
+            "  apellido VARCHAR(255), " +
+            "  fecha_nacimiento DATE, " +
+            "  direccion VARCHAR(255), " +
+            "  telefono VARCHAR(50), " +
+            "  email VARCHAR(255), " +
+            "  departamento VARCHAR(100), " +
+            "  localidad VARCHAR(100), " +
+            "  hcen_user_id BIGINT, " +
+            "  tenant_id BIGINT NOT NULL, " +
+            "  fecha_alta TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+            "  fecha_actualizacion TIMESTAMP, " +
+            "  CONSTRAINT uk_ci_tenant UNIQUE (ci, tenant_id)" +
+            ");",
+            tenantSchema);
+
         try (Connection c = dataSource.getConnection()) {
+            // 1. Crear schema
             try (PreparedStatement s1 = c.prepareStatement(createSchema)) {
                 s1.execute();
             }
 
+            // 2. Crear secuencia ANTES de la tabla usuario
+            try (PreparedStatement s = c.prepareStatement(createSequence)) {
+                s.execute();
+            }
+
+            // 3. Crear tabla usuario con todas las columnas
+            try (PreparedStatement s4 = c.prepareStatement(createUsuario)) { 
+                s4.execute(); 
+            }
+            
+            // 4. Vincular secuencia a la tabla
+            try (PreparedStatement s = c.prepareStatement(alterSequence)) {
+                s.execute();
+            }
+
+            // 5. Crear otras tablas
             try (PreparedStatement s2 = c.prepareStatement(createPortal)) {
                 s2.execute();
             }
@@ -72,9 +179,28 @@ public class TenantAdminService {
                 s3.execute();
             }
 
-            try (PreparedStatement s4 = c.prepareStatement(createUsuario)) { s4.execute(); }
+            // 6. Crear secuencia para usuarioperiferico
+            try (PreparedStatement s = c.prepareStatement(createUsuPerSeq)) {
+                s.execute();
+            }
+
+            // 7. Crear tabla usuarioperiferico
             try (PreparedStatement s5 = c.prepareStatement(createUsuPer)) { s5.execute(); }
+            
+            // 8. Vincular secuencia
+            try (PreparedStatement s = c.prepareStatement(alterUsuPerSeq)) {
+                s.execute();
+            }
+
             try (PreparedStatement s6 = c.prepareStatement(createNodo)) { s6.execute(); }
+            try (PreparedStatement s7 = c.prepareStatement(createProfesionalSalud)) { s7.execute(); }
+            try (PreparedStatement s8 = c.prepareStatement(createAdministradorClinica)) { s8.execute(); }
+            
+            // 9. Crear tabla usuario_salud para gestionar pacientes
+            try (PreparedStatement s9 = c.prepareStatement(createUsuarioSalud)) { 
+                s9.execute(); 
+                LOG.info("Tabla usuario_salud creada para schema: " + tenantSchema);
+            }
 
             // using container-managed transactions; let the container handle commit
         } catch (SQLException ex) {
@@ -111,9 +237,15 @@ public class TenantAdminService {
      * @param id ID del nodo (debe ser único)
      * @param nombre Nombre de la clínica
      * @param rut RUT de la clínica (debe ser único)
+     * @param schemaName Nombre del schema del tenant
+     * @param departamento Departamento de la clínica (opcional)
+     * @param localidad Localidad de la clínica (opcional)
+     * @param direccion Dirección de la clínica (opcional)
+     * @param telefono Teléfono de la clínica (opcional)
      * @throws SQLException si hay error en la operación SQL
      */
-    public void registerNodoInPublic(Long id, String nombre, String rut, String schemaName) throws SQLException {
+    public void registerNodoInPublic(Long id, String nombre, String rut, String schemaName, 
+                                     String departamento, String localidad, String direccion, String telefono) throws SQLException {
         if (id == null) {
             throw new IllegalArgumentException("id is required");
         }
@@ -127,23 +259,56 @@ public class TenantAdminService {
             throw new IllegalArgumentException("schemaName is required");
         }
 
-        // H2 no soporta ON CONFLICT, usar MERGE para UPSERT
-        String sql = "MERGE INTO public.nodoperiferico (id, nombre, rut, schema_name) KEY(id) VALUES (?, ?, ?, ?)";
+        // PostgreSQL soporta ON CONFLICT, pero H2 usa MERGE. Usar UPDATE/INSERT para compatibilidad
+        // Primero intentar UPDATE, si no hay filas afectadas, hacer INSERT
+        String updateSql = "UPDATE public.nodoperiferico SET nombre = ?, rut = ?, schema_name = ?, " +
+                          "departamento = ?, localidad = ?, direccion = ?, telefono = ? WHERE id = ?";
+        String insertSql = "INSERT INTO public.nodoperiferico (id, nombre, rut, schema_name, departamento, localidad, direccion, telefono) " +
+                          "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setLong(1, id);
-            ps.setString(2, nombre);
-            ps.setString(3, rut);
-            ps.setString(4, schemaName);
-            int rowsAffected = ps.executeUpdate();
+        try (Connection c = dataSource.getConnection()) {
+            // Intentar UPDATE primero
+            try (PreparedStatement ps = c.prepareStatement(updateSql)) {
+                ps.setString(1, nombre);
+                ps.setString(2, rut);
+                ps.setString(3, schemaName);
+                ps.setString(4, departamento);
+                ps.setString(5, localidad);
+                ps.setString(6, direccion);
+                ps.setString(7, telefono);
+                ps.setLong(8, id);
+                int rowsAffected = ps.executeUpdate();
+                
+                if (rowsAffected > 0) {
+                    LOG.infof("Updated nodo in public.nodoperiferico: id=%s, nombre=%s, rut=%s", id, nombre, rut);
+                    return;
+                }
+            }
             
-            LOG.infof("Registered nodo in public.nodoperiferico: id=%s, nombre=%s, rut=%s, schema=%s (rows affected: %d)", 
-                      id, nombre, rut, schemaName, rowsAffected);
+            // Si no se actualizó nada, hacer INSERT
+            try (PreparedStatement ps = c.prepareStatement(insertSql)) {
+                ps.setLong(1, id);
+                ps.setString(2, nombre);
+                ps.setString(3, rut);
+                ps.setString(4, schemaName);
+                ps.setString(5, departamento);
+                ps.setString(6, localidad);
+                ps.setString(7, direccion);
+                ps.setString(8, telefono);
+                ps.executeUpdate();
+                LOG.infof("Inserted nodo in public.nodoperiferico: id=%s, nombre=%s, rut=%s", id, nombre, rut);
+            }
         } catch (SQLException ex) {
             LOG.errorf(ex, "Error registering nodo in public schema: id=%s, rut=%s", id, rut);
             throw ex;
         }
+    }
+    
+    /**
+     * Versión simplificada del método para compatibilidad con código existente.
+     */
+    public void registerNodoInPublic(Long id, String nombre, String rut, String schemaName) throws SQLException {
+        registerNodoInPublic(id, nombre, rut, schemaName, null, null, null, null);
     }
 
     /**
@@ -261,9 +426,11 @@ public class TenantAdminService {
             }
 
             // 5. Crear registro en public.administradorclinica
-            // H2 no soporta ON CONFLICT DO NOTHING, usar MERGE
+            // PostgreSQL soporta ON CONFLICT, usar INSERT ... ON CONFLICT DO UPDATE
             String insertAdminClinica = 
-                "MERGE INTO public.administradorclinica (id, nodo_periferico_id) KEY(id) VALUES (?, ?)";
+                "INSERT INTO public.administradorclinica (id, nodo_periferico_id) " +
+                "VALUES (?, ?) " +
+                "ON CONFLICT (id) DO UPDATE SET nodo_periferico_id = EXCLUDED.nodo_periferico_id";
             
             try (PreparedStatement ps = c.prepareStatement(insertAdminClinica)) {
                 ps.setLong(1, userId);
@@ -399,18 +566,17 @@ public class TenantAdminService {
             String passwordHash = hashPassword(password);
 
             // 3. Crear usuario en public.usuario con ID auto-generada
-            // H2 no soporta RETURNING, usar getGeneratedKeys() en su lugar
+            // Usar nextval() explícitamente para PostgreSQL
             String insertUsuarioPublic = 
-                "INSERT INTO public.usuario (nombre, email) " +
-                "VALUES (?, ?)";
+                "INSERT INTO public.usuario (id, nombre, email) " +
+                "VALUES (nextval('public.usuario_id_seq'), ?, ?) " +
+                "RETURNING id";
             
             long userId;
-            try (PreparedStatement ps = c.prepareStatement(insertUsuarioPublic, PreparedStatement.RETURN_GENERATED_KEYS)) {
+            try (PreparedStatement ps = c.prepareStatement(insertUsuarioPublic)) {
                 ps.setString(1, "Administrador");
                 ps.setString(2, customUsername + "@clinic.local");
-                ps.executeUpdate();
-                
-                try (ResultSet rs = ps.getGeneratedKeys()) {
+                try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         userId = rs.getLong(1);
                     } else {
@@ -420,9 +586,13 @@ public class TenantAdminService {
             }
 
             // 4. Crear registro en public.usuarioperiferico
-            // H2 no soporta ON CONFLICT, usar MERGE para UPSERT
+            // PostgreSQL soporta ON CONFLICT, usar INSERT ... ON CONFLICT DO UPDATE
             String insertUsuarioPeriferico = 
-                "MERGE INTO public.usuarioperiferico (id, nickname, password_hash, dtype, tenant_id, role) KEY(nickname) VALUES (?, ?, ?, ?, ?, ?)";
+                "INSERT INTO public.usuarioperiferico (id, nickname, password_hash, dtype, tenant_id, role) " +
+                "VALUES (?, ?, ?, ?, ?, ?) " +
+                "ON CONFLICT (nickname) DO UPDATE SET " +
+                "id = EXCLUDED.id, password_hash = EXCLUDED.password_hash, dtype = EXCLUDED.dtype, " +
+                "tenant_id = EXCLUDED.tenant_id, role = EXCLUDED.role";
             
             try (PreparedStatement ps = c.prepareStatement(insertUsuarioPeriferico)) {
                 ps.setLong(1, userId);
@@ -435,9 +605,11 @@ public class TenantAdminService {
             }
 
             // 5. Crear registro en public.administradorclinica
-            // H2 no soporta ON CONFLICT DO NOTHING, usar MERGE
+            // PostgreSQL soporta ON CONFLICT, usar INSERT ... ON CONFLICT DO UPDATE
             String insertAdminClinica = 
-                "MERGE INTO public.administradorclinica (id, nodo_periferico_id) KEY(id) VALUES (?, ?)";
+                "INSERT INTO public.administradorclinica (id, nodo_periferico_id) " +
+                "VALUES (?, ?) " +
+                "ON CONFLICT (id) DO UPDATE SET nodo_periferico_id = EXCLUDED.nodo_periferico_id";
             
             try (PreparedStatement ps = c.prepareStatement(insertAdminClinica)) {
                 ps.setLong(1, userId);
@@ -451,6 +623,109 @@ public class TenantAdminService {
 
         } catch (SQLException ex) {
             LOG.errorf(ex, "Error creating user for tenant %s", tenantId);
+            throw ex;
+        }
+    }
+
+    /**
+     * Obtiene la configuración del portal para un tenant específico.
+     * 
+     * @param tenantId ID del tenant (ej: "1", "123")
+     * @return Map con la configuración del portal o null si no existe
+     * @throws SQLException si hay error en la operación
+     */
+    public Map<String, Object> getTenantConfig(String tenantId) throws SQLException {
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new IllegalArgumentException("tenantId is required");
+        }
+        
+        String schemaName = "schema_clinica_" + tenantId;
+        String sql = String.format(
+            "SELECT color_primario, color_secundario, logo_url, nombre_portal " +
+            "FROM %s.portal_configuracion WHERE id = 1",
+            schemaName
+        );
+        
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            
+            if (rs.next()) {
+                Map<String, Object> config = new HashMap<>();
+                config.put("tenantId", tenantId);
+                config.put("nombrePortal", rs.getString("nombre_portal"));
+                config.put("colorPrimario", rs.getString("color_primario"));
+                config.put("colorSecundario", rs.getString("color_secundario"));
+                config.put("logoUrl", rs.getString("logo_url") != null ? rs.getString("logo_url") : "");
+                return config;
+            }
+            
+            // Si no existe, retornar null (el endpoint manejará valores por defecto)
+            return null;
+            
+        } catch (SQLException ex) {
+            LOG.warnf(ex, "Error getting tenant config for %s (schema may not exist yet)", tenantId);
+            // Si el schema no existe, retornar null en lugar de lanzar excepción
+            return null;
+        }
+    }
+
+    /**
+     * Actualiza la configuración del portal para un tenant específico.
+     * 
+     * @param tenantId ID del tenant (ej: "1", "123")
+     * @param nombrePortal Nombre del portal
+     * @param colorPrimario Color primario (hex)
+     * @param colorSecundario Color secundario (hex)
+     * @param logoUrl URL del logo
+     * @throws SQLException si hay error en la operación
+     */
+    public void updateTenantConfig(String tenantId, String nombrePortal, String colorPrimario, 
+                                   String colorSecundario, String logoUrl) throws SQLException {
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new IllegalArgumentException("tenantId is required");
+        }
+        
+        String schemaName = "schema_clinica_" + tenantId;
+        
+        // Valores por defecto si vienen null
+        String nomPortal = (nombrePortal != null && !nombrePortal.isBlank()) ? nombrePortal.replace("'", "''") : "Clínica " + tenantId;
+        String colorPrim = (colorPrimario != null && !colorPrimario.isBlank()) ? colorPrimario.replace("'", "''") : "#007bff";
+        String colorSec = (colorSecundario != null && !colorSecundario.isBlank()) ? colorSecundario.replace("'", "''") : "#6b7280";
+        String logo = (logoUrl != null) ? logoUrl.replace("'", "''") : "";
+        
+        String sql = String.format(
+            "UPDATE %s.portal_configuracion SET " +
+            "nombre_portal = '%s', " +
+            "color_primario = '%s', " +
+            "color_secundario = '%s', " +
+            "logo_url = '%s' " +
+            "WHERE id = 1",
+            schemaName, nomPortal, colorPrim, colorSec, logo
+        );
+        
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            
+            int rowsAffected = ps.executeUpdate();
+            
+            if (rowsAffected == 0) {
+                // Si no existe el registro, crearlo
+                String insertSql = String.format(
+                    "INSERT INTO %s.portal_configuracion (id, nombre_portal, color_primario, color_secundario, logo_url) " +
+                    "VALUES (1, '%s', '%s', '%s', '%s')",
+                    schemaName, nomPortal, colorPrim, colorSec, logo
+                );
+                try (PreparedStatement insertPs = c.prepareStatement(insertSql)) {
+                    insertPs.executeUpdate();
+                    LOG.infof("Created portal config for tenant %s", tenantId);
+                }
+            } else {
+                LOG.infof("Updated portal config for tenant %s", tenantId);
+            }
+            
+        } catch (SQLException ex) {
+            LOG.errorf(ex, "Error updating tenant config for %s", tenantId);
             throw ex;
         }
     }

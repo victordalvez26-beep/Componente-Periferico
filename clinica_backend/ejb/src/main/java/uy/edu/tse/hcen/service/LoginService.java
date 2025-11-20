@@ -37,18 +37,40 @@ public class LoginService {
         return null;
     }
 
-    public LoginResponse authenticateAndGenerateToken(String nickname, String rawPassword) throws SecurityException {
-    // Resolve authentication against the GLOBAL schema (public).
-    // IMPORTANTE: Forzar schema público para evitar problemas con herencia JPA
+    public LoginResponse authenticateAndGenerateToken(String nickname, String rawPassword, String tenantId) throws SecurityException {
+    UsuarioPeriferico user = null;
+    String actualTenantId = null;
+    
+    // Estrategia de búsqueda:
+    // 1. Buscar primero en public (admins globales)
+    // 2. Si no encuentra Y hay tenantId, buscar en schema del tenant (profesionales)
+    
+    LOG.debugf("Login attempt for nickname=%s, tenantId=%s", nickname, tenantId);
+    
+    // 1) Buscar en schema público (admins)
     tenantResolver.setTenantIdentifier("public");
     TenantContext.clear();
-
-    LOG.debugf("TenantContext in LoginService before query: '%s'", TenantContext.getCurrentTenant());
-
-    // 1) Buscar usuario en el schema público (global)  
-    // Usar el método con query nativa para evitar JOINs problemáticos
-    System.out.println("[LoginService] Buscando usuario: " + nickname);
-    UsuarioPeriferico user = userRepository.findByNicknameForLogin(nickname);
+    user = userRepository.findByNicknameForLogin(nickname);
+    
+    if (user != null) {
+        System.out.println("=== Usuario encontrado en public.usuarioperiferico (ADMIN)");
+        actualTenantId = user.getTenantId();
+    } else if (tenantId != null && !tenantId.isBlank()) {
+        // 2) Buscar en schema del tenant (profesionales)
+        System.out.println("=== No encontrado en public, buscando en schema_clinica_" + tenantId);
+        String schemaName = "schema_clinica_" + tenantId;
+        
+        // Usar query nativa para evitar problemas con herencia JOINED
+        user = userRepository.findByNicknameInTenantSchema(nickname, schemaName);
+        
+        if (user != null) {
+            System.out.println("=== Usuario encontrado en schema_clinica_" + tenantId + " (PROFESIONAL)");
+            actualTenantId = tenantId;
+            // Setear el tenant en el contexto
+            tenantResolver.setTenantIdentifier(tenantId);
+            TenantContext.setCurrentTenant(tenantId);
+        }
+    }
 
         // Validar credenciales
         if (user == null) {
@@ -84,22 +106,13 @@ public class LoginService {
             role = "OTRO";
         }
 
-        // Determine tenant id for the token. Prefer explicit tenant_id stored in the
-        // global public.usuarioperiferico row. Fall back to the heuristic lookup if
-        // the stored value is missing.
-        String tenantId = null;
-        if (user.getTenantId() != null && !user.getTenantId().isBlank()) {
-            tenantId = user.getTenantId();
-        } else {
-            tenantId = lookupTenantIdByNickname(nickname);
-        }
-
+        // Usar el tenant_id que ya determinamos al buscar el usuario
         // Set the resolved tenant into the TenantContext for downstream calls
-        if (tenantId != null) {
-            TenantContext.setCurrentTenant(tenantId);
+        if (actualTenantId != null) {
+            TenantContext.setCurrentTenant(actualTenantId);
         }
 
-        String token = TokenUtils.generateToken(nickname, role, tenantId);
-        return new LoginResponse(token, role, tenantId);
+        String token = TokenUtils.generateToken(nickname, role, actualTenantId);
+        return new LoginResponse(token, role, actualTenantId);
     }
 }

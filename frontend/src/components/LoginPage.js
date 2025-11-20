@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { getApiUrl } from '../utils/api';
 
 function LoginPage() {
   const { tenantId } = useParams();
@@ -26,7 +27,8 @@ function LoginPage() {
 
   const fetchClinicInfo = async () => {
     try {
-      const res = await fetch(`/hcen-web/api/config/clinic/${tenantId}`);
+      const url = getApiUrl(`/hcen-web/api/config/clinic/${tenantId}`);
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setClinicInfo(data);
@@ -42,7 +44,7 @@ function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch('/hcen-web/api/auth/login', {
+      const response = await fetch(getApiUrl('/hcen-web/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

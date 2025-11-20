@@ -36,7 +36,8 @@ public class AuthResource {
             
             uy.edu.tse.hcen.dto.LoginResponse response = loginService.authenticateAndGenerateToken(
                 request.getNickname(),
-                request.getPassword()
+                request.getPassword(),
+                request.getTenantId()  // Pasar el tenantId para saber dónde buscar
             );
 
             System.out.println("[AuthResource] Login exitoso para: " + request.getNickname());

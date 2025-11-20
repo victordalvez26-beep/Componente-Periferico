@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { getApiUrl } from '../utils/api';
 
 function ConfiguracionPage() {
   const { tenantId } = useParams();
+  
   const [config, setConfig] = useState({
     nombrePortal: '',
     colorPrimario: '#3b82f6',
@@ -19,7 +21,8 @@ function ConfiguracionPage() {
   const loadConfig = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/hcen-web/api/config/${tenantId}`, {
+      const url = getApiUrl(`/hcen-web/api/config/${tenantId}`);
+      const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -38,7 +41,8 @@ function ConfiguracionPage() {
 
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/hcen-web/api/config/${tenantId}`, {
+      const url = getApiUrl(`/hcen-web/api/config/${tenantId}`);
+      const res = await fetch(url, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -50,6 +54,8 @@ function ConfiguracionPage() {
       if (res.ok) {
         setMessage('✅ Configuración guardada exitosamente');
         setTimeout(() => setMessage(''), 3000);
+        // Recargar la configuración actualizada después de guardar
+        loadConfig();
       } else {
         setMessage('❌ Error al guardar configuración');
       }

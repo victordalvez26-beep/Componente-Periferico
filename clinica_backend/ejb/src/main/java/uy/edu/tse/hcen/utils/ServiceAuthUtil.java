@@ -1,114 +1,98 @@
 package uy.edu.tse.hcen.utils;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jws;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.io.Decoders;
-import io.jsonwebtoken.security.Keys;
-import java.security.Key;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Base64;
 import java.util.logging.Logger;
 
 /**
- * Utilidad para generar y validar tokens JWT entre servicios.
- * Los tokens de servicio tienen un formato especial y una expiración más larga.
+ * Utilidad para generar tokens JWT de servicio para autenticación entre servicios.
+ * 
+ * Los tokens de servicio permiten que el componente periférico se autentique
+ * con el backend HCEN sin necesidad de credenciales de usuario.
  */
 public class ServiceAuthUtil {
-
-    private static final Logger LOGGER = Logger.getLogger(ServiceAuthUtil.class.getName());
     
-    // Clave secreta compartida entre servicios (debe ser la misma en todos los servicios)
-    private static final String SERVICE_SECRET_BASE64;
-    private static final Key SIGNING_KEY;
+    private static final Logger LOG = Logger.getLogger(ServiceAuthUtil.class.getName());
     
-    static {
-        String secret = System.getenv("HCEN_SERVICE_SECRET_BASE64");
-        if (secret == null || secret.isBlank()) {
-            secret = System.getProperty("hcen.service.secret.base64");
-        }
-        
-        // Para desarrollo, usar una clave por defecto (NO usar en producción)
-        // Este secret debe coincidir con el de HCEN Central (mismo secret en BASE64)
-        if (secret == null || secret.isBlank()) {
-            // BASE64 de "HCEN_SERVICE_SECRET_KEY_2025_PRODUCTION_CHANGE_THIS"
-            secret = "SENFTl9TRVJWSUNFX1NFQ1JFVF9LRVlfMjAyNV9QUk9EVUNUSU9OX0NIQU5HRV9USElT";
-            LOGGER.warning("⚠️ Usando clave de servicio por defecto. Configurar HCEN_SERVICE_SECRET_BASE64 en producción!");
-        }
-        
-        SERVICE_SECRET_BASE64 = secret;
-        try {
-            SIGNING_KEY = Keys.hmacShaKeyFor(Decoders.BASE64.decode(SERVICE_SECRET_BASE64));
-        } catch (IllegalArgumentException ex) {
-            throw new IllegalStateException("La clave de servicio JWT no es una cadena Base64 válida.", ex);
-        }
-    }
+    // Secret compartido para firmar tokens de servicio
+    // En producción, esto debería venir de una variable de entorno
+    private static final String DEFAULT_SERVICE_SECRET = "TSE_2025_HCEN_SERVICE_SECRET_KEY";
+    private static final String ALGORITHM = "HmacSHA256";
     
-    private static final long SERVICE_TOKEN_EXPIRATION_MS = 1000L * 60 * 60 * 24; // 24 horas para tokens de servicio
-
     /**
-     * Genera un token JWT para autenticación entre servicios.
+     * Genera un token JWT de servicio.
      * 
-     * @param serviceId Identificador del servicio (ej: "componente-periferico", "rndc")
+     * @param serviceId ID del servicio (ej: "componente-periferico")
      * @param serviceName Nombre descriptivo del servicio
      * @return Token JWT firmado
      */
     public static String generateServiceToken(String serviceId, String serviceName) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("service", serviceName != null ? serviceName : serviceId);
-        claims.put("type", "service"); // Marca que es un token de servicio
-
-        return Jwts.builder()
-                .setClaims(claims)
-                .setSubject(serviceId)
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + SERVICE_TOKEN_EXPIRATION_MS))
-                .setIssuer("HCEN")
-                .signWith(SIGNING_KEY, SignatureAlgorithm.HS256)
-                .compact();
-    }
-    
-    /**
-     * Valida y parsea el token de servicio para obtener sus Claims.
-     * 
-     * @param token Token JWT a validar
-     * @return Claims si es válido
-     * @throws io.jsonwebtoken.JwtException si el token es inválido
-     */
-    public static Claims parseServiceToken(String token) {
-        Jws<Claims> jws = Jwts.parserBuilder()
-                .setSigningKey(SIGNING_KEY)
-                .require("type", "service") // Asegurar que es un token de servicio
-                .build()
-                .parseClaimsJws(token);
-        
-        return jws.getBody();
-    }
-    
-    /**
-     * Obtiene el serviceId directamente desde el token validado.
-     */
-    public static String getServiceIdFromToken(String token) {
-        Claims claims = parseServiceToken(token);
-        return claims.getSubject();
-    }
-    
-    /**
-     * Valida si un token es un token de servicio válido.
-     * 
-     * @param token Token a validar
-     * @return true si es válido, false si no
-     */
-    public static boolean isValidServiceToken(String token) {
         try {
-            parseServiceToken(token);
-            return true;
+            String secret = getServiceSecret();
+            
+            long now = Instant.now().getEpochSecond();
+            long exp = now + (24 * 60 * 60); // 24 horas de validez
+            
+            // Header
+            String header = "{\"alg\":\"HS256\",\"typ\":\"JWT\"}";
+            String encodedHeader = base64UrlEncode(header);
+            
+            // Payload
+            String payload = String.format(
+                "{\"sub\":\"%s\",\"serviceName\":\"%s\",\"iat\":%d,\"exp\":%d,\"iss\":\"HCEN-Service\"}",
+                serviceId, serviceName, now, exp
+            );
+            String encodedPayload = base64UrlEncode(payload);
+            
+            // Signature
+            String dataToSign = encodedHeader + "." + encodedPayload;
+            String signature = signHmacSHA256(dataToSign, secret);
+            
+            return dataToSign + "." + signature;
+            
         } catch (Exception e) {
-            LOGGER.warning("Token de servicio inválido: " + e.getMessage());
-            return false;
+            LOG.severe("Error generando token de servicio: " + e.getMessage());
+            throw new RuntimeException("Error generando token de servicio", e);
         }
+    }
+    
+    /**
+     * Obtiene el secret para firmar tokens de servicio.
+     * Busca en variables de entorno primero, luego en propiedades del sistema.
+     */
+    private static String getServiceSecret() {
+        String secret = System.getenv("HCEN_SERVICE_SECRET");
+        if (secret == null || secret.isBlank()) {
+            secret = System.getProperty("hcen.service.secret");
+        }
+        if (secret == null || secret.isBlank()) {
+            LOG.warning("HCEN_SERVICE_SECRET no configurado, usando secret por defecto (NO RECOMENDADO PARA PRODUCCIÓN)");
+            return DEFAULT_SERVICE_SECRET;
+        }
+        return secret;
+    }
+    
+    /**
+     * Codifica en Base64 URL-safe.
+     */
+    private static String base64UrlEncode(String data) {
+        return Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(data.getBytes(StandardCharsets.UTF_8));
+    }
+    
+    /**
+     * Firma datos usando HMAC-SHA256.
+     */
+    private static String signHmacSHA256(String data, String secret) throws Exception {
+        Mac mac = Mac.getInstance(ALGORITHM);
+        SecretKeySpec secretKeySpec = new SecretKeySpec(
+            secret.getBytes(StandardCharsets.UTF_8), ALGORITHM);
+        mac.init(secretKeySpec);
+        byte[] signatureBytes = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+        return base64UrlEncode(new String(signatureBytes, StandardCharsets.UTF_8));
     }
 }
 

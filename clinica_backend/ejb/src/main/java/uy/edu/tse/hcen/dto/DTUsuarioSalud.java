@@ -1,7 +1,8 @@
 package uy.edu.tse.hcen.dto;
 
 import uy.edu.tse.hcen.model.UsuarioSalud;
-import uy.edu.tse.hcen.model.enums.Departamentos;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Date;
 
 public class DTUsuarioSalud {
@@ -14,6 +15,7 @@ public class DTUsuarioSalud {
     private String localidad;
     private String direccion;
     private String nombre;
+    private String apellido;
     private String email;
     private String telefono;
     private String segundoNombre;
@@ -26,37 +28,41 @@ public class DTUsuarioSalud {
         if (u == null) return null;
         DTUsuarioSalud d = new DTUsuarioSalud();
         d.id = u.getId();
-        d.tipDoc = u.getTipDoc();
-        d.codDoc = u.getCodDoc();
-        d.nacionalidad = u.getNacionalidad();
-        d.fechaNacimiento = u.getFechaNacimiento();
-        d.departamento = u.getDepartamento() != null ? u.getDepartamento().name() : null;
+        d.tipDoc = null; // No existe en el modelo
+        d.codDoc = u.getCi(); // Usar CI como código de documento
+        d.nacionalidad = null; // No existe en el modelo
+        if (u.getFechaNacimiento() != null) {
+            d.fechaNacimiento = Date.from(u.getFechaNacimiento().atStartOfDay(ZoneId.systemDefault()).toInstant());
+        }
+        d.departamento = u.getDepartamento(); // Ya es String en el modelo
         d.localidad = u.getLocalidad();
         d.direccion = u.getDireccion();
         d.nombre = u.getNombre();
+        d.apellido = u.getApellido();
         d.email = u.getEmail();
         d.telefono = u.getTelefono();
-        d.segundoNombre = u.getSegundoNombre();
-        d.segundoApellido = u.getSegundoApellido();
+        d.segundoNombre = null; // No existe en el modelo
+        d.segundoApellido = null; // No existe en el modelo
         return d;
     }
 
     public UsuarioSalud toEntity() {
         UsuarioSalud u = new UsuarioSalud();
-        u.setTipDoc(this.tipDoc);
-        u.setCodDoc(this.codDoc);
-        u.setNacionalidad(this.nacionalidad);
-        u.setFechaNacimiento(this.fechaNacimiento);
-        if (this.departamento != null) {
-            try { u.setDepartamento(Departamentos.valueOf(this.departamento)); } catch (Exception e) { /* ignore */ }
+        if (this.codDoc != null) {
+            u.setCi(this.codDoc); // Usar CI como código de documento
         }
+        if (this.fechaNacimiento != null) {
+            u.setFechaNacimiento(this.fechaNacimiento.toInstant().atZone(ZoneId.systemDefault()).toLocalDate());
+        }
+        u.setDepartamento(this.departamento);
         u.setLocalidad(this.localidad);
         u.setDireccion(this.direccion);
         u.setNombre(this.nombre);
+        if (this.apellido != null) {
+            u.setApellido(this.apellido);
+        }
         u.setEmail(this.email);
         u.setTelefono(this.telefono);
-        u.setSegundoNombre(this.segundoNombre);
-        u.setSegundoApellido(this.segundoApellido);
         return u;
     }
 
@@ -79,6 +85,8 @@ public class DTUsuarioSalud {
     public void setDireccion(String direccion) { this.direccion = direccion; }
     public String getNombre() { return nombre; }
     public void setNombre(String nombre) { this.nombre = nombre; }
+    public String getApellido() { return apellido; }
+    public void setApellido(String apellido) { this.apellido = apellido; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
     public String getTelefono() { return telefono; }

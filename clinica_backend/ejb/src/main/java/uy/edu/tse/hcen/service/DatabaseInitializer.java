@@ -47,16 +47,37 @@ public class DatabaseInitializer {
                 "  nombre VARCHAR(255), " +
                 "  rut VARCHAR(255), " +
                 "  schema_name VARCHAR(255), " +
+                "  departamento VARCHAR(100), " +
+                "  localidad VARCHAR(100), " +
+                "  direccion VARCHAR(255), " +
+                "  telefono VARCHAR(50), " +
                 "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
                 ")";
             
-            // 2. Tabla global de usuarios (datos básicos) - ID manual (para compatibilidad con init-db.sql)
+            // Agregar columnas si no existen (para bases de datos existentes)
+            // PostgreSQL requiere sentencias separadas para ADD COLUMN IF NOT EXISTS
+            String[] alterStatements = {
+                "ALTER TABLE public.nodoperiferico ADD COLUMN IF NOT EXISTS departamento VARCHAR(100)",
+                "ALTER TABLE public.nodoperiferico ADD COLUMN IF NOT EXISTS localidad VARCHAR(100)",
+                "ALTER TABLE public.nodoperiferico ADD COLUMN IF NOT EXISTS direccion VARCHAR(255)",
+                "ALTER TABLE public.nodoperiferico ADD COLUMN IF NOT EXISTS telefono VARCHAR(50)"
+            };
+            
+            // 2. Crear secuencia para public.usuario
+            String createUsuarioSeq = 
+                "CREATE SEQUENCE IF NOT EXISTS public.usuario_id_seq;";
+            
+            // 3. Tabla global de usuarios (datos básicos) - ID auto-generado
             String createUsuario = 
                 "CREATE TABLE IF NOT EXISTS public.usuario (" +
-                "  id BIGINT PRIMARY KEY, " +
+                "  id BIGINT PRIMARY KEY DEFAULT nextval('public.usuario_id_seq'), " +
                 "  nombre VARCHAR(255) NOT NULL, " +
                 "  email VARCHAR(255) NOT NULL" +
                 ")";
+            
+            // Vincular secuencia a la tabla
+            String alterUsuarioSeq = 
+                "ALTER SEQUENCE public.usuario_id_seq OWNED BY public.usuario.id;";
             
             // 3. Tabla global de usuarios periféricos (autenticación y multi-tenancy)
             String createUsuarioPeriDef = 
@@ -81,9 +102,30 @@ public class DatabaseInitializer {
                 LOG.info("  ✅ Table public.nodoperiferico ready");
             }
             
+            // Agregar columnas adicionales si la tabla ya existía (una por una para compatibilidad)
+            for (String alterSql : alterStatements) {
+                try (PreparedStatement ps1a = c.prepareStatement(alterSql)) {
+                    ps1a.execute();
+                } catch (SQLException e) {
+                    // Si falla porque las columnas ya existen o la sintaxis no es compatible, ignorar
+                    LOG.debug("  Note: Could not add column (may already exist): " + e.getMessage());
+                }
+            }
+            LOG.info("  ✅ Additional columns checked/added to public.nodoperiferico");
+            
+            // Crear secuencia para public.usuario
+            try (PreparedStatement psSeq = c.prepareStatement(createUsuarioSeq)) {
+                psSeq.execute();
+            }
+            
             try (PreparedStatement ps2 = c.prepareStatement(createUsuario)) {
                 ps2.execute();
                 LOG.info("  ✅ Table public.usuario ready");
+            }
+            
+            // Vincular secuencia a la tabla
+            try (PreparedStatement psAlter = c.prepareStatement(alterUsuarioSeq)) {
+                psAlter.execute();
             }
             
             try (PreparedStatement ps3 = c.prepareStatement(createUsuarioPeriDef)) {

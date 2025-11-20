@@ -1,4 +1,4 @@
-embed-server --std-out=echo --server-config=standalone.xml
+embed-server --std-out=echo --server-config=standalone-full.xml
 
 # 1. Registrar el driver (module files are copied into the image at build time)
 /subsystem=datasources/jdbc-driver=postgres:add(driver-name="postgres", driver-module-name="org.postgresql", driver-class-name=org.postgresql.Driver)

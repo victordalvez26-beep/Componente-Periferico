@@ -62,7 +62,7 @@ class LoginServiceTest {
         when(userRepository.findByNicknameForLogin(testNickname)).thenReturn(usuario);
 
         // Act
-        LoginResponse response = loginService.authenticateAndGenerateToken(testNickname, testPassword);
+        LoginResponse response = loginService.authenticateAndGenerateToken(testNickname, testPassword, "101");
 
         // Assert
         assertNotNull(response);
@@ -90,7 +90,7 @@ class LoginServiceTest {
         when(userRepository.findByNicknameForLogin("user_c1")).thenReturn(usuario);
 
         // Act
-        LoginResponse response = loginService.authenticateAndGenerateToken("user_c1", testPassword);
+        LoginResponse response = loginService.authenticateAndGenerateToken("user_c1", testPassword, null);
 
         // Assert
         assertNotNull(response);
@@ -110,7 +110,7 @@ class LoginServiceTest {
         when(userRepository.findByNicknameForLogin("user_c2")).thenReturn(usuario);
 
         // Act
-        LoginResponse response = loginService.authenticateAndGenerateToken("user_c2", testPassword);
+        LoginResponse response = loginService.authenticateAndGenerateToken("user_c2", testPassword, null);
 
         // Assert
         assertNotNull(response);
@@ -131,7 +131,7 @@ class LoginServiceTest {
         when(userRepository.findByNicknameForLogin(testNickname)).thenReturn(profesional);
 
         // Act
-        LoginResponse response = loginService.authenticateAndGenerateToken(testNickname, testPassword);
+        LoginResponse response = loginService.authenticateAndGenerateToken(testNickname, testPassword, "101");
 
         // Assert
         assertNotNull(response);
@@ -161,7 +161,7 @@ class LoginServiceTest {
         when(userRepository.findByNicknameForLogin(testNickname)).thenReturn(admin);
 
         // Act
-        LoginResponse response = loginService.authenticateAndGenerateToken(testNickname, testPassword);
+        LoginResponse response = loginService.authenticateAndGenerateToken(testNickname, testPassword, "101");
 
         // Assert
         assertNotNull(response);
@@ -180,7 +180,7 @@ class LoginServiceTest {
         when(userRepository.findByNicknameForLogin(testNickname)).thenReturn(usuario);
 
         // Act
-        LoginResponse response = loginService.authenticateAndGenerateToken(testNickname, testPassword);
+        LoginResponse response = loginService.authenticateAndGenerateToken(testNickname, testPassword, "101");
 
         // Assert
         assertNotNull(response);
@@ -195,7 +195,7 @@ class LoginServiceTest {
 
         // Act & Assert
         SecurityException exception = assertThrows(SecurityException.class, () -> {
-            loginService.authenticateAndGenerateToken(testNickname, testPassword);
+            loginService.authenticateAndGenerateToken(testNickname, testPassword, null);
         });
 
         assertEquals("Credenciales inválidas.", exception.getMessage());
@@ -217,7 +217,7 @@ class LoginServiceTest {
 
         // Act & Assert
         SecurityException exception = assertThrows(SecurityException.class, () -> {
-            loginService.authenticateAndGenerateToken(testNickname, "wrongPassword");
+            loginService.authenticateAndGenerateToken(testNickname, "wrongPassword", "101");
         });
 
         assertEquals("Credenciales inválidas.", exception.getMessage());
@@ -235,7 +235,7 @@ class LoginServiceTest {
         when(userRepository.findByNicknameForLogin(testNickname)).thenReturn(profesional);
 
         // Act
-        LoginResponse response = loginService.authenticateAndGenerateToken(testNickname, testPassword);
+        LoginResponse response = loginService.authenticateAndGenerateToken(testNickname, testPassword, "101");
 
         // Assert
         assertNotNull(response);
@@ -254,7 +254,7 @@ class LoginServiceTest {
         when(userRepository.findByNicknameForLogin("admin_c1")).thenReturn(usuario);
 
         // Act
-        LoginResponse response = loginService.authenticateAndGenerateToken("admin_c1", testPassword);
+        LoginResponse response = loginService.authenticateAndGenerateToken("admin_c1", testPassword, null);
 
         // Assert
         assertNotNull(response);
@@ -273,7 +273,7 @@ class LoginServiceTest {
         when(userRepository.findByNicknameForLogin("user_c2")).thenReturn(usuario);
 
         // Act
-        LoginResponse response = loginService.authenticateAndGenerateToken("user_c2", testPassword);
+        LoginResponse response = loginService.authenticateAndGenerateToken("user_c2", testPassword, null);
 
         // Assert
         assertNotNull(response);
@@ -292,7 +292,7 @@ class LoginServiceTest {
         when(userRepository.findByNicknameForLogin("usernotfound")).thenReturn(usuario);
 
         // Act
-        LoginResponse response = loginService.authenticateAndGenerateToken("usernotfound", testPassword);
+        LoginResponse response = loginService.authenticateAndGenerateToken("usernotfound", testPassword, null);
 
         // Assert
         assertNotNull(response);
@@ -311,7 +311,7 @@ class LoginServiceTest {
         when(userRepository.findByNicknameForLogin(testNickname)).thenReturn(usuario);
 
         // Act
-        loginService.authenticateAndGenerateToken(testNickname, testPassword);
+        loginService.authenticateAndGenerateToken(testNickname, testPassword, "101");
 
         // Assert
         // Verificar que el tenant se estableció en el contexto (aunque es estático,
@@ -335,7 +335,7 @@ class LoginServiceTest {
         when(userRepository.findByNicknameForLogin("normaluser")).thenReturn(usuario);
 
         // Act
-        LoginResponse response = loginService.authenticateAndGenerateToken("normaluser", testPassword);
+        LoginResponse response = loginService.authenticateAndGenerateToken("normaluser", testPassword, null);
 
         // Assert
         assertNotNull(response);

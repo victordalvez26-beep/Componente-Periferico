@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { getApiUrl } from '../utils/api';
 
 function ClinicAdmin(){
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(false);
   const [payload, setPayload] = useState('{ "clinic": "Mi Clinica", "address": "Av. Siempreviva 123" }');
-  // Use environment override if provided; otherwise use relative path so CRA proxy (package.json -> proxy)
-  // or production reverse proxy can route correctly. This avoids hardcoded port 8080.
-  const backendBase = process.env.REACT_APP_BACKEND_URL || '/nodo-periferico';
 
   // login form state
   const [username, setUsername] = useState('admin');
@@ -39,7 +37,7 @@ function ClinicAdmin(){
       // cache-busting param to ensure browser/dev-server proxies don't return stale results
       const clinic = encodeURIComponent(localStorage.getItem('clinicId') || 'clinic-1');
       const ts = Date.now();
-      const res = await fetch(`${backendBase}/api/integration/status?clinicId=${clinic}&_=${ts}`, { credentials: 'include', cache: 'no-store' });
+      const res = await fetch(getApiUrl(`/nodo-periferico/api/integration/status?clinicId=${clinic}&_=${ts}`), { credentials: 'include', cache: 'no-store' });
       if(res.ok){
         const j = await res.json();
         setIntegration(j);
@@ -50,7 +48,7 @@ function ClinicAdmin(){
 
   async function checkSession(){
     try{
-      const res = await fetch(`${backendBase}/api/auth/session`, { credentials: 'include' });
+      const res = await fetch(getApiUrl(`/nodo-periferico/api/auth/session`), { credentials: 'include' });
       if(res.ok){
         const json = await res.json();
         setSession(json);
@@ -76,7 +74,7 @@ function ClinicAdmin(){
       const username = session ? (session.username || 'prof1') : 'prof1';
       const clinic = encodeURIComponent(localStorage.getItem('clinicId') || 'clinic-1');
       const qparam = q ? `&q=${encodeURIComponent(q)}` : '';
-      const res = await fetch(`${backendBase}/api/profesional/pacientes/${encodeURIComponent(username)}?clinicId=${clinic}${qparam}`, { credentials: 'include' });
+      const res = await fetch(getApiUrl(`/nodo-periferico/api/profesional/pacientes/${encodeURIComponent(username)}?clinicId=${clinic}${qparam}`), { credentials: 'include' });
       if(res.ok){
         const j = await res.json();
         setPatients(Array.isArray(j) ? j : []);
@@ -91,7 +89,7 @@ function ClinicAdmin(){
     try{
       // call backend proxy that will call RNDC and politicas
       const profId = session ? session.username : null;
-      const res = await fetch(`${backendBase}/api/profesional/paciente/${encodeURIComponent(p.ci)}/documentos?profesionalId=${encodeURIComponent(profId)}`, { credentials: 'include' });
+      const res = await fetch(getApiUrl(`/nodo-periferico/api/profesional/paciente/${encodeURIComponent(p.ci)}/documentos?profesionalId=${encodeURIComponent(profId)}`), { credentials: 'include' });
       if(res.ok){
         const j = await res.json();
         setPatientDocs(Array.isArray(j) ? j : []);
@@ -116,7 +114,7 @@ function ClinicAdmin(){
     await Promise.all(docs.map(async (d, idx) => {
       const key = docKey(d, idx);
       try{
-        const q = `${backendBase}/api/profesional/verificar?profesionalId=${encodeURIComponent(profId)}&pacienteCI=${encodeURIComponent(patient.ci)}&tipoDoc=${encodeURIComponent(d.tipoDocumento||'')}`;
+        const q = getApiUrl(`/nodo-periferico/api/profesional/verificar?profesionalId=${encodeURIComponent(profId)}&pacienteCI=${encodeURIComponent(patient.ci)}&tipoDoc=${encodeURIComponent(d.tipoDocumento||'')}`);
         const r = await fetch(q, { credentials: 'include' });
         if(r.ok){
           const j = await r.json();
@@ -137,7 +135,7 @@ function ClinicAdmin(){
         tipoDocumento: doc.tipoDocumento,
         profesionalSolicitante: session ? session.username : 'prof1'
       };
-      const res = await fetch(`${backendBase}/api/profesional/solicitudes`, {
+      const res = await fetch(getApiUrl(`/nodo-periferico/api/profesional/solicitudes`), {
         method: 'POST', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
       });
       if(res.ok) alert('Solicitud enviada'); else { const t = await res.text().catch(()=>null); alert('Error: '+res.status+' '+t); }
@@ -147,7 +145,7 @@ function ClinicAdmin(){
   async function doLogin(e){
     e && e.preventDefault();
     try{
-      const res = await fetch(`${backendBase}/api/auth/login`, {
+      const res = await fetch(getApiUrl(`/nodo-periferico/api/auth/login`), {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type':'application/json' },
@@ -174,7 +172,7 @@ function ClinicAdmin(){
     if(!nodoId) return;
     setNodoLoading(true);
     try{
-      const res = await fetch(`${backendBase}/api/nodos/${encodeURIComponent(nodoId)}`, { credentials: 'include' });
+      const res = await fetch(getApiUrl(`/nodo-periferico/api/nodos/${encodeURIComponent(nodoId)}`), { credentials: 'include' });
       if(res.ok){
         const j = await res.json();
         // show node only if matches clinicId (simple multitenant check); assume nodo DTO has 'clinicId'
@@ -201,7 +199,7 @@ function ClinicAdmin(){
   // test-pdf download removed — central/Nodo debe exponer la descarga
 
   async function doLogout(){
-    await fetch(`${backendBase}/api/auth/logout`, { credentials: 'include' });
+    await fetch(getApiUrl(`/nodo-periferico/api/auth/logout`), { credentials: 'include' });
     setSession(null);
   }
 
@@ -209,7 +207,7 @@ function ClinicAdmin(){
     setLoading(true);
     try{
       const body = { payload };
-      const res = await fetch(`${backendBase}/api/clinica/alta`, {
+      const res = await fetch(getApiUrl(`/nodo-periferico/api/clinica/alta`), {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

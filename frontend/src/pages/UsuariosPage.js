@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { getApiUrl } from '../utils/api';
 
 function UsuariosPage() {
   const { tenantId } = useParams();
@@ -24,7 +25,7 @@ function UsuariosPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/hcen-web/api/usuarios?tenantId=${tenantId}`, {
+      const res = await fetch(getApiUrl(`/hcen-web/api/usuarios?tenantId=${tenantId}`), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -45,7 +46,7 @@ function UsuariosPage() {
 
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/hcen-web/api/usuarios`, {
+      const res = await fetch(getApiUrl(`/hcen-web/api/usuarios`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

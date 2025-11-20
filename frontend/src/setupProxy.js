@@ -2,19 +2,8 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 
 module.exports = function(app) {
   // Proxy TODAS las llamadas a /hcen-web/* hacia el backend periférico
-  // Usar 8081 por defecto (puerto del backend periférico en Docker)
-  // Si está corriendo directamente en WildFly, puede estar en 8080
-  // Si REACT_APP_BACKEND_URL no está definido, intentar detectar automáticamente
-  let backendUrl = process.env.REACT_APP_BACKEND_URL;
-  
-  if (!backendUrl) {
-    // Por defecto usar 8081 (Docker) pero también probar 8080 (WildFly local)
-    backendUrl = 'http://localhost:8081';
-    console.log(`[Proxy] REACT_APP_BACKEND_URL no definido, usando por defecto: ${backendUrl}`);
-    console.log(`[Proxy] Si el backend está en otro puerto, configura: REACT_APP_BACKEND_URL=http://localhost:PUERTO`);
-  }
-  
-  console.log(`[Proxy] Configurando proxy para /hcen-web -> ${backendUrl}`);
+  // Usa variable de entorno o valor por defecto
+  const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8081';
   
   app.use(
     '/hcen-web',

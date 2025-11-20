@@ -146,7 +146,7 @@ public class DocumentoPdfService {
         
         // Obtener nombre completo del paciente
         String nombrePaciente = paciente.getNombre() != null ? paciente.getNombre() : "";
-        String apellidoPaciente = paciente.getSegundoApellido() != null ? paciente.getSegundoApellido() : "";
+        String apellidoPaciente = paciente.getApellido() != null ? paciente.getApellido() : "";
         metadata.setDatosPatronimicos(nombrePaciente + " " + apellidoPaciente);
 
         // 10. Enviar metadata al backend HCEN (RNDC)
@@ -230,7 +230,7 @@ public class DocumentoPdfService {
         // Obtener información del paciente una sola vez
         var paciente = usuarioSaludRepository.findByCiAndTenant(ciPaciente, tenantId);
         String nombrePaciente = paciente != null ? paciente.getNombre() : null;
-        String apellidoPaciente = paciente != null ? paciente.getSegundoApellido() : null;
+        String apellidoPaciente = paciente != null ? paciente.getApellido() : null;
         
         java.util.List<Map<String, Object>> resultado = new java.util.ArrayList<>();
         for (Document doc : documentos) {

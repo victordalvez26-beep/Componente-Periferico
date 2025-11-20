@@ -120,6 +120,15 @@ public class DocumentoPdfRepository {
         }
         return resultados;
     }
+
+    /**
+     * Obtiene la colección de documentos PDF de forma pública.
+     * Usado por StatsService para contar documentos.
+     */
+    public MongoCollection<Document> getCollectionPublic() {
+        return getCollection();
+    }
+}
 }
 
 
