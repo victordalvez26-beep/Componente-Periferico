@@ -94,25 +94,36 @@ function ActivatePage() {
 
     setLoading(true);
 
+    // Validar que tenantId esté presente
+    if (!tenantId) {
+      setError('Error: No se pudo obtener el ID de la clínica de la URL. Verifique que la URL sea correcta.');
+      setLoading(false);
+      return;
+    }
+
     try {
+      const requestBody = {
+        tenantId: tenantId,
+        token: token,
+        username: username,
+        password: password,
+        // Datos de la clínica
+        rut: rut,
+        departamento: departamento,
+        localidad: localidad,
+        direccion: direccion,
+        telefono: telefono
+      };
+      
+      console.log('Enviando petición de activación:', { ...requestBody, password: '***' });
+      
       // Llamada al backend periférico con TODOS los datos de la clínica
       const response = await fetch(getApiUrl('/hcen-web/api/config/activate'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          tenantId: tenantId,
-          token: token,
-          username: username,
-          password: password,
-          // Datos de la clínica
-          rut: rut,
-          departamento: departamento,
-          localidad: localidad,
-          direccion: direccion,
-          telefono: telefono
-        })
+        body: JSON.stringify(requestBody)
       });
 
       // Leer el body solo una vez

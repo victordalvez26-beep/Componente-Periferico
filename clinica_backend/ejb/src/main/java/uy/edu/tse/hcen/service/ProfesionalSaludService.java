@@ -2,12 +2,11 @@ package uy.edu.tse.hcen.service;
 
 import uy.edu.tse.hcen.dto.DTProfesionalSalud;
 import uy.edu.tse.hcen.model.ProfesionalSalud;
-import uy.edu.tse.hcen.context.TenantContext;
+import uy.edu.tse.hcen.multitenancy.TenantContext;
 import uy.edu.tse.hcen.repository.ProfesionalSaludRepository;
 import jakarta.ejb.Stateless;
 import jakarta.ejb.TransactionAttribute;
 import jakarta.ejb.TransactionAttributeType;
-import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.ws.rs.WebApplicationException;
@@ -30,10 +29,6 @@ public class ProfesionalSaludService {
     @PersistenceContext(unitName = "hcenPersistenceUnit")
     private EntityManager em;
 
-
-    @Inject
-    private TenantContext tenantContext; // Contexto del tenant actual
-
     @EJB
     private NodoPerifericoRepository nodoRepository;
 
@@ -48,14 +43,18 @@ public class ProfesionalSaludService {
 
     /**
      * Crea un profesional y lo asocia al tenant actual.
+     * El tenantId debe venir en el DTO o estar configurado en el TenantContext thread-local.
+     * La validación de permisos se hace a nivel de Resource con @RolesAllowed.
      */
     public ProfesionalSalud create(DTProfesionalSalud dto) throws IllegalArgumentException {
-        if (tenantContext.getRole() == null || !tenantContext.getRole().equals("ADMINISTRADOR")) {
-            throw new SecurityException("Solo los administradores pueden crear profesionales.");
+        // Obtener tenantId del DTO o del TenantContext thread-local
+        String tenantId = (dto != null && dto.getTenantId() != null && !dto.getTenantId().isBlank()) 
+            ? dto.getTenantId() 
+            : TenantContext.getCurrentTenant();
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new IllegalArgumentException("tenantId is required. Set it in TenantContext or provide it in the DTO.");
         }
-
-        String tenantId = tenantContext.getTenantId();
-        String schema = (tenantId != null && !tenantId.isBlank()) ? "schema_clinica_" + tenantId : "public";
+        String schema = "schema_clinica_" + tenantId;
 
         // Build entity without touching DB (validations that don't need DB can go here)
         ProfesionalSalud profesional = new ProfesionalSalud();

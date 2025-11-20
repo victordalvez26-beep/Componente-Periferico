@@ -16,6 +16,7 @@ import jakarta.enterprise.context.RequestScoped;
 import jakarta.ws.rs.core.UriBuilder;
 import java.net.URI;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Path("/profesionales")
@@ -75,9 +76,28 @@ public class ProfesionalSaludResource {
             return Response.status(Response.Status.BAD_REQUEST).entity("valid email required").build();
         }
 
-        ProfesionalSalud saved = profesionalService.create(dto);
-        URI location = UriBuilder.fromPath("/api/profesionales/{id}").build(saved.getId());
-        return Response.created(location).entity(ProfesionalResponse.fromEntity(saved)).build();
+        // El tenantId ya está configurado en TenantContext por el AuthTokenFilter
+        // Si viene en el body del request, lo establecemos explícitamente
+        String tenantId = null;
+        if (dto != null && dto.getTenantId() != null) {
+            tenantId = dto.getTenantId();
+            TenantContext.setCurrentTenant(tenantId);
+        } else {
+            // Usar el tenantId del contexto actual (configurado por AuthTokenFilter)
+            tenantId = TenantContext.getCurrentTenant();
+        }
+
+        try {
+            ProfesionalSalud saved = profesionalService.create(dto);
+            URI location = UriBuilder.fromPath("/api/profesionales/{id}").build(saved.getId());
+            return Response.created(location).entity(ProfesionalResponse.fromEntity(saved)).build();
+        } catch (SecurityException e) {
+            return Response.status(Response.Status.FORBIDDEN).entity(Map.of("error", e.getMessage())).build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", e.getMessage())).build();
+        } catch (Exception e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(Map.of("error", e.getMessage())).build();
+        }
     }
 
     @PUT

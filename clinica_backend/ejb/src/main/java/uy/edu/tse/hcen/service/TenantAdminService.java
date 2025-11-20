@@ -566,18 +566,17 @@ public class TenantAdminService {
             String passwordHash = hashPassword(password);
 
             // 3. Crear usuario en public.usuario con ID auto-generada
-            // H2 no soporta RETURNING, usar getGeneratedKeys() en su lugar
+            // Usar nextval() explícitamente para PostgreSQL
             String insertUsuarioPublic = 
-                "INSERT INTO public.usuario (nombre, email) " +
-                "VALUES (?, ?)";
+                "INSERT INTO public.usuario (id, nombre, email) " +
+                "VALUES (nextval('public.usuario_id_seq'), ?, ?) " +
+                "RETURNING id";
             
             long userId;
-            try (PreparedStatement ps = c.prepareStatement(insertUsuarioPublic, PreparedStatement.RETURN_GENERATED_KEYS)) {
+            try (PreparedStatement ps = c.prepareStatement(insertUsuarioPublic)) {
                 ps.setString(1, "Administrador");
                 ps.setString(2, customUsername + "@clinic.local");
-                ps.executeUpdate();
-                
-                try (ResultSet rs = ps.getGeneratedKeys()) {
+                try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         userId = rs.getLong(1);
                     } else {

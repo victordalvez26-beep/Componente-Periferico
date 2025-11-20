@@ -1,18 +1,18 @@
 package uy.edu.tse.hcen.rest;
 
-import jakarta.ejb.EJB;
 import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.jboss.logging.Logger;
 import uy.edu.tse.hcen.multitenancy.TenantContext;
-import uy.edu.tse.hcen.service.StatsService;
+import uy.edu.tse.hcen.repository.UsuarioSaludRepository;
+import uy.edu.tse.hcen.repository.ProfesionalSaludRepository;
+import jakarta.ejb.EJB;
 
 import java.util.Map;
 
 /**
- * Resource para obtener estadísticas de una clínica.
+ * Resource para obtener estadísticas del dashboard de la clínica.
  */
 @Path("/stats")
 @Produces(MediaType.APPLICATION_JSON)
@@ -21,61 +21,61 @@ public class StatsResource {
     private static final Logger LOG = Logger.getLogger(StatsResource.class);
 
     @EJB
-    private StatsService statsService;
+    private UsuarioSaludRepository usuarioSaludRepository;
+
+    @EJB
+    private ProfesionalSaludRepository profesionalRepository;
 
     /**
-     * Maneja peticiones OPTIONS (CORS preflight) para el endpoint de estadísticas.
-     */
-    @OPTIONS
-    @Path("/{id}")
-    public Response optionsStats(@Context jakarta.ws.rs.core.HttpHeaders headers) {
-        String origin = headers.getRequestHeader("Origin") != null && !headers.getRequestHeader("Origin").isEmpty() 
-                ? headers.getRequestHeader("Origin").get(0) 
-                : null;
-        
-        Response.ResponseBuilder responseBuilder = Response.status(Response.Status.OK);
-        
-        // Agregar headers CORS al preflight
-        if (origin != null && (origin.startsWith("http://localhost:3000") || origin.startsWith("http://localhost:3001"))) {
-            responseBuilder.header("Access-Control-Allow-Origin", origin);
-            responseBuilder.header("Access-Control-Allow-Credentials", "true");
-        } else if (origin != null) {
-            responseBuilder.header("Access-Control-Allow-Origin", origin);
-        } else {
-            responseBuilder.header("Access-Control-Allow-Origin", "*");
-        }
-        responseBuilder.header("Access-Control-Allow-Methods", "GET, OPTIONS");
-        responseBuilder.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
-        responseBuilder.header("Access-Control-Max-Age", "3600");
-        responseBuilder.header("Access-Control-Expose-Headers", "Content-Type, Authorization");
-        
-        return responseBuilder.build();
-    }
-    
-    /**
-     * Obtiene las estadísticas de una clínica.
+     * Obtiene estadísticas generales de la clínica.
      * 
      * @param tenantId ID de la clínica
-     * @return Estadísticas: profesionales, usuarios, documentos, consultas
+     * @return Estadísticas (total pacientes, total profesionales, etc.)
      */
     @GET
-    @Path("/{id}")
-    public Response getStats(@PathParam("id") Long tenantId) {
+    @Path("/{tenantId}")
+    public Response getStats(@PathParam("tenantId") String tenantId) {
+        LOG.infof("Received GET stats request for tenant: %s", tenantId);
+        
         try {
+            if (tenantId == null || tenantId.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "tenantId is required"))
+                        .build();
+            }
+            
             // Establecer el tenant context
-            TenantContext.setCurrentTenant(String.valueOf(tenantId));
+            TenantContext.setCurrentTenant(tenantId);
             
-            Map<String, Long> stats = statsService.getStats(tenantId);
+            try {
+                Long tenantIdLong = Long.parseLong(tenantId);
+                
+                // Obtener estadísticas
+                int totalPacientes = usuarioSaludRepository.findByTenant(tenantIdLong).size();
+                int totalProfesionales = profesionalRepository.findAll().size();
+                
+                Map<String, Object> stats = Map.of(
+                    "tenantId", tenantId,
+                    "totalPacientes", totalPacientes,
+                    "totalProfesionales", totalProfesionales,
+                    "totalDocumentos", 0 // TODO: Implementar cuando haya endpoint de documentos
+                );
+                
+                return Response.ok(stats).build();
+                
+            } finally {
+                TenantContext.clear();
+            }
             
-            return Response.ok(stats).build();
+        } catch (NumberFormatException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "tenantId must be a valid number"))
+                    .build();
         } catch (Exception ex) {
-            LOG.error("Error obteniendo estadísticas", ex);
+            LOG.error("Error getting stats", ex);
             return Response.serverError()
                     .entity(Map.of("error", ex.getMessage()))
                     .build();
-        } finally {
-            TenantContext.clear();
         }
     }
 }
-

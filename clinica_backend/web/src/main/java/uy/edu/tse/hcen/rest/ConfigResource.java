@@ -356,7 +356,12 @@ public class ConfigResource {
     @Path("/activate")
     public Response activate(ActivationRequest req) {
         long startTime = System.currentTimeMillis();
-        LOG.infof("=== ACTIVATE START === Received complete registration request for tenant: %s", req.tenantId);
+        LOG.infof("=== ACTIVATE START === Received complete registration request for tenant: %s", req != null ? req.tenantId : "req is null");
+        if (req != null) {
+            LOG.infof("Request details - tenantId: %s, token: %s, username: %s, rut: %s", 
+                     req.tenantId, req.token != null ? "present" : "null", 
+                     req.username, req.rut);
+        }
         
         try {
             // Validar datos requeridos básicos
@@ -522,6 +527,7 @@ public class ConfigResource {
 
     /**
      * Endpoint GET para obtener la configuración de una clínica por su ID.
+     * Alias: /api/config/clinic/{id} también funciona.
      * 
      * @param id ID de la clínica (tenantId)
      * @return 200 OK con la configuración de la clínica
@@ -624,6 +630,16 @@ public class ConfigResource {
                     "message", "Configuration service is running"
                 ))
                 .build();
+    }
+
+    /**
+     * Endpoint GET alternativo: /api/config/clinic/{id}
+     * Alias para compatibilidad con el frontend.
+     */
+    @GET
+    @Path("/clinic/{id}")
+    public Response getConfigClinic(@PathParam("id") String id) {
+        return getConfig(id);
     }
 
     /**

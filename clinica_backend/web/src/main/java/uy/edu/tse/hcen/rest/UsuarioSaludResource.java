@@ -1,229 +1,335 @@
 package uy.edu.tse.hcen.rest;
 
-import jakarta.ejb.Stateless;
-import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.jboss.logging.Logger;
-import uy.edu.tse.hcen.dto.UsuarioSaludDTO;
+import uy.edu.tse.hcen.dto.DTUsuarioSalud;
 import uy.edu.tse.hcen.model.UsuarioSalud;
-import uy.edu.tse.hcen.service.UsuarioSaludService;
+import uy.edu.tse.hcen.multitenancy.TenantContext;
+import uy.edu.tse.hcen.repository.UsuarioSaludRepository;
+import jakarta.ejb.EJB;
+import jakarta.annotation.security.RolesAllowed;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Endpoint REST para gestionar Usuarios de Salud (pacientes) en las clínicas periféricas.
- * Requiere autenticación con JWT y permisos de administrador de clínica.
+ * Resource para gestionar Usuarios de Salud (pacientes) de una clínica.
  */
 @Path("/clinica/{tenantId}/usuarios-salud")
-@Stateless
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
+@RolesAllowed({"ADMINISTRADOR", "PROFESIONAL"})
 public class UsuarioSaludResource {
-    
-    private static final Logger LOGGER = Logger.getLogger(UsuarioSaludResource.class);
-    
-    @Inject
-    private UsuarioSaludService service;
-    
+
+    private static final Logger LOG = Logger.getLogger(UsuarioSaludResource.class);
+
+    @EJB
+    private UsuarioSaludRepository usuarioSaludRepository;
+
     /**
-     * Crea un nuevo Usuario de Salud (paciente) en la clínica.
-     * 
-     * @param tenantId ID de la clínica
-     * @param dto Datos del paciente
-     * @return El paciente creado
-     */
-    @POST
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Produces(MediaType.APPLICATION_JSON)
-    public Response crearUsuarioSalud(
-        @PathParam("tenantId") Long tenantId,
-        UsuarioSaludDTO dto) {
-        
-        LOGGER.info("POST /clinica/" + tenantId + "/usuarios-salud - Crear paciente CI: " + dto.getCi());
-        
-        try {
-            // Convertir DTO a entidad
-            UsuarioSalud usuario = dtoToEntity(dto);
-            
-            // Crear usuario
-            UsuarioSalud creado = service.crearUsuarioSalud(tenantId, usuario);
-            
-            // Convertir a DTO de respuesta
-            UsuarioSaludDTO responseDto = entityToDto(creado);
-            
-            return Response.status(Response.Status.CREATED)
-                .entity(responseDto)
-                .build();
-                
-        } catch (IllegalArgumentException e) {
-            LOGGER.warn("Error de validación: " + e.getMessage());
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ErrorResponse(e.getMessage()))
-                .build();
-                
-        } catch (Exception e) {
-            LOGGER.error("Error al crear usuario de salud: " + e.getMessage(), e);
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                .entity(new ErrorResponse("Error interno al crear paciente: " + e.getMessage()))
-                .build();
-        }
-    }
-    
-    /**
-     * Obtiene todos los Usuarios de Salud de una clínica.
+     * Obtiene todos los usuarios de salud (pacientes) de una clínica.
      * 
      * @param tenantId ID de la clínica
      * @return Lista de pacientes
      */
     @GET
-    @Produces(MediaType.APPLICATION_JSON)
-    public Response listarUsuariosSalud(@PathParam("tenantId") Long tenantId) {
-        
-        LOGGER.info("GET /clinica/" + tenantId + "/usuarios-salud - Listar pacientes");
+    public Response listAll(@PathParam("tenantId") String tenantId) {
+        LOG.infof("Received GET usuarios-salud request for tenant: %s", tenantId);
         
         try {
-            List<UsuarioSalud> usuarios = service.listarUsuariosSalud(tenantId);
+            if (tenantId == null || tenantId.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "tenantId is required"))
+                        .build();
+            }
             
-            List<UsuarioSaludDTO> dtos = usuarios.stream()
-                .map(this::entityToDto)
-                .collect(Collectors.toList());
+            // Establecer el tenant context
+            TenantContext.setCurrentTenant(tenantId);
             
-            return Response.ok(dtos).build();
+            try {
+                Long tenantIdLong = Long.parseLong(tenantId);
+                List<UsuarioSalud> usuarios = usuarioSaludRepository.findByTenant(tenantIdLong);
+                List<DTUsuarioSalud> dtos = usuarios.stream()
+                        .map(DTUsuarioSalud::fromEntity)
+                        .collect(Collectors.toList());
+                
+                return Response.ok(dtos).build();
+                
+            } finally {
+                TenantContext.clear();
+            }
             
-        } catch (Exception e) {
-            LOGGER.error("Error al listar usuarios de salud: " + e.getMessage(), e);
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                .entity(new ErrorResponse("Error al listar pacientes: " + e.getMessage()))
-                .build();
+        } catch (NumberFormatException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "tenantId must be a valid number"))
+                    .build();
+        } catch (Exception ex) {
+            LOG.error("Error listing usuarios-salud", ex);
+            return Response.serverError()
+                    .entity(Map.of("error", ex.getMessage()))
+                    .build();
         }
     }
-    
+
     /**
-     * Obtiene un Usuario de Salud específico por su ID.
+     * Obtiene un usuario de salud por su ID.
      * 
      * @param tenantId ID de la clínica
-     * @param id ID del paciente
-     * @return El paciente si existe
+     * @param id ID del usuario
+     * @return Usuario de salud
      */
     @GET
     @Path("/{id}")
-    @Produces(MediaType.APPLICATION_JSON)
-    public Response obtenerUsuarioSalud(
-        @PathParam("tenantId") Long tenantId,
-        @PathParam("id") Long id) {
-        
-        LOGGER.info("GET /clinica/" + tenantId + "/usuarios-salud/" + id);
+    public Response getById(@PathParam("tenantId") String tenantId, @PathParam("id") Long id) {
+        LOG.infof("Received GET usuarios-salud request for tenant: %s, id: %s", tenantId, id);
         
         try {
-            UsuarioSalud usuario = service.obtenerUsuarioSalud(id, tenantId);
-            
-            if (usuario == null) {
-                return Response.status(Response.Status.NOT_FOUND)
-                    .entity(new ErrorResponse("Paciente no encontrado"))
-                    .build();
+            if (tenantId == null || tenantId.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "tenantId is required"))
+                        .build();
             }
             
-            return Response.ok(entityToDto(usuario)).build();
+            if (id == null) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "id is required"))
+                        .build();
+            }
             
-        } catch (Exception e) {
-            LOGGER.error("Error al obtener usuario de salud: " + e.getMessage(), e);
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                .entity(new ErrorResponse("Error al obtener paciente: " + e.getMessage()))
-                .build();
+            // Establecer el tenant context
+            TenantContext.setCurrentTenant(tenantId);
+            
+            try {
+                Long tenantIdLong = Long.parseLong(tenantId);
+                UsuarioSalud usuario = usuarioSaludRepository.findById(id, tenantIdLong);
+                
+                if (usuario == null) {
+                    return Response.status(Response.Status.NOT_FOUND)
+                            .entity(Map.of("error", "Usuario no encontrado"))
+                            .build();
+                }
+                
+                return Response.ok(DTUsuarioSalud.fromEntity(usuario)).build();
+                
+            } finally {
+                TenantContext.clear();
+            }
+            
+        } catch (NumberFormatException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "tenantId must be a valid number"))
+                    .build();
+        } catch (Exception ex) {
+            LOG.error("Error getting usuario-salud", ex);
+            return Response.serverError()
+                    .entity(Map.of("error", ex.getMessage()))
+                    .build();
         }
     }
-    
+
     /**
-     * Actualiza un Usuario de Salud existente.
+     * Crea un nuevo usuario de salud (paciente).
      * 
      * @param tenantId ID de la clínica
-     * @param id ID del paciente a actualizar
-     * @param dto Nuevos datos del paciente
-     * @return El paciente actualizado
+     * @param dto Datos del usuario
+     * @return Usuario creado
+     */
+    @POST
+    public Response create(@PathParam("tenantId") String tenantId, DTUsuarioSalud dto) {
+        LOG.infof("Received POST usuarios-salud request for tenant: %s", tenantId);
+        
+        try {
+            if (tenantId == null || tenantId.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "tenantId is required"))
+                        .build();
+            }
+            
+            if (dto == null || dto.getCodDoc() == null || dto.getCodDoc().isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "CI (codDoc) is required"))
+                        .build();
+            }
+            
+            // Establecer el tenant context
+            TenantContext.setCurrentTenant(tenantId);
+            
+            try {
+                Long tenantIdLong = Long.parseLong(tenantId);
+                
+                // Verificar si ya existe un usuario con ese CI
+                UsuarioSalud existente = usuarioSaludRepository.findByCiAndTenant(dto.getCodDoc(), tenantIdLong);
+                if (existente != null) {
+                    return Response.status(Response.Status.CONFLICT)
+                            .entity(Map.of("error", "Ya existe un usuario con ese CI"))
+                            .build();
+                }
+                
+                // Convertir DTO a entidad
+                UsuarioSalud usuario = dto.toEntity();
+                usuario.setTenantId(tenantIdLong);
+                usuario.setFechaAlta(LocalDateTime.now());
+                
+                // Persistir
+                usuarioSaludRepository.persist(usuario);
+                
+                return Response.status(Response.Status.CREATED)
+                        .entity(DTUsuarioSalud.fromEntity(usuario))
+                        .build();
+                
+            } finally {
+                TenantContext.clear();
+            }
+            
+        } catch (NumberFormatException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "tenantId must be a valid number"))
+                    .build();
+        } catch (Exception ex) {
+            LOG.error("Error creating usuario-salud", ex);
+            return Response.serverError()
+                    .entity(Map.of("error", ex.getMessage()))
+                    .build();
+        }
+    }
+
+    /**
+     * Actualiza un usuario de salud existente.
+     * 
+     * @param tenantId ID de la clínica
+     * @param id ID del usuario
+     * @param dto Datos actualizados
+     * @return Usuario actualizado
      */
     @PUT
     @Path("/{id}")
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Produces(MediaType.APPLICATION_JSON)
-    public Response actualizarUsuarioSalud(
-        @PathParam("tenantId") Long tenantId,
-        @PathParam("id") Long id,
-        UsuarioSaludDTO dto) {
-        
-        LOGGER.info("PUT /clinica/" + tenantId + "/usuarios-salud/" + id);
+    public Response update(@PathParam("tenantId") String tenantId, @PathParam("id") Long id, DTUsuarioSalud dto) {
+        LOG.infof("Received PUT usuarios-salud request for tenant: %s, id: %s", tenantId, id);
         
         try {
-            UsuarioSalud usuario = dtoToEntity(dto);
-            UsuarioSalud actualizado = service.actualizarUsuarioSalud(tenantId, id, usuario);
+            if (tenantId == null || tenantId.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "tenantId is required"))
+                        .build();
+            }
             
-            return Response.ok(entityToDto(actualizado)).build();
+            if (id == null) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "id is required"))
+                        .build();
+            }
             
-        } catch (IllegalArgumentException e) {
-            LOGGER.warn("Error de validación: " + e.getMessage());
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ErrorResponse(e.getMessage()))
-                .build();
+            // Establecer el tenant context
+            TenantContext.setCurrentTenant(tenantId);
+            
+            try {
+                Long tenantIdLong = Long.parseLong(tenantId);
                 
-        } catch (Exception e) {
-            LOGGER.error("Error al actualizar usuario de salud: " + e.getMessage(), e);
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                .entity(new ErrorResponse("Error al actualizar paciente: " + e.getMessage()))
-                .build();
+                // Buscar usuario existente
+                UsuarioSalud usuario = usuarioSaludRepository.findById(id, tenantIdLong);
+                if (usuario == null) {
+                    return Response.status(Response.Status.NOT_FOUND)
+                            .entity(Map.of("error", "Usuario no encontrado"))
+                            .build();
+                }
+                
+                // Actualizar campos
+                if (dto.getNombre() != null) usuario.setNombre(dto.getNombre());
+                if (dto.getApellido() != null) usuario.setApellido(dto.getApellido());
+                if (dto.getFechaNacimiento() != null) {
+                    usuario.setFechaNacimiento(dto.getFechaNacimiento().toInstant()
+                            .atZone(java.time.ZoneId.systemDefault()).toLocalDate());
+                }
+                if (dto.getDireccion() != null) usuario.setDireccion(dto.getDireccion());
+                if (dto.getTelefono() != null) usuario.setTelefono(dto.getTelefono());
+                if (dto.getEmail() != null) usuario.setEmail(dto.getEmail());
+                if (dto.getDepartamento() != null) usuario.setDepartamento(dto.getDepartamento());
+                if (dto.getLocalidad() != null) usuario.setLocalidad(dto.getLocalidad());
+                
+                usuario.setFechaActualizacion(LocalDateTime.now());
+                
+                // Actualizar
+                usuarioSaludRepository.merge(usuario);
+                
+                return Response.ok(DTUsuarioSalud.fromEntity(usuario)).build();
+                
+            } finally {
+                TenantContext.clear();
+            }
+            
+        } catch (NumberFormatException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "tenantId must be a valid number"))
+                    .build();
+        } catch (Exception ex) {
+            LOG.error("Error updating usuario-salud", ex);
+            return Response.serverError()
+                    .entity(Map.of("error", ex.getMessage()))
+                    .build();
         }
     }
-    
-    // Helper methods para conversión DTO <-> Entity
-    
-    private UsuarioSalud dtoToEntity(UsuarioSaludDTO dto) {
-        UsuarioSalud usuario = new UsuarioSalud();
-        usuario.setId(dto.getId());
-        usuario.setCi(dto.getCi());
-        usuario.setNombre(dto.getNombre());
-        usuario.setApellido(dto.getApellido());
-        usuario.setFechaNacimiento(dto.getFechaNacimiento());
-        usuario.setDireccion(dto.getDireccion());
-        usuario.setTelefono(dto.getTelefono());
-        usuario.setEmail(dto.getEmail());
-        usuario.setDepartamento(dto.getDepartamento());
-        usuario.setLocalidad(dto.getLocalidad());
-        usuario.setHcenUserId(dto.getHcenUserId());
-        return usuario;
-    }
-    
-    private UsuarioSaludDTO entityToDto(UsuarioSalud entity) {
-        UsuarioSaludDTO dto = new UsuarioSaludDTO();
-        dto.setId(entity.getId());
-        dto.setCi(entity.getCi());
-        dto.setNombre(entity.getNombre());
-        dto.setApellido(entity.getApellido());
-        dto.setFechaNacimiento(entity.getFechaNacimiento());
-        dto.setDireccion(entity.getDireccion());
-        dto.setTelefono(entity.getTelefono());
-        dto.setEmail(entity.getEmail());
-        dto.setDepartamento(entity.getDepartamento());
-        dto.setLocalidad(entity.getLocalidad());
-        dto.setHcenUserId(entity.getHcenUserId());
-        return dto;
-    }
-    
+
     /**
-     * Clase interna para respuestas de error.
+     * Elimina un usuario de salud.
+     * 
+     * @param tenantId ID de la clínica
+     * @param id ID del usuario
+     * @return 204 No Content
      */
-    public static class ErrorResponse {
-        private String error;
+    @DELETE
+    @Path("/{id}")
+    public Response delete(@PathParam("tenantId") String tenantId, @PathParam("id") Long id) {
+        LOG.infof("Received DELETE usuarios-salud request for tenant: %s, id: %s", tenantId, id);
         
-        public ErrorResponse(String error) {
-            this.error = error;
-        }
-        
-        public String getError() {
-            return error;
-        }
-        
-        public void setError(String error) {
-            this.error = error;
+        try {
+            if (tenantId == null || tenantId.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "tenantId is required"))
+                        .build();
+            }
+            
+            if (id == null) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "id is required"))
+                        .build();
+            }
+            
+            // Establecer el tenant context
+            TenantContext.setCurrentTenant(tenantId);
+            
+            try {
+                Long tenantIdLong = Long.parseLong(tenantId);
+                
+                // Buscar usuario existente
+                UsuarioSalud usuario = usuarioSaludRepository.findById(id, tenantIdLong);
+                if (usuario == null) {
+                    return Response.status(Response.Status.NOT_FOUND)
+                            .entity(Map.of("error", "Usuario no encontrado"))
+                            .build();
+                }
+                
+                // Eliminar
+                usuarioSaludRepository.remove(usuario);
+                
+                return Response.noContent().build();
+                
+            } finally {
+                TenantContext.clear();
+            }
+            
+        } catch (NumberFormatException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "tenantId must be a valid number"))
+                    .build();
+        } catch (Exception ex) {
+            LOG.error("Error deleting usuario-salud", ex);
+            return Response.serverError()
+                    .entity(Map.of("error", ex.getMessage()))
+                    .build();
         }
     }
 }
-
