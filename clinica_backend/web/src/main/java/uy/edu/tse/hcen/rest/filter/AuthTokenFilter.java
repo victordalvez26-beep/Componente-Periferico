@@ -25,30 +25,70 @@ import java.util.Map;
 @Priority(Priorities.AUTHENTICATION - 100) // Prioridad más alta para manejar OPTIONS antes que otros filtros
 public class AuthTokenFilter implements ContainerRequestFilter, ContainerResponseFilter {
 
+    // Orígenes permitidos para CORS (configurable mediante variable de entorno)
+    // Formato: "http://localhost:3000,http://localhost:3001,https://example.com"
+    // Si no se define, se permite cualquier origen (solo para desarrollo)
+    private static final String ALLOWED_ORIGINS_ENV = "CORS_ALLOWED_ORIGINS";
+    private static final String ALLOW_CREDENTIALS_ENV = "CORS_ALLOW_CREDENTIALS";
+    
+    private static final String[] DEFAULT_ALLOWED_ORIGINS = {
+        "http://localhost:3000",
+        "http://localhost:3001"
+    };
+    
+    private static final boolean DEFAULT_ALLOW_CREDENTIALS = true;
+    
+    // Cache de orígenes permitidos (se lee una vez al inicializar)
+    private static final String[] allowedOrigins = initAllowedOrigins();
+    private static final boolean allowCredentials = initAllowCredentials();
+    
+    private static String[] initAllowedOrigins() {
+        String envValue = System.getProperty(ALLOWED_ORIGINS_ENV, 
+                System.getenv().getOrDefault(ALLOWED_ORIGINS_ENV, null));
+        
+        if (envValue != null && !envValue.trim().isEmpty()) {
+            // Si está configurado, usar los valores de la variable de entorno
+            return envValue.split(",");
+        }
+        
+        // Si no está configurado, usar valores por defecto para desarrollo
+        return DEFAULT_ALLOWED_ORIGINS;
+    }
+    
+    private static boolean initAllowCredentials() {
+        String envValue = System.getProperty(ALLOW_CREDENTIALS_ENV,
+                System.getenv().getOrDefault(ALLOW_CREDENTIALS_ENV, null));
+        
+        if (envValue != null && !envValue.trim().isEmpty()) {
+            return Boolean.parseBoolean(envValue);
+        }
+        
+        return DEFAULT_ALLOW_CREDENTIALS;
+    }
+    
+    private static boolean isOriginAllowed(String origin) {
+        if (origin == null || origin.isEmpty()) {
+            return false;
+        }
+        
+        // Si no hay orígenes configurados explícitamente, permitir todos (solo desarrollo)
+        if (allowedOrigins.length == 0) {
+            return true;
+        }
+        
+        // Verificar si el origen está en la lista permitida
+        for (String allowed : allowedOrigins) {
+            if (origin.equals(allowed.trim()) || origin.startsWith(allowed.trim())) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
-        // Manejar peticiones OPTIONS (CORS preflight) - siempre permitir con headers CORS
-        if ("OPTIONS".equalsIgnoreCase(requestContext.getMethod())) {
-            String origin = requestContext.getHeaderString("Origin");
-            Response.ResponseBuilder responseBuilder = Response.status(Response.Status.OK);
-            
-            // Agregar headers CORS al preflight
-            if (origin != null && (origin.startsWith("http://localhost:3000") || origin.startsWith("http://localhost:3001"))) {
-                responseBuilder.header("Access-Control-Allow-Origin", origin);
-                responseBuilder.header("Access-Control-Allow-Credentials", "true");
-            } else if (origin != null) {
-                responseBuilder.header("Access-Control-Allow-Origin", origin);
-            } else {
-                responseBuilder.header("Access-Control-Allow-Origin", "*");
-            }
-            responseBuilder.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH");
-            responseBuilder.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
-            responseBuilder.header("Access-Control-Max-Age", "3600");
-            responseBuilder.header("Access-Control-Expose-Headers", "Content-Type, Authorization");
-            
-            requestContext.abortWith(responseBuilder.build());
-            return;
-        }
+        // NO manejar OPTIONS aquí - dejar que JAX-RS lo maneje y agregar headers en el response filter
         
         // Excluir endpoints públicos que NO requieren autenticación JWT:
         // - /config/* : Llamados por HCEN central (init, update, delete, activate, health)
@@ -130,18 +170,40 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
     public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) throws IOException {
         // Agregar headers CORS para permitir llamadas desde el frontend React (localhost:3000 y 3001)
         String origin = requestContext.getHeaderString("Origin");
-        if (origin != null && (origin.startsWith("http://localhost:3000") || origin.startsWith("http://localhost:3001"))) {
+        String method = requestContext.getMethod();
+        
+        // Para peticiones OPTIONS (preflight), asegurar que se devuelva 200 OK y headers completos
+        if ("OPTIONS".equalsIgnoreCase(method)) {
+            responseContext.setStatus(Response.Status.OK.getStatusCode());
+        }
+        
+        // Agregar headers CORS
+        if (origin != null && isOriginAllowed(origin)) {
+            // Origen permitido - usar el origen específico
             responseContext.getHeaders().add("Access-Control-Allow-Origin", origin);
-            responseContext.getHeaders().add("Access-Control-Allow-Credentials", "true");
+            if (allowCredentials) {
+                responseContext.getHeaders().add("Access-Control-Allow-Credentials", "true");
+            }
         } else if (origin != null) {
-            // Para otros orígenes, permitir pero sin credentials
+            // Origen no permitido - en producción debería rechazarse, pero para desarrollo permitimos sin credentials
+            // En producción, considera no agregar el header o devolver un error
             responseContext.getHeaders().add("Access-Control-Allow-Origin", origin);
         } else {
             // Si no hay Origin header, permitir cualquier origen (solo para desarrollo)
+            // En producción, esto debería estar deshabilitado
             responseContext.getHeaders().add("Access-Control-Allow-Origin", "*");
         }
+        
         responseContext.getHeaders().add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH");
-        responseContext.getHeaders().add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+        
+        // Headers permitidos - incluir los que el cliente solicita en preflight
+        String accessControlRequestHeaders = requestContext.getHeaderString("Access-Control-Request-Headers");
+        String allowedHeaders = "Content-Type, Authorization, X-Requested-With, Accept, Origin";
+        if (accessControlRequestHeaders != null && !accessControlRequestHeaders.isEmpty()) {
+            allowedHeaders = accessControlRequestHeaders + ", " + allowedHeaders;
+        }
+        responseContext.getHeaders().add("Access-Control-Allow-Headers", allowedHeaders);
+        responseContext.getHeaders().add("Access-Control-Max-Age", "3600");
         responseContext.getHeaders().add("Access-Control-Expose-Headers", "Content-Type, Authorization");
         
         // Limpiar el TenantContext al finalizar la petición para evitar fugas entre hilos
