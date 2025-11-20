@@ -52,11 +52,12 @@ function DocumentosPage() {
 
   const descargarDocumento = async (documentoId) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/hcen-web/api/documentos-pdf/${documentoId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      // Usar el mismo flujo que el frontend HCEN: llamar al backend HCEN con el ID de la metadata
+      // El backend HCEN hará proxy al componente periférico usando la URI almacenada
+      const backendUrl = process.env.REACT_APP_HCEN_BACKEND_URL || 'http://localhost:8080';
+      const response = await fetch(`${backendUrl}/api/metadatos-documento/${documentoId}/descargar`, {
+        method: 'GET',
+        credentials: 'include', // Incluir cookies para autenticación
       });
 
       if (response.ok) {
@@ -70,10 +71,11 @@ function DocumentosPage() {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       } else {
-        alert('Error al descargar el documento');
+        const errorText = await response.text();
+        alert(`Error al descargar el documento: ${errorText || 'Error desconocido'}`);
       }
     } catch (err) {
-      alert('Error al descargar el documento');
+      alert('Error al descargar el documento: ' + err.message);
       console.error('Error:', err);
     }
   };
@@ -233,6 +235,7 @@ function DocumentosPage() {
                   onClick={() => descargarDocumento(doc.id)}
                   style={styles.downloadButton}
                   title="Descargar PDF"
+                  disabled={!doc.id}
                 >
                   ⬇️ Descargar
                 </button>

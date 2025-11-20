@@ -14,6 +14,7 @@ import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import uy.edu.tse.hcen.multitenancy.TenantContext;
 import uy.edu.tse.hcen.service.DocumentoPdfService;
 import uy.edu.tse.hcen.service.ProfesionalSaludService;
+import uy.edu.tse.hcen.client.PoliticasAccesoClient;
 
 import java.io.InputStream;
 import java.net.URI;
@@ -40,6 +41,9 @@ public class DocumentoPdfResource {
 
     @Inject
     private ProfesionalSaludService profesionalSaludService;
+
+    @Inject
+    private PoliticasAccesoClient politicasAccesoClient;
 
     @Context
     private jakarta.ws.rs.core.SecurityContext securityContext;
@@ -174,21 +178,32 @@ public class DocumentoPdfResource {
     @RolesAllowed("PROFESIONAL")
     public Response listarDocumentosPorPaciente(@PathParam("ci") String ci) {
         try {
-            // Obtener tenant actual
+            // Obtener tenant actual (clínica del profesional)
             String tenantIdStr = TenantContext.getCurrentTenant();
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
                 return Response.status(Response.Status.BAD_REQUEST)
                         .entity(Map.of("error", "Tenant no identificado"))
                         .build();
             }
-            Long tenantId = Long.parseLong(tenantIdStr);
-
-            // Validar que el paciente pertenece a esta clínica
-            // (esto se valida implícitamente en el servicio al buscar por tenant)
             
-            // Listar documentos
+            // Obtener información del profesional autenticado
+            String profesionalId = null;
+            if (securityContext != null && securityContext.getUserPrincipal() != null) {
+                profesionalId = securityContext.getUserPrincipal().getName();
+            }
+            
+            if (profesionalId == null || profesionalId.isBlank()) {
+                return Response.status(Response.Status.UNAUTHORIZED)
+                        .entity(Map.of("error", "No se pudo identificar al profesional autenticado"))
+                        .build();
+            }
+            
+            LOG.info(String.format("Listando documentos del paciente %s - Profesional: %s, Clínica: %s", 
+                    ci, profesionalId, tenantIdStr));
+            
+            // Listar documentos de TODAS las clínicas, filtrando por políticas de acceso
             java.util.List<Map<String, Object>> documentos = 
-                    documentoPdfService.listarDocumentosPorPaciente(ci, tenantId);
+                    documentoPdfService.listarDocumentosPorPaciente(ci, profesionalId, tenantIdStr);
 
             return Response.ok(documentos).build();
 
@@ -233,7 +248,65 @@ public class DocumentoPdfResource {
                 tenantId = 1L;
             }
 
-            LOG.info(String.format("🔍 [PERIFERICO] Buscando PDF en MongoDB - ID: %s, Tenant: %d", id, tenantId));
+            // Obtener metadata del documento para verificar permisos
+            LOG.info(String.format("🔍 [PERIFERICO] Obteniendo metadata del documento - ID: %s, Tenant: %d", id, tenantId));
+            Map<String, Object> metadata = documentoPdfService.obtenerMetadataPorId(id, tenantId);
+            
+            if (metadata == null) {
+                LOG.warn(String.format("❌ [PERIFERICO] Documento no encontrado - ID: %s, Tenant: %d", id, tenantId));
+                return Response.status(Response.Status.NOT_FOUND)
+                        .entity("Documento no encontrado")
+                        .build();
+            }
+            
+            String pacienteCI = (String) metadata.get("ciPaciente");
+            String tipoDocumento = (String) metadata.get("tipoDocumento");
+            
+            // Obtener información del profesional autenticado
+            String profesionalId = null;
+            if (securityContext != null && securityContext.getUserPrincipal() != null) {
+                profesionalId = securityContext.getUserPrincipal().getName();
+            }
+            
+            // Si la llamada viene del backend HCEN (token de servicio), saltarse la verificación de permisos
+            // porque el backend HCEN ya verificó las políticas antes de hacer el proxy
+            boolean esLlamadaDesdeBackendHCEN = profesionalId != null && 
+                    (profesionalId.equals("hcen-backend") || profesionalId.startsWith("HCEN-Service") || 
+                     profesionalId.contains("service") || profesionalId.contains("backend"));
+            
+            if (esLlamadaDesdeBackendHCEN) {
+                LOG.info(String.format("✅ [PERIFERICO] Llamada desde backend HCEN detectada (profesionalId: %s), saltando verificación de permisos (ya verificada en backend)", 
+                        profesionalId));
+            } else {
+                // Verificar permisos de acceso usando el servicio de políticas solo si NO es llamada desde backend HCEN
+                if (profesionalId != null && !profesionalId.isBlank() && pacienteCI != null && !pacienteCI.isBlank()) {
+                    LOG.info(String.format("🔐 [PERIFERICO] Verificando permisos - Profesional: %s, Paciente: %s, Tipo: %s, Tenant: %s", 
+                            profesionalId, pacienteCI, tipoDocumento, tenantIdStr));
+                    
+                    boolean tienePermiso = politicasAccesoClient.verificarPermiso(
+                            profesionalId, 
+                            pacienteCI, 
+                            tipoDocumento, 
+                            tenantIdStr);
+                    
+                    if (!tienePermiso) {
+                        LOG.warn(String.format("❌ [PERIFERICO] Acceso denegado - Profesional: %s, Paciente: %s", 
+                                profesionalId, pacienteCI));
+                        return Response.status(Response.Status.FORBIDDEN)
+                                .entity("No tiene permiso para acceder a este documento. Se requiere una política de acceso aprobada.")
+                                .build();
+                    }
+                    
+                    LOG.info(String.format("✅ [PERIFERICO] Permiso concedido - Profesional: %s, Paciente: %s", 
+                            profesionalId, pacienteCI));
+                } else {
+                    // Si no hay información del profesional, permitir descarga (para compatibilidad con llamadas desde HCEN backend)
+                    LOG.info("⚠️ [PERIFERICO] No se pudo obtener información del profesional, permitiendo descarga (compatibilidad con HCEN backend)");
+                }
+            }
+
+            // Obtener el PDF
+            LOG.info(String.format("🔍 [PERIFERICO] Obteniendo PDF de MongoDB - ID: %s, Tenant: %d", id, tenantId));
             byte[] pdfBytes = documentoPdfService.obtenerPdfPorId(id, tenantId);
             
             if (pdfBytes == null) {
