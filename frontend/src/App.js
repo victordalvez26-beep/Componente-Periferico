@@ -6,7 +6,7 @@ import TenantProtectedRoute from './components/TenantProtectedRoute';
 import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import ProfesionalesPage from './pages/ProfesionalesPage';
-import UsuariosSaludPage from './pages/UsuariosSaludPage';
+import UsuariosSaludPage from './pages/UsuariosSaludPage.js';
 import ConfiguracionPage from './pages/ConfiguracionPage';
 import DocumentosPage from './pages/DocumentosPage';
 import './index.css';
