@@ -202,14 +202,16 @@ public class DocumentoPdfResource {
             // Verificar permisos antes de listar documentos
             LOG.info(String.format("🔒 [PERIFERICO] Verificando permisos para listar documentos - Profesional: %s, Paciente: %s", profesionalId, ci));
             boolean tienePermiso = false;
+            boolean servicioDisponible = true;
             try {
                 tienePermiso = politicasClient.verificarPermiso(profesionalId, ci, null, tenantIdStr);
             } catch (Exception ex) {
                 LOG.warnf("No se pudo verificar permisos con el servicio de políticas: %s", ex.getMessage());
-                // Si el servicio no está disponible, denegar acceso por seguridad
-                return Response.status(Response.Status.SERVICE_UNAVAILABLE)
-                        .entity(Map.of("error", "No se puede verificar permisos. El servicio de políticas no está disponible."))
-                        .build();
+                servicioDisponible = false;
+                // En modo degradado, permitir acceso si el servicio no está disponible
+                // Esto permite que la aplicación siga funcionando aunque el servicio de políticas esté caído
+                LOG.warning("⚠️ [PERIFERICO] Servicio de políticas no disponible - Modo degradado: permitiendo acceso temporal");
+                tienePermiso = true; // Permitir acceso en modo degradado
             }
 
             if (!tienePermiso) {

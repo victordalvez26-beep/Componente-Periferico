@@ -25,9 +25,10 @@ public class OpenAIService {
     private static final String CHAT_COMPLETIONS_ENDPOINT = "/chat/completions";
     private static final String MODEL_NAME = "openai/gpt-oss-20b:free";
     
-    // Token de OpenRouter (debe configurarse como variable de entorno)
+    // Token de OpenRouter (debe configurarse como variable de entorno en .env)
     private static final String ENV_OPENROUTER_API_KEY = "OPENROUTER_API_KEY";
-    private static final String DEFAULT_TOKEN = "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";
+    // NO hardcodear tokens aquí - deben venir de variables de entorno
+    private static final String DEFAULT_TOKEN = null; // Se debe configurar OPENROUTER_API_KEY en .env
 
     /**
      * Genera un resumen de la historia clínica usando OpenAI o3.
@@ -41,11 +42,12 @@ public class OpenAIService {
         }
 
         String token = System.getProperty(ENV_OPENROUTER_API_KEY,
-                System.getenv().getOrDefault(ENV_OPENROUTER_API_KEY, DEFAULT_TOKEN));
+                System.getenv().getOrDefault(ENV_OPENROUTER_API_KEY, null));
         
         if (token == null || token.isBlank()) {
-            LOG.log(Level.WARNING, "OPENROUTER_API_KEY no está configurado, usando token por defecto");
-            token = DEFAULT_TOKEN;
+            String errorMsg = "OPENROUTER_API_KEY no está configurado. Por favor, configure la variable de entorno OPENROUTER_API_KEY en el archivo .env";
+            LOG.log(Level.SEVERE, errorMsg);
+            throw new IllegalStateException(errorMsg);
         }
         
         LOG.log(Level.INFO, "Usando OPENROUTER_API_KEY (primeros 10 caracteres): {0}", 

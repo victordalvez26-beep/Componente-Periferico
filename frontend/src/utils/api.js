@@ -2,7 +2,7 @@
  * Utilidad centralizada para construir URLs de API
  * 
  * Si REACT_APP_BACKEND_URL está definida, se usa directamente.
- * Si no, se usa ruta relativa para que el proxy (setupProxy.js) la maneje.
+ * Si no, se usa ruta relativa para que el proxy (nginx) la maneje.
  */
 export const getApiUrl = (endpoint) => {
   const backendBase = process.env.REACT_APP_BACKEND_URL || '';
@@ -25,3 +25,26 @@ export const getApiUrl = (endpoint) => {
   return endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
 };
 
+/**
+ * Obtiene el token JWT del localStorage
+ */
+export const getToken = () => {
+  return localStorage.getItem('token');
+};
+
+/**
+ * Crea headers con autenticación Bearer si hay token disponible
+ */
+export const getAuthHeaders = (additionalHeaders = {}) => {
+  const token = getToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...additionalHeaders
+  };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  return headers;
+};

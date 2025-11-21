@@ -52,6 +52,10 @@ services:
         condition: service_healthy 
       mongodb:
         condition: service_started
+    
+    # Cargar variables de entorno desde .env (incluye OPENROUTER_API_KEY)
+    env_file:
+      - .env
         
     # Variables de Entorno cruciales para su aplicación Java EE (JWT y MongoDB)
     environment:
@@ -60,14 +64,14 @@ services:
       MONGO_PORT: 27017
       MONGODB_URI: "mongodb://mongodb:27017/hcen_db"
       MONGODB_DB: "hcen_db"
-      OPENROUTER_API_KEY: "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"
+      # OPENROUTER_API_KEY se carga desde .env (no hardcodear aquí)
       # URL base del nodo periférico para construir URIs de acceso a documentos
       # Desde el backend HCEN se convertirá a hcen-wildfly-app:8080 para acceso interno Docker
       NODO_BASE_URL: "http://localhost:8081"
       # URL del servicio de políticas (backend HCEN central)
       # Si el backend HCEN está en la misma red Docker, usar el nombre del contenedor
       # Si está en el host, usar host.docker.internal o la IP del host
-      POLITICAS_SERVICE_URL: "http://hcen-backend:8080/hcen-politicas-service/api"
+      POLITICAS_SERVICE_URL: "http://wildfly-politicas:8280/hcen-politicas-service/api"
       
     volumes:
       # Deploy ONLY the EAR file (not the whole directory to avoid WildFly deploying extracted contents)
