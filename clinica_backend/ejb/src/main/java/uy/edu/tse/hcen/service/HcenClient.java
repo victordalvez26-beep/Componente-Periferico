@@ -26,14 +26,47 @@ public class HcenClient {
 
     private static final Logger LOG = Logger.getLogger(HcenClient.class.getName());
 
-        // The HCEN central endpoint can be overridden via the HCEN_CENTRAL_URL environment variable
+        // The HCEN central endpoint can be overridden via the HCEN_BACKEND_URL or HCEN_CENTRAL_URL environment variable
         // URL correcta: /api (ApplicationPath) + /metadatos-documento (Path del recurso)
-        // Usar nombre del servicio Docker para comunicación entre contenedores
-        private static final String DEFAULT_CENTRAL_URL = "http://hcen-backend:8080/api/metadatos-documento";
+        // Si no se configura, intenta detectar si está en Docker (hcen-backend) o localhost
+        // En Docker, usar nombre del servicio; en local, usar localhost:8080
+        private static final String DEFAULT_CENTRAL_URL = detectDefaultCentralUrl() + "/api/metadatos-documento";
     
     // URL para obtener token de servicio
-    // Usar nombre del servicio Docker para comunicación entre contenedores
-    private static final String DEFAULT_SERVICE_AUTH_URL = "http://hcen-backend:8080/api/service-auth/token";
+    // Usar misma lógica de detección que DEFAULT_CENTRAL_URL
+    private static final String DEFAULT_SERVICE_AUTH_URL = detectDefaultCentralUrl() + "/api/service-auth/token";
+    
+    /**
+     * Detecta la URL por defecto del backend HCEN.
+     * Prioriza: HCEN_BACKEND_URL > HCEN_CENTRAL_URL > Detección automática (Docker vs localhost)
+     */
+    private static String detectDefaultCentralUrl() {
+        // Prioridad 1: Variable de entorno HCEN_BACKEND_URL
+        String hcenBackendUrl = System.getenv("HCEN_BACKEND_URL");
+        if (hcenBackendUrl != null && !hcenBackendUrl.isBlank()) {
+            return hcenBackendUrl;
+        }
+        
+        // Prioridad 2: Variable de entorno HCEN_CENTRAL_URL (compatibilidad)
+        String hcenCentralUrl = System.getenv("HCEN_CENTRAL_URL");
+        if (hcenCentralUrl != null && !hcenCentralUrl.isBlank()) {
+            // Si tiene /metadatos-documento al final, removerlo
+            if (hcenCentralUrl.contains("/metadatos-documento")) {
+                return hcenCentralUrl.replace("/metadatos-documento", "");
+            }
+            return hcenCentralUrl;
+        }
+        
+        // Prioridad 3: Detección automática
+        // Si estamos en Docker (nombre del servicio existe), usar nombre del servicio
+        // Sino, usar localhost (desarrollo local)
+        try {
+            java.net.InetAddress.getByName("hcen-backend");
+            return "http://hcen-backend:8080";
+        } catch (java.net.UnknownHostException e) {
+            return "http://localhost:8080";
+        }
+    }
     
     // Cache del token de servicio (para evitar obtener uno nuevo en cada llamada)
     private String cachedServiceToken = null;
@@ -120,8 +153,16 @@ public class HcenClient {
     }
 
     public void registrarMetadatos(DTMetadatos dto) throws HcenUnavailableException {
-        String centralUrl = System.getProperty(ENV_HCEN_CENTRAL_URL,
-                System.getenv().getOrDefault(ENV_HCEN_CENTRAL_URL, DEFAULT_CENTRAL_URL));
+        // Prioridad: HCEN_BACKEND_URL > HCEN_CENTRAL_URL > DEFAULT_CENTRAL_URL
+        String centralUrl = System.getenv().getOrDefault("HCEN_BACKEND_URL",
+                System.getProperty("HCEN_BACKEND_URL",
+                System.getenv().getOrDefault(ENV_HCEN_CENTRAL_URL,
+                DEFAULT_CENTRAL_URL)));
+        
+        // Si la URL base no tiene /metadatos-documento, agregarlo
+        if (!centralUrl.contains("/metadatos-documento")) {
+            centralUrl = centralUrl + (centralUrl.endsWith("/api") ? "/metadatos-documento" : "/api/metadatos-documento");
+        }
 
         LOG.info(String.format("HcenClient.registrarMetadatos - URL: %s, CI: %s", 
                 centralUrl, dto != null ? dto.getDocumentoIdPaciente() : "null"));
@@ -181,8 +222,16 @@ public class HcenClient {
      * Envía el payload completo (incluyendo datosPatronimicos) al central.
      */
     public void registrarMetadatosCompleto(Map<String, Object> payload) throws HcenUnavailableException {
-        String centralUrl = System.getProperty(ENV_HCEN_CENTRAL_URL,
-                System.getenv().getOrDefault(ENV_HCEN_CENTRAL_URL, DEFAULT_CENTRAL_URL));
+        // Prioridad: HCEN_BACKEND_URL > HCEN_CENTRAL_URL > DEFAULT_CENTRAL_URL
+        String centralUrl = System.getenv().getOrDefault("HCEN_BACKEND_URL",
+                System.getProperty("HCEN_BACKEND_URL",
+                System.getenv().getOrDefault(ENV_HCEN_CENTRAL_URL,
+                DEFAULT_CENTRAL_URL)));
+        
+        // Si la URL base no tiene /metadatos-documento, agregarlo
+        if (!centralUrl.contains("/metadatos-documento")) {
+            centralUrl = centralUrl + (centralUrl.endsWith("/api") ? "/metadatos-documento" : "/api/metadatos-documento");
+        }
 
         // Obtener token de servicio
         String serviceToken = getServiceToken();
@@ -227,9 +276,21 @@ public class HcenClient {
             String ciPaciente, String profesionalId, String tenantId, String especialidad) 
             throws HcenUnavailableException {
         // Construir URL del endpoint de metadatos por CI
-        String baseUrl = System.getProperty(ENV_HCEN_CENTRAL_URL,
-                System.getenv().getOrDefault(ENV_HCEN_CENTRAL_URL, "http://hcen-backend:8080/api"));
-        String metadatosUrl = baseUrl.replace("/metadatos-documento", "") + "/metadatos-documento/paciente/" + ciPaciente;
+        // Prioridad: HCEN_BACKEND_URL > HCEN_CENTRAL_URL > Detección automática
+        String baseUrl = System.getenv().getOrDefault("HCEN_BACKEND_URL",
+                System.getProperty("HCEN_BACKEND_URL",
+                System.getenv().getOrDefault(ENV_HCEN_CENTRAL_URL,
+                detectDefaultCentralUrl())));
+        
+        // Limpiar baseUrl si tiene /metadatos-documento al final
+        if (baseUrl.contains("/metadatos-documento")) {
+            baseUrl = baseUrl.replace("/metadatos-documento", "");
+        }
+        if (!baseUrl.endsWith("/api")) {
+            baseUrl = baseUrl + "/api";
+        }
+        
+        String metadatosUrl = baseUrl + "/metadatos-documento/paciente/" + ciPaciente;
         
         // Agregar query parameters si están disponibles
         if (profesionalId != null && !profesionalId.isBlank()) {
@@ -288,8 +349,11 @@ public class HcenClient {
             throws HcenUnavailableException {
         // URL base de HCEN central para endpoints de paciente
         // El endpoint es /api/paciente/{id}/metadatos
-        String baseUrl = System.getProperty("HCEN_CENTRAL_BASE_URL",
-                System.getenv().getOrDefault("HCEN_CENTRAL_BASE_URL", "http://127.0.0.1:8080/api"));
+        // Usar HCEN_BACKEND_URL con prioridad, luego HCEN_CENTRAL_BASE_URL, luego detección automática
+        String baseUrl = System.getenv().getOrDefault("HCEN_BACKEND_URL", 
+                System.getProperty("HCEN_BACKEND_URL",
+                System.getenv().getOrDefault("HCEN_CENTRAL_BASE_URL",
+                detectDefaultCentralUrl()))) + "/api";
         
         // Construir URL del endpoint de paciente
         String pacienteUrl = baseUrl + "/paciente/" + documentoIdPaciente + "/metadatos";

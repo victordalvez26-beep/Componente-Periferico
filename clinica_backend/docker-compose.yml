@@ -66,6 +66,11 @@ services:
       # URL base del nodo periférico para construir URIs de acceso a documentos
       # Desde el backend HCEN se convertirá a hcen-wildfly-app:8080 para acceso interno Docker
       NODO_BASE_URL: "http://localhost:8081"
+      # URL del backend HCEN central (para llamadas desde el componente periférico)
+      # Default: http://localhost:8080 (para desarrollo local)
+      # En Docker, se puede usar http://hcen-backend:8080 si están en la misma red
+      # En producción, configurar con URL del servidor donde corre el backend HCEN
+      HCEN_BACKEND_URL: "http://localhost:8080"
       
     volumes:
       # Deploy ONLY the EAR file (not the whole directory to avoid WildFly deploying extracted contents)
