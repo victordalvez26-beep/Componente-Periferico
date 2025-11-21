@@ -67,10 +67,10 @@ services:
       # Desde el backend HCEN se convertirá a hcen-wildfly-app:8080 para acceso interno Docker
       NODO_BASE_URL: "http://localhost:8081"
       # URL del backend HCEN central (para llamadas desde el componente periférico)
-      # Default: http://localhost:8080 (para desarrollo local)
-      # En Docker, se puede usar http://hcen-backend:8080 si están en la misma red
+      # En Docker, usar el nombre del servicio: hcen-backend:8080
+      # Para desarrollo local fuera de Docker, usar http://localhost:8080
       # En producción, configurar con URL del servidor donde corre el backend HCEN
-      HCEN_BACKEND_URL: "http://localhost:8080"
+      HCEN_BACKEND_URL: "http://hcen-backend:8080"
       
     volumes:
       # Deploy ONLY the EAR file (not the whole directory to avoid WildFly deploying extracted contents)
