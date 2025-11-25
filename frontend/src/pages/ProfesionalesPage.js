@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { useClinicConfig } from '../hooks/useClinicConfig';
 
 function ProfesionalesPage() {
   const { tenantId } = useParams();
+  const { config } = useClinicConfig(tenantId);
   const [profesionales, setProfesionales] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -175,7 +177,16 @@ function ProfesionalesPage() {
       <div style={styles.header}>
         <button
           onClick={() => setShowForm(!showForm)}
-          style={styles.addButton}
+          style={{
+            ...styles.addButton,
+            backgroundColor: config.colorPrimario
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.backgroundColor = config.colorSecundario;
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.backgroundColor = config.colorPrimario;
+          }}
         >
           {showForm ? '❌ Cancelar' : '➕ Nuevo Profesional'}
         </button>
@@ -286,7 +297,24 @@ function ProfesionalesPage() {
             </div>
 
             <div style={styles.formActions}>
-              <button type="submit" style={styles.saveButton} disabled={loading}>
+              <button 
+                type="submit" 
+                style={{
+                  ...styles.saveButton,
+                  backgroundColor: config.colorPrimario
+                }}
+                disabled={loading}
+                onMouseEnter={(e) => {
+                  if (!loading) {
+                    e.target.style.backgroundColor = config.colorSecundario;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!loading) {
+                    e.target.style.backgroundColor = config.colorPrimario;
+                  }
+                }}
+              >
                 {loading ? 'Guardando...' : editingId ? '💾 Actualizar' : '➕ Crear'}
               </button>
               <button type="button" onClick={resetForm} style={styles.cancelButton}>
@@ -324,7 +352,10 @@ function ProfesionalesPage() {
                   <tr key={prof.id} style={styles.tr}>
                     <td style={styles.td}>
                       <div style={styles.profName}>
-                        <div style={styles.avatar}>
+                        <div style={{
+                          ...styles.avatar,
+                          backgroundColor: config.colorPrimario
+                        }}>
                           {prof.nombre?.charAt(0) || 'P'}
                         </div>
                         <span>{prof.nombre || 'Sin nombre'}</span>
@@ -370,7 +401,7 @@ const styles = {
     justifyContent: 'flex-end'
   },
   addButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#3b82f6', // Se sobrescribe dinámicamente
     color: 'white',
     border: 'none',
     padding: '12px 24px',
@@ -430,7 +461,7 @@ const styles = {
     justifyContent: 'flex-end'
   },
   saveButton: {
-    backgroundColor: '#10b981',
+    backgroundColor: '#10b981', // Se sobrescribe dinámicamente
     color: 'white',
     border: 'none',
     padding: '12px 32px',
@@ -506,7 +537,7 @@ const styles = {
     width: '36px',
     height: '36px',
     borderRadius: '50%',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#3b82f6', // Se sobrescribe dinámicamente
     color: 'white',
     display: 'flex',
     alignItems: 'center',

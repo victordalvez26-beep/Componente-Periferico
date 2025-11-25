@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { useClinicConfig } from '../hooks/useClinicConfig';
 
 function HomePage() {
   const { tenantId } = useParams();
+  const { config } = useClinicConfig(tenantId);
   const [stats, setStats] = useState({
     profesionales: 0,
     usuarios: 0,
@@ -70,10 +72,13 @@ function HomePage() {
   return (
     <div>
       {/* Welcome Banner */}
-      <div style={styles.banner}>
+      <div style={{
+        ...styles.banner,
+        background: `linear-gradient(135deg, ${config.colorPrimario} 0%, ${config.colorSecundario} 100%)`
+      }}>
         <div>
           <h2 style={styles.bannerTitle}>
-            ¡Bienvenido a la Clínica {tenantId}!
+            ¡Bienvenido a {config.nombrePortal || `la Clínica ${tenantId}`}!
           </h2>
           <p style={styles.bannerSubtitle}>
             {new Date().toLocaleDateString('es-UY', {
@@ -84,24 +89,45 @@ function HomePage() {
             })}
           </p>
         </div>
-        <div style={styles.bannerIcon}>🏥</div>
+        {config.logoUrl ? (
+          <img 
+            src={config.logoUrl} 
+            alt="Logo" 
+            style={{
+              width: '80px',
+              height: '80px',
+              objectFit: 'contain',
+              borderRadius: '12px',
+              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              padding: '8px'
+            }}
+          />
+        ) : (
+          <div style={styles.bannerIcon}>🏥</div>
+        )}
       </div>
 
       {/* Stats Grid */}
       <div style={styles.statsGrid}>
-        {statCards.map((card, index) => (
-          <div key={index} style={{...styles.statCard, borderLeft: `4px solid ${card.color}`}}>
-            <div style={{...styles.statIcon, backgroundColor: card.bgColor}}>
-              {card.icon}
-            </div>
-            <div>
-              <div style={styles.statValue}>
-                {loading ? '...' : card.value}
+        {statCards.map((card, index) => {
+          // Usar color primario para el primer card, secundario para el segundo, y los demás mantener
+          const borderColor = index === 0 ? config.colorPrimario : 
+                             index === 1 ? config.colorSecundario : 
+                             card.color;
+          return (
+            <div key={index} style={{...styles.statCard, borderLeft: `4px solid ${borderColor}`}}>
+              <div style={{...styles.statIcon, backgroundColor: card.bgColor}}>
+                {card.icon}
               </div>
-              <div style={styles.statLabel}>{card.title}</div>
+              <div>
+                <div style={styles.statValue}>
+                  {loading ? '...' : card.value}
+                </div>
+                <div style={styles.statLabel}>{card.title}</div>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Recent Activity */}
@@ -142,19 +168,67 @@ function HomePage() {
       <div style={styles.section}>
         <h3 style={styles.sectionTitle}>⚡ Acciones Rápidas</h3>
         <div style={styles.actionsGrid}>
-          <button style={styles.actionButton}>
+          <button style={{
+            ...styles.actionButton,
+            borderColor: config.colorPrimario,
+            color: config.colorPrimario
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.backgroundColor = config.colorPrimario;
+            e.target.style.color = 'white';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.backgroundColor = 'white';
+            e.target.style.color = config.colorPrimario;
+          }}>
             <span style={styles.actionIcon}>➕</span>
             <span>Agregar Profesional</span>
           </button>
-          <button style={styles.actionButton}>
+          <button style={{
+            ...styles.actionButton,
+            borderColor: config.colorPrimario,
+            color: config.colorPrimario
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.backgroundColor = config.colorPrimario;
+            e.target.style.color = 'white';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.backgroundColor = 'white';
+            e.target.style.color = config.colorPrimario;
+          }}>
             <span style={styles.actionIcon}>👤</span>
             <span>Registrar Usuario</span>
           </button>
-          <button style={styles.actionButton}>
+          <button style={{
+            ...styles.actionButton,
+            borderColor: config.colorPrimario,
+            color: config.colorPrimario
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.backgroundColor = config.colorPrimario;
+            e.target.style.color = 'white';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.backgroundColor = 'white';
+            e.target.style.color = config.colorPrimario;
+          }}>
             <span style={styles.actionIcon}>📄</span>
             <span>Nuevo Documento</span>
           </button>
-          <button style={styles.actionButton}>
+          <button style={{
+            ...styles.actionButton,
+            borderColor: config.colorPrimario,
+            color: config.colorPrimario
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.backgroundColor = config.colorPrimario;
+            e.target.style.color = 'white';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.backgroundColor = 'white';
+            e.target.style.color = config.colorPrimario;
+          }}>
             <span style={styles.actionIcon}>⚙️</span>
             <span>Configuración</span>
           </button>
@@ -194,7 +268,7 @@ function HomePage() {
 
 const styles = {
   banner: {
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    // background se aplica dinámicamente con los colores de la configuración
     borderRadius: '12px',
     padding: '32px',
     color: 'white',

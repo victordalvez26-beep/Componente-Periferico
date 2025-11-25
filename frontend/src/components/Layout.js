@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { useClinicConfig } from '../hooks/useClinicConfig';
 
 function Layout({ children }) {
   const { tenantId } = useParams();
@@ -8,6 +9,7 @@ function Layout({ children }) {
   const [userRole, setUserRole] = useState(null);
   const [username, setUsername] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { config } = useClinicConfig(tenantId);
 
   useEffect(() => {
     const role = localStorage.getItem('role');
@@ -47,10 +49,25 @@ function Layout({ children }) {
       }}>
         {/* Logo */}
         <div style={styles.logoContainer}>
-          <div style={styles.logo}>🏥</div>
+          {config.logoUrl ? (
+            <img 
+              src={config.logoUrl} 
+              alt="Logo" 
+              style={{
+                width: '40px',
+                height: '40px',
+                objectFit: 'contain',
+                borderRadius: '8px'
+              }}
+            />
+          ) : (
+            <div style={styles.logo}>🏥</div>
+          )}
           {!sidebarCollapsed && (
             <div>
-              <div style={styles.logoText}>Clínica {tenantId}</div>
+              <div style={styles.logoText}>
+                {config.nombrePortal || `Clínica ${tenantId}`}
+              </div>
               <div style={styles.logoSubtext}>
                 {userRole === 'ADMINISTRADOR' ? 'Admin Portal' : 'Portal Profesional'}
               </div>
@@ -61,7 +78,10 @@ function Layout({ children }) {
         {/* Collapse Button */}
         <button
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          style={styles.collapseButton}
+          style={{
+            ...styles.collapseButton,
+            backgroundColor: config.colorPrimario
+          }}
           title={sidebarCollapsed ? 'Expandir' : 'Contraer'}
         >
           {sidebarCollapsed ? '→' : '←'}
@@ -75,7 +95,10 @@ function Layout({ children }) {
               onClick={() => navigate(item.path)}
               style={{
                 ...styles.navItem,
-                ...(isActive(item.path) ? styles.navItemActive : {})
+                ...(isActive(item.path) ? {
+                  backgroundColor: `rgba(${hexToRgb(config.colorPrimario)}, 0.2)`,
+                  borderLeft: `4px solid ${config.colorPrimario}`
+                } : {})
               }}
               title={sidebarCollapsed ? item.label : ''}
             >
@@ -88,7 +111,10 @@ function Layout({ children }) {
         {/* User Info */}
         <div style={styles.userSection}>
           <div style={styles.userInfo}>
-            <div style={styles.avatar}>
+            <div style={{
+              ...styles.avatar,
+              backgroundColor: config.colorPrimario
+            }}>
               {username.charAt(0).toUpperCase()}
             </div>
             {!sidebarCollapsed && (
@@ -186,7 +212,7 @@ const styles = {
     width: '30px',
     height: '30px',
     borderRadius: '50%',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#3b82f6', // Se sobrescribe dinámicamente
     color: 'white',
     border: '2px solid #1f2937',
     cursor: 'pointer',
@@ -216,8 +242,7 @@ const styles = {
     textAlign: 'left'
   },
   navItemActive: {
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-    borderLeft: '4px solid #3b82f6'
+    // Se aplica dinámicamente con los colores de la configuración
   },
   navIcon: {
     fontSize: '20px'
@@ -238,7 +263,7 @@ const styles = {
     width: '40px',
     height: '40px',
     borderRadius: '50%',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#3b82f6', // Se sobrescribe dinámicamente
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -309,6 +334,14 @@ const styles = {
     padding: '32px'
   }
 };
+
+// Función auxiliar para convertir hex a RGB
+function hexToRgb(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result 
+    ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
+    : '59, 130, 246'; // Default azul
+}
 
 export default Layout;
 

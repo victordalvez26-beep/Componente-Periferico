@@ -52,9 +52,10 @@ function ConfiguracionPage() {
 
       if (res.ok) {
         setMessage('✅ Configuración guardada exitosamente');
-        setTimeout(() => setMessage(''), 3000);
-        // Recargar la configuración actualizada después de guardar
-        loadConfig();
+        // Recargar la página después de 1 segundo para aplicar los cambios (nombre y logo)
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
       } else {
         setMessage('❌ Error al guardar configuración');
       }
