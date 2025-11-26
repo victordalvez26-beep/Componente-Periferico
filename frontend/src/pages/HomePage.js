@@ -9,10 +9,13 @@ function HomePage() {
     documentos: 0,
     consultas: 0
   });
+  const [actividades, setActividades] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingActividades, setLoadingActividades] = useState(true);
 
   useEffect(() => {
     fetchStats();
+    fetchActividadReciente();
   }, [tenantId]);
 
   const fetchStats = async () => {
@@ -33,6 +36,56 @@ function HomePage() {
       console.error('Error fetching stats:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchActividadReciente = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const backendBase = process.env.REACT_APP_BACKEND_URL || '';
+      const res = await fetch(`${backendBase}/hcen-web/api/stats/${tenantId}/actividad-reciente?limite=10`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setActividades(data);
+      }
+    } catch (err) {
+      console.error('Error fetching actividad reciente:', err);
+    } finally {
+      setLoadingActividades(false);
+    }
+  };
+
+  const formatRelativeTime = (fecha) => {
+    if (!fecha) return 'Hace un momento';
+    
+    const ahora = new Date();
+    const fechaActividad = new Date(fecha);
+    const diffMs = ahora - fechaActividad;
+    const diffMinutos = Math.floor(diffMs / 60000);
+    const diffHoras = Math.floor(diffMs / 3600000);
+    const diffDias = Math.floor(diffMs / 86400000);
+    
+    if (diffMinutos < 1) {
+      return 'Hace un momento';
+    } else if (diffMinutos < 60) {
+      return `Hace ${diffMinutos} ${diffMinutos === 1 ? 'minuto' : 'minutos'}`;
+    } else if (diffHoras < 24) {
+      return `Hace ${diffHoras} ${diffHoras === 1 ? 'hora' : 'horas'}`;
+    } else if (diffDias === 1) {
+      return 'Ayer';
+    } else if (diffDias < 7) {
+      return `Hace ${diffDias} días`;
+    } else {
+      return fechaActividad.toLocaleDateString('es-UY', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
     }
   };
 
@@ -108,33 +161,26 @@ function HomePage() {
       <div style={styles.section}>
         <h3 style={styles.sectionTitle}>📌 Actividad Reciente</h3>
         <div style={styles.activityCard}>
-          <div style={styles.activityItem}>
-            <div style={styles.activityIcon}>🩺</div>
-            <div>
-              <div style={styles.activityText}>
-                Nuevo profesional registrado: <strong>Dr. Juan Pérez</strong>
+          {loadingActividades ? (
+            <div style={styles.loadingText}>Cargando actividad reciente...</div>
+          ) : actividades.length === 0 ? (
+            <div style={styles.emptyText}>No hay actividad reciente</div>
+          ) : (
+            actividades.map((actividad, index) => (
+              <div key={index} style={styles.activityItem}>
+                <div style={styles.activityIcon}>{actividad.icono || '📌'}</div>
+                <div>
+                  <div 
+                    style={styles.activityText}
+                    dangerouslySetInnerHTML={{ __html: actividad.texto }}
+                  />
+                  <div style={styles.activityTime}>
+                    {formatRelativeTime(actividad.fecha)}
+                  </div>
+                </div>
               </div>
-              <div style={styles.activityTime}>Hace 2 horas</div>
-            </div>
-          </div>
-          <div style={styles.activityItem}>
-            <div style={styles.activityIcon}>📄</div>
-            <div>
-              <div style={styles.activityText}>
-                Documento clínico agregado por <strong>Dra. María López</strong>
-              </div>
-              <div style={styles.activityTime}>Hace 5 horas</div>
-            </div>
-          </div>
-          <div style={styles.activityItem}>
-            <div style={styles.activityIcon}>👤</div>
-            <div>
-              <div style={styles.activityText}>
-                Nuevo usuario de salud registrado en INUS
-              </div>
-              <div style={styles.activityTime}>Ayer</div>
-            </div>
-          </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -283,6 +329,19 @@ const styles = {
   activityTime: {
     fontSize: '13px',
     color: '#9ca3af'
+  },
+  loadingText: {
+    padding: '24px',
+    textAlign: 'center',
+    color: '#6b7280',
+    fontSize: '14px'
+  },
+  emptyText: {
+    padding: '24px',
+    textAlign: 'center',
+    color: '#9ca3af',
+    fontSize: '14px',
+    fontStyle: 'italic'
   },
   actionsGrid: {
     display: 'grid',

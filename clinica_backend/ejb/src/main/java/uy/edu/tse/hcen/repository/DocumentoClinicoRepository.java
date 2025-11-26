@@ -25,6 +25,13 @@ public class DocumentoClinicoRepository {
         // 'documentos_clinicos' es el nombre de la colección
         return database.getCollection("documentos_clinicos");
     }
+    
+    /**
+     * Obtiene la colección de documentos clínicos (método público para uso en servicios).
+     */
+    public MongoCollection<Document> getCollectionPublic() {
+        return database.getCollection("documentos_clinicos");
+    }
 
     public Document crearDocumentoClinico(String pacienteDoc, String contenido) {
         Document documento = new Document();
