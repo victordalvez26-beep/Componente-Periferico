@@ -132,15 +132,26 @@ function ClinicAdmin(){
 
   async function solicitarAcceso(doc){
     try{
+      // Usar el backend del componente periférico (backendBase)
+      // El backend periférico hará proxy al backend HCEN Central
       const body = {
-        codDocumPaciente: selectedPatient.ci,
+        pacienteCI: selectedPatient.ci,
+        documentoId: doc.metadataId || doc.id || doc.codDocumPaciente, // ID de metadata en HCEN
         tipoDocumento: doc.tipoDocumento,
-        profesionalSolicitante: session ? session.username : 'prof1'
+        motivo: `Solicitud de acceso para ${doc.tipoDocumento || 'documento clínico'}`
       };
-      const res = await fetch(`${backendBase}/api/profesional/solicitudes`, {
-        method: 'POST', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+      const res = await fetch(`${backendBase}/api/documentos/solicitar-acceso`, {
+        method: 'POST', 
+        credentials: 'include', 
+        headers: {'Content-Type':'application/json'}, 
+        body: JSON.stringify(body)
       });
-      if(res.ok) alert('Solicitud enviada'); else { const t = await res.text().catch(()=>null); alert('Error: '+res.status+' '+t); }
+      if(res.ok) {
+        alert('Solicitud de acceso enviada exitosamente');
+      } else { 
+        const t = await res.text().catch(()=>null); 
+        alert('Error: '+res.status+' '+t); 
+      }
     }catch(e){ console.error(e); alert('Error al enviar solicitud'); }
   }
 

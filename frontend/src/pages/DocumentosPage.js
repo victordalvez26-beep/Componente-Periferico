@@ -8,11 +8,25 @@ function DocumentosPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showSolicitarAccesoModal, setShowSolicitarAccesoModal] = useState(false);
+  const [solicitarAccesoForm, setSolicitarAccesoForm] = useState({
+    ciPaciente: '',
+    motivo: ''
+  });
   const [uploadForm, setUploadForm] = useState({
     archivo: null,
     ciPaciente: '',
     tipoDocumento: 'EVALUACION',
     descripcion: ''
+  });
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    ciPaciente: '',
+    contenido: '',
+    tipoDocumento: 'EVALUACION',
+    descripcion: '',
+    titulo: '',
+    autor: ''
   });
 
   const buscarDocumentos = async () => {
@@ -70,6 +84,9 @@ function DocumentosPage() {
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
+      } else if (response.status === 403) {
+        const errorText = await response.text();
+        alert(`No tiene permiso para acceder a este documento. Use el botón "Solicitar Acceso" para solicitar acceso.`);
       } else {
         const errorText = await response.text();
         alert(`Error al descargar el documento: ${errorText || 'Error desconocido'}`);
@@ -77,6 +94,54 @@ function DocumentosPage() {
     } catch (err) {
       alert('Error al descargar el documento: ' + err.message);
       console.error('Error:', err);
+    }
+  };
+
+  const handleSolicitarAccesoSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!solicitarAccesoForm.ciPaciente.trim()) {
+      setError('Por favor ingrese el CI del paciente');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Usar el backend del componente periférico (que hará proxy al backend HCEN Central)
+      const backendBase = process.env.REACT_APP_BACKEND_URL || '';
+      const body = {
+        pacienteCI: solicitarAccesoForm.ciPaciente.trim(),
+        // No enviar documentoId ni tipoDocumento - es para TODOS los documentos del paciente
+        motivo: solicitarAccesoForm.motivo || `Solicitud de acceso a todos los documentos del paciente ${solicitarAccesoForm.ciPaciente.trim()}`
+      };
+
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${backendBase}/hcen-web/api/documentos/solicitar-acceso`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (response.ok) {
+        alert('Solicitud de acceso enviada exitosamente. El paciente podrá aprobarla desde su perfil en HCEN Central.');
+        setShowSolicitarAccesoModal(false);
+        setSolicitarAccesoForm({ ciPaciente: '', motivo: '' });
+        setError(null);
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
+        setError(`Error al enviar solicitud: ${errorData.error || 'Error desconocido'}`);
+      }
+    } catch (err) {
+      setError('Error al enviar solicitud de acceso: ' + err.message);
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -136,6 +201,73 @@ function DocumentosPage() {
     }
   };
 
+  const handleCreateSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!createForm.ciPaciente.trim() || !createForm.contenido.trim()) {
+      setError('Por favor complete todos los campos requeridos');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      const body = {
+        ciPaciente: createForm.ciPaciente,
+        contenido: createForm.contenido,
+        tipoDocumento: createForm.tipoDocumento || 'EVALUACION'
+      };
+
+      // Agregar campos opcionales solo si tienen valor
+      if (createForm.descripcion && createForm.descripcion.trim()) {
+        body.descripcion = createForm.descripcion;
+      }
+      if (createForm.titulo && createForm.titulo.trim()) {
+        body.titulo = createForm.titulo;
+      }
+      if (createForm.autor && createForm.autor.trim()) {
+        body.autor = createForm.autor;
+      }
+
+      const response = await fetch(`/hcen-web/api/documentos/completo`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        alert('Documento creado exitosamente. El contenido se ha convertido automáticamente a PDF.');
+        setShowCreateModal(false);
+        setCreateForm({
+          ciPaciente: '',
+          contenido: '',
+          tipoDocumento: 'EVALUACION',
+          descripcion: '',
+          titulo: '',
+          autor: ''
+        });
+        // Si el CI coincide, actualizar la lista
+        if (createForm.ciPaciente === ciPaciente) {
+          buscarDocumentos();
+        }
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Error al crear el documento');
+      }
+    } catch (err) {
+      setError('Error de conexión al crear el documento: ' + err.message);
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     try {
@@ -163,15 +295,32 @@ function DocumentosPage() {
               Busque y gestione documentos PDF de pacientes
             </p>
           </div>
-          <button
-            onClick={() => {
-              setShowUploadModal(true);
-              setUploadForm(prev => ({ ...prev, ciPaciente: ciPaciente }));
-            }}
-            style={styles.uploadButton}
-          >
-            📤 Subir Documento
-          </button>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              onClick={() => {
+                setShowCreateModal(true);
+                setCreateForm(prev => ({ ...prev, ciPaciente: ciPaciente }));
+              }}
+              style={styles.createButton}
+            >
+              ✏️ Crear Documento
+            </button>
+            <button
+              onClick={() => {
+                setShowUploadModal(true);
+                setUploadForm(prev => ({ ...prev, ciPaciente: ciPaciente }));
+              }}
+              style={styles.uploadButton}
+            >
+              📤 Subir PDF
+            </button>
+            <button
+              onClick={() => setShowSolicitarAccesoModal(true)}
+              style={styles.solicitarAccesoButton}
+            >
+              🔓 Solicitar Acceso
+            </button>
+          </div>
         </div>
 
         {/* Búsqueda por CI */}
@@ -250,6 +399,110 @@ function DocumentosPage() {
           <div style={styles.emptyIcon}>📭</div>
           <div style={styles.emptyText}>
             No se encontraron documentos para el CI: {ciPaciente}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de creación de documento completo */}
+      {showCreateModal && (
+        <div style={styles.modalOverlay} onClick={() => setShowCreateModal(false)}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>Crear Documento Clínico</h3>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                style={styles.modalClose}
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleCreateSubmit} style={styles.modalForm}>
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>CI del Paciente *</label>
+                <input
+                  type="text"
+                  value={createForm.ciPaciente}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, ciPaciente: e.target.value }))}
+                  style={styles.formInput}
+                  required
+                />
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Título (opcional)</label>
+                <input
+                  type="text"
+                  value={createForm.titulo}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, titulo: e.target.value }))}
+                  style={styles.formInput}
+                  placeholder="Título del documento"
+                />
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Contenido del Documento *</label>
+                <textarea
+                  value={createForm.contenido}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, contenido: e.target.value }))}
+                  style={{ ...styles.formTextarea, minHeight: '200px' }}
+                  placeholder="Escriba el contenido del documento clínico aquí. Este contenido se convertirá automáticamente a PDF..."
+                  required
+                />
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Tipo de Documento</label>
+                <select
+                  value={createForm.tipoDocumento}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, tipoDocumento: e.target.value }))}
+                  style={styles.formInput}
+                >
+                  <option value="EVALUACION">Evaluación</option>
+                  <option value="INFORME">Informe</option>
+                  <option value="RECETA">Receta</option>
+                  <option value="OTRO">Otro</option>
+                </select>
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Descripción (opcional)</label>
+                <textarea
+                  value={createForm.descripcion}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, descripcion: e.target.value }))}
+                  style={styles.formTextarea}
+                  rows="3"
+                  placeholder="Descripción breve del documento"
+                />
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Autor (opcional)</label>
+                <input
+                  type="text"
+                  value={createForm.autor}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, autor: e.target.value }))}
+                  style={styles.formInput}
+                  placeholder="Nombre del autor (por defecto se usará su nombre de profesional)"
+                />
+              </div>
+
+              <div style={styles.modalActions}>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  style={styles.cancelButton}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  style={styles.submitButton}
+                >
+                  {loading ? 'Creando...' : 'Crear Documento'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -334,6 +587,66 @@ function DocumentosPage() {
           </div>
         </div>
       )}
+
+      {/* Modal para solicitar acceso */}
+      {showSolicitarAccesoModal && (
+        <div style={styles.modalOverlay} onClick={() => setShowSolicitarAccesoModal(false)}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>Solicitar Acceso a Documentos</h3>
+              <button
+                onClick={() => setShowSolicitarAccesoModal(false)}
+                style={styles.modalClose}
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleSolicitarAccesoSubmit} style={styles.modalForm}>
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>CI del Paciente *</label>
+                <input
+                  type="text"
+                  value={solicitarAccesoForm.ciPaciente}
+                  onChange={(e) => setSolicitarAccesoForm(prev => ({ ...prev, ciPaciente: e.target.value }))}
+                  style={styles.formInput}
+                  placeholder="Ingrese el CI del paciente"
+                  required
+                />
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Motivo (opcional)</label>
+                <textarea
+                  value={solicitarAccesoForm.motivo}
+                  onChange={(e) => setSolicitarAccesoForm(prev => ({ ...prev, motivo: e.target.value }))}
+                  style={{...styles.formInput, minHeight: '100px', resize: 'vertical'}}
+                  placeholder="Motivo de la solicitud de acceso (opcional)"
+                />
+              </div>
+
+              <div style={styles.formActions}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSolicitarAccesoModal(false);
+                    setSolicitarAccesoForm({ ciPaciente: '', motivo: '' });
+                  }}
+                  style={styles.cancelButton}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  style={styles.submitButton}
+                >
+                  {loading ? 'Enviando...' : 'Solicitar Acceso'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -363,8 +676,34 @@ const styles = {
     fontSize: '14px',
     color: '#6b7280'
   },
+  createButton: {
+    backgroundColor: '#10b981',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '12px 24px',
+    fontSize: '15px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  },
   uploadButton: {
     backgroundColor: '#3b82f6',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '12px 24px',
+    fontSize: '15px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  },
+  solicitarAccesoButton: {
+    backgroundColor: '#fbbf24', // Amarillo
     color: 'white',
     border: 'none',
     borderRadius: '8px',
@@ -518,7 +857,7 @@ const styles = {
     backgroundColor: 'white',
     borderRadius: '12px',
     width: '90%',
-    maxWidth: '500px',
+    maxWidth: '600px',
     maxHeight: '90vh',
     overflow: 'auto'
   },
