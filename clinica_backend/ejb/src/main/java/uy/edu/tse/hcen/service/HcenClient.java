@@ -221,10 +221,11 @@ public class HcenClient {
      * @param profesionalId ID del profesional que está consultando
      * @param tenantId ID de la clínica del profesional
      * @param especialidad Especialidad del profesional
+     * @param nombreProfesional Nombre completo del profesional
      * @return Lista de metadatos de documentos (ya filtrados por políticas)
      */
     public java.util.List<Map<String, Object>> obtenerMetadatosDocumentosPorCI(
-            String ciPaciente, String profesionalId, String tenantId, String especialidad) 
+            String ciPaciente, String profesionalId, String tenantId, String especialidad, String nombreProfesional) 
             throws HcenUnavailableException {
         // Construir URL del endpoint de metadatos por CI
         String baseUrl = System.getProperty(ENV_HCEN_CENTRAL_URL,
@@ -240,10 +241,13 @@ public class HcenClient {
             if (especialidad != null && !especialidad.isBlank()) {
                 metadatosUrl += "&especialidad=" + java.net.URLEncoder.encode(especialidad, java.nio.charset.StandardCharsets.UTF_8);
             }
+            if (nombreProfesional != null && !nombreProfesional.isBlank()) {
+                metadatosUrl += "&nombreProfesional=" + java.net.URLEncoder.encode(nombreProfesional, java.nio.charset.StandardCharsets.UTF_8);
+            }
         }
         
-        LOG.info(String.format("Consultando metadatos desde HCEN - URL: %s, CI: %s, Profesional: %s, Tenant: %s, Especialidad: %s", 
-                metadatosUrl, ciPaciente, profesionalId, tenantId, especialidad));
+        LOG.info(String.format("Consultando metadatos desde HCEN - URL: %s, CI: %s, Profesional: %s, Tenant: %s, Especialidad: %s, Nombre: %s", 
+                metadatosUrl, ciPaciente, profesionalId, tenantId, especialidad, nombreProfesional));
         
         // Obtener token de servicio
         String serviceToken = getServiceToken();
@@ -312,6 +316,87 @@ public class HcenClient {
 
         } catch (ProcessingException ex) {
             throw new HcenUnavailableException("HCEN no disponible", ex);
+        }
+    }
+    
+    /**
+     * Registra un acceso a la historia clínica de un paciente en HCEN Central.
+     * Este método es llamado cuando un profesional del componente periférico
+     * descarga o accede a un documento de un paciente.
+     * 
+     * @param profesionalId ID del profesional (nickname)
+     * @param nombreProfesional Nombre completo del profesional
+     * @param especialidad Especialidad del profesional
+     * @param tenantId ID de la clínica (tenant) del profesional
+     * @param codDocumPaciente CI del paciente
+     * @param documentoId ID del documento (mongoId) o null si es búsqueda general
+     * @param tipoDocumento Tipo de documento o null
+     * @param exito Si el acceso fue exitoso
+     */
+    public void registrarAccesoHistoriaClinica(
+            String profesionalId, String nombreProfesional, String especialidad,
+            String tenantId, String codDocumPaciente, String documentoId, String tipoDocumento, boolean exito) {
+        
+        // Registrar de forma asíncrona para no bloquear la respuesta
+        try {
+            String politicasUrl = System.getenv("POLITICAS_SERVICE_URL");
+            if (politicasUrl == null || politicasUrl.isEmpty()) {
+                politicasUrl = "http://hcen-backend:8080/hcen-politicas-service/api";
+            }
+            
+            String registroUrl = politicasUrl + "/registros";
+            
+            // Construir payload para registrar acceso
+            Map<String, Object> payload = new java.util.HashMap<>();
+            payload.put("profesionalId", profesionalId);
+            payload.put("codDocumPaciente", codDocumPaciente);
+            payload.put("clinicaId", tenantId);
+            
+            if (nombreProfesional != null && !nombreProfesional.isBlank()) {
+                payload.put("nombreProfesional", nombreProfesional);
+            }
+            if (especialidad != null && !especialidad.isBlank()) {
+                payload.put("especialidad", especialidad);
+            }
+            if (documentoId != null && !documentoId.isBlank()) {
+                payload.put("documentoId", documentoId);
+            }
+            if (tipoDocumento != null && !tipoDocumento.isBlank()) {
+                payload.put("tipoDocumento", tipoDocumento);
+            } else {
+                payload.put("tipoDocumento", "DESCARGA"); // Descarga de documento si no hay tipo específico
+            }
+            
+            payload.put("exito", exito);
+            if (!exito) {
+                payload.put("motivoRechazo", "No se pudo acceder al documento");
+            }
+            payload.put("referencia", documentoId != null ? "Descarga de documento" : "Acceso a documento");
+            
+            LOG.info(String.format("Registrando acceso - Profesional: %s (%s), Paciente: %s, Clínica: %s, Documento: %s, Éxito: %s", 
+                    profesionalId, nombreProfesional, codDocumPaciente, tenantId, documentoId, exito));
+            
+            // Llamar al servicio de políticas de forma asíncrona
+            Client client = ClientBuilder.newClient();
+            try {
+                Response response = client.target(registroUrl)
+                        .request(MediaType.APPLICATION_JSON)
+                        .post(Entity.entity(payload, MediaType.APPLICATION_JSON));
+                
+                int status = response.getStatus();
+                if (status == 201 || status == 200) {
+                    LOG.info(String.format("✅ Acceso registrado exitosamente - Status: %d", status));
+                } else {
+                    String errorBody = response.hasEntity() ? response.readEntity(String.class) : "Sin detalles";
+                    LOG.warning(String.format("⚠️ Error al registrar acceso - Status: %d, Response: %s", status, errorBody));
+                }
+            } finally {
+                client.close();
+            }
+            
+        } catch (Exception e) {
+            // No propagar excepciones para no afectar la operación principal
+            LOG.warning("Error al registrar acceso (no crítico): " + e.getMessage());
         }
     }
 }

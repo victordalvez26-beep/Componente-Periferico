@@ -305,13 +305,13 @@ function DocumentosPage() {
             >
               ✏️ Crear Documento
             </button>
-            <button
-              onClick={() => {
-                setShowUploadModal(true);
-                setUploadForm(prev => ({ ...prev, ciPaciente: ciPaciente }));
-              }}
-              style={styles.uploadButton}
-            >
+          <button
+            onClick={() => {
+              setShowUploadModal(true);
+              setUploadForm(prev => ({ ...prev, ciPaciente: ciPaciente }));
+            }}
+            style={styles.uploadButton}
+          >
               📤 Subir PDF
             </button>
             <button
@@ -319,7 +319,7 @@ function DocumentosPage() {
               style={styles.solicitarAccesoButton}
             >
               🔓 Solicitar Acceso
-            </button>
+          </button>
           </div>
         </div>
 

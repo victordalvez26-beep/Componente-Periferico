@@ -45,6 +45,12 @@ public class DocumentoPdfResource {
     @Inject
     private PoliticasAccesoClient politicasAccesoClient;
 
+    @Inject
+    private uy.edu.tse.hcen.service.HcenClient hcenClient;
+
+    @Inject
+    private uy.edu.tse.hcen.repository.ProfesionalSaludRepository profesionalSaludRepository;
+
     @Context
     private jakarta.ws.rs.core.SecurityContext securityContext;
 
@@ -202,6 +208,7 @@ public class DocumentoPdfResource {
                     ci, profesionalId, tenantIdStr));
             
             // Listar documentos de TODAS las clínicas, filtrando por políticas de acceso
+            // El registro de acceso se hace en HCEN Central cuando procesa la solicitud
             java.util.List<Map<String, Object>> documentos = 
                     documentoPdfService.listarDocumentosPorPaciente(ci, profesionalId, tenantIdStr);
 
@@ -327,6 +334,50 @@ public class DocumentoPdfResource {
                             new String(pdfBytes, 0, Math.min(200, pdfBytes.length))));
                 } else {
                     LOG.info(String.format("✅ [PERIFERICO] PDF válido detectado - Header: %s", header));
+                }
+            }
+            
+            // Registrar acceso del profesional a la historia clínica del paciente
+            // Solo si NO es una llamada desde el backend HCEN (es decir, es un profesional descargando directamente)
+            if (!esLlamadaDesdeBackendHCEN && profesionalId != null && !profesionalId.isBlank() && 
+                pacienteCI != null && !pacienteCI.isBlank() && tenantIdStr != null && !tenantIdStr.isBlank()) {
+                
+                // Obtener información completa del profesional (especialidad y nombre)
+                String especialidad = null;
+                String nombreProfesional = null;
+                try {
+                    var profesionalOpt = profesionalSaludRepository.findByNickname(profesionalId);
+                    if (profesionalOpt.isPresent()) {
+                        var profesional = profesionalOpt.get();
+                        if (profesional.getEspecialidad() != null) {
+                            especialidad = profesional.getEspecialidad().name();
+                        }
+                        nombreProfesional = profesional.getNombre();
+                        LOG.info(String.format("📝 [PERIFERICO] Información del profesional obtenida - Nombre: %s, Especialidad: %s", 
+                                nombreProfesional, especialidad));
+                    }
+                } catch (Exception e) {
+                    LOG.warn(String.format("⚠️ [PERIFERICO] No se pudo obtener información completa del profesional %s: %s", 
+                            profesionalId, e.getMessage()));
+                }
+                
+                // Registrar acceso en HCEN Central de forma asíncrona
+                try {
+                    hcenClient.registrarAccesoHistoriaClinica(
+                            profesionalId,
+                            nombreProfesional,
+                            especialidad,
+                            tenantIdStr,
+                            pacienteCI,
+                            id, // documentoId (mongoId)
+                            tipoDocumento,
+                            true // éxito
+                    );
+                    LOG.info(String.format("✅ [PERIFERICO] Acceso registrado para profesional %s, paciente %s, documento %s", 
+                            profesionalId, pacienteCI, id));
+                } catch (Exception e) {
+                    // No bloquear la descarga si falla el registro
+                    LOG.warn(String.format("⚠️ [PERIFERICO] Error al registrar acceso (no crítico): %s", e.getMessage()));
                 }
             }
             

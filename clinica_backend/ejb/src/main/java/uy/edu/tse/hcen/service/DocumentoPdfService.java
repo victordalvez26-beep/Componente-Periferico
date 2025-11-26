@@ -315,8 +315,9 @@ public class DocumentoPdfService {
         LOG.info(String.format("Listando documentos - Paciente: %s, Profesional: %s, Clínica Profesional: %s", 
                 ciPaciente, profesionalId, tenantIdProfesional));
         
-        // Obtener especialidad del profesional
+        // Obtener información completa del profesional (especialidad y nombre)
         String especialidad = null;
+        String nombreProfesional = null;
         if (profesionalId != null && !profesionalId.isBlank()) {
             try {
                 var profesionalOpt = profesionalSaludRepository.findByNickname(profesionalId);
@@ -326,21 +327,24 @@ public class DocumentoPdfService {
                         especialidad = profesional.getEspecialidad().name();
                         LOG.info(String.format("Especialidad del profesional %s: %s", profesionalId, especialidad));
                     }
+                    nombreProfesional = profesional.getNombre();
+                    LOG.info(String.format("Nombre del profesional %s: %s", profesionalId, nombreProfesional));
                 }
             } catch (Exception e) {
-                LOG.warn(String.format("No se pudo obtener especialidad del profesional %s: %s", profesionalId, e.getMessage()));
+                LOG.warn(String.format("No se pudo obtener información del profesional %s: %s", profesionalId, e.getMessage()));
             }
         }
         
         // Consultar metadatos desde HCEN backend (tabla metadata_documento)
-        // El backend filtra por políticas de acceso automáticamente
+        // El backend filtra por políticas de acceso automáticamente y registra el acceso
         java.util.List<Map<String, Object>> metadatosFiltrados;
         try {
             metadatosFiltrados = hcenClient.obtenerMetadatosDocumentosPorCI(
                     ciPaciente, 
                     profesionalId, 
                     tenantIdProfesional, 
-                    especialidad);
+                    especialidad,
+                    nombreProfesional);
             LOG.info(String.format("Obtenidos %d metadatos (ya filtrados por políticas) desde HCEN backend para el paciente %s", 
                     metadatosFiltrados.size(), ciPaciente));
         } catch (HcenUnavailableException e) {

@@ -26,7 +26,7 @@ import java.util.Map;
 
 /**
  * Recurso REST para manejo de documentos clínicos completos.
- * 
+ *
  * Permite a los profesionales de salud:
  * - Crear documentos clínicos completos con contenido de texto (se convierte a PDF al descargarse)
  * - Crear documentos con archivos adjuntos
@@ -41,7 +41,7 @@ public class DocumentoClinicoResource {
 
     @Inject
     private DocumentoService documentoService;
-
+    
     @Context
     private jakarta.ws.rs.core.SecurityContext securityContext;
     
@@ -93,7 +93,7 @@ public class DocumentoClinicoResource {
             String tenantIdStr = TenantContext.getCurrentTenant();
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
                 return DocumentoResponseBuilder.badRequest("Tenant no identificado");
-            }
+        }
             Long tenantId = Long.parseLong(tenantIdStr);
 
             // Extraer campos del body
@@ -110,7 +110,7 @@ public class DocumentoClinicoResource {
             }
             if (contenido == null || contenido.isBlank()) {
                 return DocumentoResponseBuilder.badRequest(DocumentoConstants.ERROR_CONTENIDO_ES_REQUERIDO);
-            }
+        }
 
             // Crear documento
             Map<String, Object> resultado = documentoService.crearDocumentoCompleto(
@@ -178,7 +178,7 @@ public class DocumentoClinicoResource {
             String tenantIdStr = TenantContext.getCurrentTenant();
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
                 return DocumentoResponseBuilder.badRequest("Tenant no identificado");
-            }
+        }
             Long tenantId = Long.parseLong(tenantIdStr);
 
             // Extraer datos del formulario
@@ -197,8 +197,8 @@ public class DocumentoClinicoResource {
             }
             if (ciPaciente == null || ciPaciente.isBlank()) {
                 return DocumentoResponseBuilder.badRequest("ciPaciente es requerido");
-            }
-
+        }
+        
             // Extraer archivo adjunto (opcional)
             byte[] archivoBytes = null;
             String nombreArchivo = null;
@@ -217,8 +217,8 @@ public class DocumentoClinicoResource {
                     int end = contentDisposition.indexOf("\"", start);
                     if (end == -1) end = contentDisposition.length();
                     nombreArchivo = contentDisposition.substring(start, end).replace("\"", "");
-                }
-                
+        }
+
                 tipoArchivo = archivoPart.getHeaders().getFirst("Content-Type");
             }
 
@@ -270,13 +270,13 @@ public class DocumentoClinicoResource {
             String tenantIdStr = TenantContext.getCurrentTenant();
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
                 return DocumentoResponseBuilder.badRequest("Tenant no identificado");
-            }
+        }
             Long tenantId = Long.parseLong(tenantIdStr);
 
             String contenido = documentoService.obtenerContenido(id, tenantId);
             if (contenido == null) {
-                return DocumentoResponseBuilder.notFound(DocumentoConstants.ERROR_DOCUMENT_NOT_FOUND);
-            }
+            return DocumentoResponseBuilder.notFound(DocumentoConstants.ERROR_DOCUMENT_NOT_FOUND);
+        }
 
             return Response.ok(contenido, MediaType.TEXT_PLAIN).build();
 
@@ -315,14 +315,14 @@ public class DocumentoClinicoResource {
                     LOG.warn("No se encontró tenantId en query parameter ni en contexto. Intentando con tenantId=1");
                     tenantId = 1L;
                     TenantContext.setCurrentTenant("1");
-                }
+        }
             }
 
             byte[] pdfBytes = documentoService.obtenerPdf(id, tenantId);
             if (pdfBytes == null || pdfBytes.length == 0) {
                 return DocumentoResponseBuilder.notFound("PDF no encontrado");
-            }
-
+        }
+        
             return Response.ok(pdfBytes, "application/pdf")
                     .header("Content-Disposition", "inline; filename=\"documento_" + id + ".pdf\"")
                     .build();
@@ -439,9 +439,9 @@ public class DocumentoClinicoResource {
             if (profesionalId == null || profesionalId.isBlank()) {
                 return Response.status(Response.Status.UNAUTHORIZED)
                     .entity(Map.of("error", "No se pudo identificar al profesional autenticado"))
-                    .build();
-            }
-            
+                .build();
+    }
+
             // Obtener tenantId de la clínica del profesional autenticado
             String tenantIdStr = TenantContext.getCurrentTenant();
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
@@ -481,8 +481,8 @@ public class DocumentoClinicoResource {
             // tipoDocumento es opcional
             if (body.containsKey("tipoDocumento") && body.get("tipoDocumento") != null) {
                 payload.put("tipoDocumento", body.get("tipoDocumento"));
-            }
-            
+    }
+
             payload.put("motivo", body.getOrDefault("motivo", "Acceso necesario para atención médica"));
             
             LOG.info(String.format("Proxy: Payload final enviado a HCEN Central: %s", payload));
@@ -524,7 +524,7 @@ public class DocumentoClinicoResource {
                 // Leer la respuesta de manera más robusta
                 Object responseEntity = null;
                 if (response.hasEntity()) {
-                    try {
+        try {
                         responseEntity = response.readEntity(Object.class);
                         LOG.info(String.format("Proxy: Respuesta recibida: %s", responseEntity));
                     } catch (Exception e) {
@@ -546,14 +546,14 @@ public class DocumentoClinicoResource {
                     
             } finally {
                 client.close();
-            }
+        }
             
         } catch (Exception e) {
             LOG.error("Error en proxy de solicitud de acceso", e);
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                 .entity(Map.of("error", "Error al procesar la solicitud: " + e.getMessage()))
                 .build();
-        }
+            }
     }
 
     /**
