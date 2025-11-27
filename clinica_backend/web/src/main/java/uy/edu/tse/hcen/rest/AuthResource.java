@@ -26,6 +26,12 @@ public class AuthResource {
     @Path("/login")
     public Response login(LoginRequest request) {
         try {
+            if (request == null) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                               .entity(java.util.Map.of("error", "Request body es requerido"))
+                               .build();
+            }
+            
             uy.edu.tse.hcen.dto.LoginResponse response = loginService.authenticateAndGenerateToken(
                 request.getNickname(),
                 request.getPassword(),

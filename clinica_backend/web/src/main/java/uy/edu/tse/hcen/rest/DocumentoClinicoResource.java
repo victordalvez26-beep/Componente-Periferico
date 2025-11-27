@@ -93,7 +93,7 @@ public class DocumentoClinicoResource {
             String tenantIdStr = TenantContext.getCurrentTenant();
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
                 return DocumentoResponseBuilder.badRequest("Tenant no identificado");
-        }
+            }
             Long tenantId = Long.parseLong(tenantIdStr);
 
             // Extraer campos del body
@@ -178,7 +178,7 @@ public class DocumentoClinicoResource {
             String tenantIdStr = TenantContext.getCurrentTenant();
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
                 return DocumentoResponseBuilder.badRequest("Tenant no identificado");
-        }
+            }
             Long tenantId = Long.parseLong(tenantIdStr);
 
             // Extraer datos del formulario
@@ -197,7 +197,7 @@ public class DocumentoClinicoResource {
             }
             if (ciPaciente == null || ciPaciente.isBlank()) {
                 return DocumentoResponseBuilder.badRequest("ciPaciente es requerido");
-        }
+            }
         
             // Extraer archivo adjunto (opcional)
             byte[] archivoBytes = null;
@@ -217,7 +217,7 @@ public class DocumentoClinicoResource {
                     int end = contentDisposition.indexOf("\"", start);
                     if (end == -1) end = contentDisposition.length();
                     nombreArchivo = contentDisposition.substring(start, end).replace("\"", "");
-        }
+                }
 
                 tipoArchivo = archivoPart.getHeaders().getFirst("Content-Type");
             }
@@ -270,13 +270,13 @@ public class DocumentoClinicoResource {
             String tenantIdStr = TenantContext.getCurrentTenant();
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
                 return DocumentoResponseBuilder.badRequest("Tenant no identificado");
-        }
+            }
             Long tenantId = Long.parseLong(tenantIdStr);
 
             String contenido = documentoService.obtenerContenido(id, tenantId);
             if (contenido == null) {
-            return DocumentoResponseBuilder.notFound(DocumentoConstants.ERROR_DOCUMENT_NOT_FOUND);
-        }
+                return DocumentoResponseBuilder.notFound(DocumentoConstants.ERROR_DOCUMENT_NOT_FOUND);
+            }
 
             return Response.ok(contenido, MediaType.TEXT_PLAIN).build();
 
@@ -315,13 +315,13 @@ public class DocumentoClinicoResource {
                     LOG.warn("No se encontró tenantId en query parameter ni en contexto. Intentando con tenantId=1");
                     tenantId = 1L;
                     TenantContext.setCurrentTenant("1");
-        }
+                }
             }
 
             byte[] pdfBytes = documentoService.obtenerPdf(id, tenantId);
             if (pdfBytes == null || pdfBytes.length == 0) {
                 return DocumentoResponseBuilder.notFound("PDF no encontrado");
-        }
+            }
         
             return Response.ok(pdfBytes, "application/pdf")
                     .header("Content-Disposition", "inline; filename=\"documento_" + id + ".pdf\"")

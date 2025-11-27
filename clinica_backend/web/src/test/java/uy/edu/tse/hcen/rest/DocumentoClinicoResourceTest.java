@@ -1107,5 +1107,94 @@ class DocumentoClinicoResourceTest {
         
         assertEquals(Response.Status.CREATED.getStatusCode(), response.getStatus());
     }
+
+    @Test
+    void testObtenerPdfWithEmptyPdfBytes() throws Exception {
+        String id = "doc-123";
+        TenantContext.setCurrentTenant("101");
+        
+        when(documentoService.obtenerPdf(id, 101L)).thenReturn(new byte[0]);
+        
+        Response response = resource.obtenerPdf(id, null);
+        
+        assertEquals(Response.Status.NOT_FOUND.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    void testObtenerPdfWithTenantIdFromParam() throws Exception {
+        String id = "doc-123";
+        TenantContext.clear();
+        
+        byte[] pdfBytes = "PDF content".getBytes();
+        when(documentoService.obtenerPdf(id, 202L)).thenReturn(pdfBytes);
+        
+        Response response = resource.obtenerPdf(id, 202L);
+        
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    void testObtenerPdfWithNoTenantId() throws Exception {
+        String id = "doc-123";
+        TenantContext.clear();
+        
+        byte[] pdfBytes = "PDF content".getBytes();
+        when(documentoService.obtenerPdf(id, 1L)).thenReturn(pdfBytes);
+        
+        Response response = resource.obtenerPdf(id, null);
+        
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    void testObtenerContenidoWithException() throws Exception {
+        String id = "doc-123";
+        TenantContext.setCurrentTenant("101");
+        
+        when(documentoService.obtenerContenido(id, 101L))
+            .thenThrow(new RuntimeException("Database error"));
+        
+        Response response = resource.obtenerContenido(id);
+        
+        assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    void testObtenerDocumentoWithException() throws Exception {
+        String id = "doc-123";
+        TenantContext.setCurrentTenant("101");
+        
+        when(documentoService.obtenerDocumentoPorId(id, 101L))
+            .thenThrow(new RuntimeException("Database error"));
+        
+        Response response = resource.obtenerDocumento(id);
+        
+        assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    void testExtractFieldWithException() throws Exception {
+        MultipartFormDataInput input = mock(MultipartFormDataInput.class);
+        Map<String, List<InputPart>> formDataMap = new HashMap<>();
+        
+        InputPart contenidoPart = mock(InputPart.class);
+        InputPart ciPart = mock(InputPart.class);
+        
+        when(contenidoPart.getBodyAsString()).thenThrow(new RuntimeException("Error reading body"));
+        when(ciPart.getBodyAsString()).thenReturn("12345678");
+        
+        formDataMap.put("contenido", Arrays.asList(contenidoPart));
+        formDataMap.put("ciPaciente", Arrays.asList(ciPart));
+        
+        when(input.getFormDataMap()).thenReturn(formDataMap);
+        when(securityContext.getUserPrincipal()).thenReturn(principal);
+        when(principal.getName()).thenReturn("prof-1");
+        TenantContext.setCurrentTenant("101");
+        
+        Response response = resource.crearDocumentoCompletoConArchivo(input);
+        
+        // Debe fallar porque contenido es null debido a la excepción
+        assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
+    }
 }
 

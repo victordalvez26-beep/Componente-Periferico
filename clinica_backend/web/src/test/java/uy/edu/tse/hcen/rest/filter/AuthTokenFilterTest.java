@@ -567,5 +567,110 @@ class AuthTokenFilterTest {
         verify(responseHeaders).add(eq("Access-Control-Allow-Headers"), anyString());
         verify(responseHeaders).add(eq("Access-Control-Expose-Headers"), anyString());
     }
+
+    @Test
+    void testFilterSecurityContextGetUserPrincipalWithNullSubject() throws IOException {
+        String token = "Bearer valid.token.here";
+        Claims claims = mock(Claims.class);
+        
+        when(requestContext.getUriInfo()).thenReturn(uriInfo);
+        when(uriInfo.getPath()).thenReturn("/api/profesionales");
+        when(uriInfo.getRequestUri()).thenReturn(URI.create("http://localhost:8080/api/profesionales"));
+        when(requestContext.getMethod()).thenReturn("GET");
+        when(requestContext.getHeaderString(HttpHeaders.AUTHORIZATION)).thenReturn(token);
+        
+        try (MockedStatic<TokenUtils> tokenUtilsMock = mockStatic(TokenUtils.class)) {
+            tokenUtilsMock.when(() -> TokenUtils.parseToken("valid.token.here")).thenReturn(claims);
+            when(claims.get("tenantId", String.class)).thenReturn("123");
+            when(claims.get("role", String.class)).thenReturn("PROFESIONAL");
+            when(claims.getSubject()).thenReturn(null);
+            
+            filter.filter(requestContext);
+            
+            verify(requestContext).setSecurityContext(any());
+        }
+    }
+
+    @Test
+    void testFilterSecurityContextIsUserInRoleWithNullRole() throws IOException {
+        String token = "Bearer valid.token.here";
+        Claims claims = mock(Claims.class);
+        
+        when(requestContext.getUriInfo()).thenReturn(uriInfo);
+        when(uriInfo.getPath()).thenReturn("/api/profesionales");
+        when(uriInfo.getRequestUri()).thenReturn(URI.create("http://localhost:8080/api/profesionales"));
+        when(requestContext.getMethod()).thenReturn("GET");
+        when(requestContext.getHeaderString(HttpHeaders.AUTHORIZATION)).thenReturn(token);
+        
+        try (MockedStatic<TokenUtils> tokenUtilsMock = mockStatic(TokenUtils.class)) {
+            tokenUtilsMock.when(() -> TokenUtils.parseToken("valid.token.here")).thenReturn(claims);
+            when(claims.get("tenantId", String.class)).thenReturn("123");
+            when(claims.get("role", String.class)).thenReturn(null);
+            when(claims.getSubject()).thenReturn("prof-1");
+            
+            filter.filter(requestContext);
+            
+            verify(requestContext).setSecurityContext(any());
+        }
+    }
+
+    @Test
+    void testFilterSecurityContextIsUserInRoleWithDifferentRole() throws IOException {
+        String token = "Bearer valid.token.here";
+        Claims claims = mock(Claims.class);
+        
+        when(requestContext.getUriInfo()).thenReturn(uriInfo);
+        when(uriInfo.getPath()).thenReturn("/api/profesionales");
+        when(uriInfo.getRequestUri()).thenReturn(URI.create("http://localhost:8080/api/profesionales"));
+        when(requestContext.getMethod()).thenReturn("GET");
+        when(requestContext.getHeaderString(HttpHeaders.AUTHORIZATION)).thenReturn(token);
+        
+        try (MockedStatic<TokenUtils> tokenUtilsMock = mockStatic(TokenUtils.class)) {
+            tokenUtilsMock.when(() -> TokenUtils.parseToken("valid.token.here")).thenReturn(claims);
+            when(claims.get("tenantId", String.class)).thenReturn("123");
+            when(claims.get("role", String.class)).thenReturn("ADMINISTRADOR");
+            when(claims.getSubject()).thenReturn("admin-1");
+            
+            filter.filter(requestContext);
+            
+            verify(requestContext).setSecurityContext(any());
+        }
+    }
+
+    @Test
+    void testFilterPublicPathDocumentosPdfWithDifferentMethods() throws IOException {
+        when(requestContext.getUriInfo()).thenReturn(uriInfo);
+        when(uriInfo.getPath()).thenReturn("documentos-pdf/123");
+        when(requestContext.getMethod()).thenReturn("PUT");
+        
+        filter.filter(requestContext);
+        
+        // PUT no es GET, así que no debería ser público
+        verify(requestContext, never()).abortWith(any(Response.class));
+    }
+
+    @Test
+    void testFilterPublicPathDocumentosPdfWithPacientePath() throws IOException {
+        String token = "Bearer valid.token.here";
+        Claims claims = mock(Claims.class);
+        
+        when(requestContext.getUriInfo()).thenReturn(uriInfo);
+        when(uriInfo.getPath()).thenReturn("documentos-pdf/paciente/12345678");
+        when(uriInfo.getRequestUri()).thenReturn(URI.create("http://localhost:8080/documentos-pdf/paciente/12345678"));
+        when(requestContext.getMethod()).thenReturn("GET");
+        when(requestContext.getHeaderString(HttpHeaders.AUTHORIZATION)).thenReturn(token);
+        
+        try (MockedStatic<TokenUtils> tokenUtilsMock = mockStatic(TokenUtils.class)) {
+            tokenUtilsMock.when(() -> TokenUtils.parseToken("valid.token.here")).thenReturn(claims);
+            when(claims.get("tenantId", String.class)).thenReturn("123");
+            when(claims.get("role", String.class)).thenReturn("PROFESIONAL");
+            when(claims.getSubject()).thenReturn("prof-1");
+            
+            filter.filter(requestContext);
+            
+            // Este path requiere autenticación
+            verify(requestContext).setSecurityContext(any());
+        }
+    }
 }
 

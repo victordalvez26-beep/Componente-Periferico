@@ -182,7 +182,7 @@ class ProfesionalResourceTest {
         Response response = resource.verificarPermiso("prof1", "12345678", null);
 
         // Assert
-        assertEquals(500, response.getStatus());
+        assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
         @SuppressWarnings("unchecked")
         Map<String, Object> entity = (Map<String, Object>) response.getEntity();
         assertTrue(entity.get("error").toString().contains("Error"));

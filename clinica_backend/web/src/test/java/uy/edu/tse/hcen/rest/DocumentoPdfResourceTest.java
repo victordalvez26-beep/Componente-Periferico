@@ -416,8 +416,9 @@ class DocumentoPdfResourceTest {
         InputPart ciPart = mock(InputPart.class);
         
         when(archivoPart.getBody(InputStream.class, null)).thenReturn(mock(InputStream.class));
-        when(archivoPart.getHeaders()).thenReturn(new jakarta.ws.rs.core.MultivaluedHashMap<>());
-        when(archivoPart.getHeaders().getFirst("Content-Type")).thenReturn(null);
+        jakarta.ws.rs.core.MultivaluedMap<String, String> headers = new jakarta.ws.rs.core.MultivaluedHashMap<>();
+        // No agregar Content-Type para simular null
+        when(archivoPart.getHeaders()).thenReturn(headers);
         when(ciPart.getBodyAsString()).thenReturn("12345678");
         
         formDataMap.put("archivo", Arrays.asList(archivoPart));

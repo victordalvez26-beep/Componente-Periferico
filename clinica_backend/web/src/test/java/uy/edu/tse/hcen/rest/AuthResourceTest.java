@@ -3,33 +3,41 @@ package uy.edu.tse.hcen.rest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import uy.edu.tse.hcen.dto.LoginRequest;
 import uy.edu.tse.hcen.dto.LoginResponse;
 import uy.edu.tse.hcen.service.LoginService;
 
 import jakarta.ws.rs.core.Response;
+import java.lang.reflect.Field;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class AuthResourceTest {
 
     @Mock
     private LoginService loginService;
 
-    @InjectMocks
     private AuthResource authResource;
 
     private LoginRequest loginRequest;
     private LoginResponse loginResponse;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
+        authResource = new AuthResource();
+        // Inyectar el mock manualmente usando reflection
+        Field loginServiceField = AuthResource.class.getDeclaredField("loginService");
+        loginServiceField.setAccessible(true);
+        loginServiceField.set(authResource, loginService);
+        
         loginRequest = new LoginRequest();
         loginRequest.setNickname("testuser");
         loginRequest.setPassword("password123");
@@ -76,17 +84,12 @@ class AuthResourceTest {
 
     @Test
     void testLoginWithNullRequest() throws SecurityException {
-        // Arrange
-        when(loginService.authenticateAndGenerateToken(
-            isNull(), isNull(), isNull()
-        )).thenThrow(new SecurityException("Credenciales inválidas"));
-
         // Act
         Response response = authResource.login(null);
 
         // Assert
         assertNotNull(response);
-        assertEquals(Response.Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
     }
 
     @Test
