@@ -1,0 +1,72 @@
+# Render Blueprint para Componente Periférico
+# Este archivo define la infraestructura completa para desplegar en Render
+# Uso: Conectar el repo en Render y Render detectará automáticamente este archivo
+
+services:
+  # ============================================
+  # Backend: WildFly con Java EE
+  # ============================================
+  - type: web
+    name: hcen-periferico-backend
+    env: docker
+    dockerfilePath: ./clinica_backend/wildfly/Dockerfile.render
+    dockerContext: ./clinica_backend
+    plan: starter # O "free" para tier gratuito (se duerme después de 15 min)
+    region: oregon # O la región más cercana a tu ubicación
+    branch: feature/deploy # Branch desde donde desplegar
+    rootDir: componente-periferico/clinica_backend
+    buildCommand: mvn clean package -DskipTests
+    envVars:
+      # JWT Configuration
+      - key: JWT_SECRET_BASE64
+        value: bXlzdXBlcnNlY3JldGtleWZvcmhjZW5qd3R0b2tlbnNzaG91bGRiZWxvbmdlcg==
+      
+      # MongoDB Configuration (usar MongoDB Atlas)
+      - key: MONGODB_URI
+        sync: false # Debe configurarse manualmente en el dashboard
+      - key: MONGODB_DB
+        value: hcen_db
+      - key: MONGO_HOST
+        sync: false # Se parsea desde MONGODB_URI si es necesario
+      - key: MONGO_PORT
+        value: 27017
+      - key: MONGO_USER
+        sync: false # Se parsea desde MONGODB_URI
+      - key: MONGO_PASSWORD
+        sync: false # Se parsea desde MONGODB_URI
+      
+      # Nodo Base URL (se actualizará después del despliegue)
+      - key: NODO_BASE_URL
+        sync: false # Se debe actualizar con la URL del servicio después del despliegue
+      
+      # PostgreSQL será proporcionado automáticamente por Render como DATABASE_URL
+      # El entrypoint.parseará esta variable automáticamente
+
+    # Health check
+    healthCheckPath: /hcen-web/api/config/health
+
+  # ============================================
+  # Frontend: React Static Site
+  # ============================================
+  - type: static
+    name: hcen-periferico-frontend
+    buildCommand: cd frontend && npm ci && npm run build
+    publishPath: ./frontend/build
+    branch: feature/deploy
+    rootDir: componente-periferico/frontend
+    envVars:
+      - key: REACT_APP_BACKEND_URL
+        sync: false # Se debe configurar con la URL del backend después del despliegue
+        # Ejemplo: https://hcen-periferico-backend.onrender.com/hcen-web
+
+  # ============================================
+  # PostgreSQL Database
+  # ============================================
+  - type: pgsql
+    name: hcen-periferico-db
+    plan: starter # O "free" para tier gratuito (90 días)
+    region: oregon
+    databaseName: hcen_db
+    databaseUser: hcen_user
+    # La connection string estará disponible como DATABASE_URL en el servicio web
+

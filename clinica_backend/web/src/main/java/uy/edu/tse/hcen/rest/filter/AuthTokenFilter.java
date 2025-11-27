@@ -25,6 +25,25 @@ import java.util.Map;
 @Priority(Priorities.AUTHENTICATION)
 public class AuthTokenFilter implements ContainerRequestFilter, ContainerResponseFilter {
 
+    /**
+     * Determina si un origen está permitido para CORS
+     */
+    private boolean isAllowedOrigin(String origin) {
+        if (origin == null) return false;
+        
+        // Desarrollo local
+        if (origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:")) {
+            return true;
+        }
+        
+        // Render (producción)
+        if (origin.contains(".onrender.com")) {
+            return true;
+        }
+        
+        return false;
+    }
+    
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
         // Manejar peticiones OPTIONS (CORS preflight) - siempre permitir con headers CORS
@@ -33,12 +52,16 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
             Response.ResponseBuilder responseBuilder = Response.ok();
             
             // Agregar headers CORS al preflight
-            if (origin != null && (origin.startsWith("http://localhost:3000") || origin.startsWith("http://localhost:3001"))) {
+            if (origin != null && isAllowedOrigin(origin)) {
+                responseBuilder.header("Access-Control-Allow-Origin", origin);
+                responseBuilder.header("Access-Control-Allow-Credentials", "true");
+            } else if (origin != null) {
+                // Para otros orígenes permitidos (cross-site)
                 responseBuilder.header("Access-Control-Allow-Origin", origin);
             } else {
+                // Sin origin header, permitir cualquier origen (solo desarrollo)
                 responseBuilder.header("Access-Control-Allow-Origin", "*");
             }
-            responseBuilder.header("Access-Control-Allow-Credentials", "true");
             responseBuilder.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH");
             responseBuilder.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
             responseBuilder.header("Access-Control-Max-Age", "3600");
@@ -122,13 +145,14 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
 
     @Override
     public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) throws IOException {
-        // Agregar headers CORS para permitir llamadas desde el frontend React (localhost:3000 y 3001)
+        // Agregar headers CORS para permitir llamadas desde el frontend React
+        // Soporta: localhost (desarrollo) y Render (producción)
         String origin = requestContext.getHeaderString("Origin");
-        if (origin != null && (origin.startsWith("http://localhost:3000") || origin.startsWith("http://localhost:3001"))) {
+        if (origin != null && isAllowedOrigin(origin)) {
             responseContext.getHeaders().add("Access-Control-Allow-Origin", origin);
             responseContext.getHeaders().add("Access-Control-Allow-Credentials", "true");
         } else if (origin != null) {
-            // Para otros orígenes, permitir pero sin credentials
+            // Para otros orígenes permitidos (cross-site)
             responseContext.getHeaders().add("Access-Control-Allow-Origin", origin);
         } else {
             // Si no hay Origin header, permitir cualquier origen (solo para desarrollo)
