@@ -6,6 +6,7 @@ import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.jboss.logging.Logger;
+import uy.edu.tse.hcen.utils.HcenCentralUrlUtil;
 
 import java.util.Map;
 
@@ -20,8 +21,6 @@ public class PoliticasAccesoClient {
 
     private static final Logger LOG = Logger.getLogger(PoliticasAccesoClient.class);
     
-    // URL base del servicio de políticas (configurable)
-    private static final String DEFAULT_POLITICAS_URL = "http://hcen-backend:8080/hcen-politicas-service/api";
     private static final String PROP_POLITICAS_URL = "POLITICAS_SERVICE_URL";
     
     /**
@@ -99,7 +98,7 @@ public class PoliticasAccesoClient {
     }
     
     /**
-     * Obtiene la URL del servicio de políticas desde variables de entorno o usa el default.
+     * Obtiene la URL del servicio de políticas desde variables de entorno o construye desde HCEN base URL.
      */
     private String getPoliticasUrl() {
         String envUrl = System.getenv(PROP_POLITICAS_URL);
@@ -112,7 +111,9 @@ public class PoliticasAccesoClient {
             LOG.info("Usando POLITICAS_SERVICE_URL desde propiedad del sistema: " + sysPropUrl);
             return sysPropUrl;
         }
-        return DEFAULT_POLITICAS_URL;
+        // Construir desde la URL base del HCEN central (el servicio de políticas está en el mismo servidor)
+        String baseUrl = HcenCentralUrlUtil.getBaseUrl();
+        return baseUrl + "/hcen-politicas-service/api";
     }
 }
 

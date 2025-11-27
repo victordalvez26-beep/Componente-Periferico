@@ -6,6 +6,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.jboss.logging.Logger;
 import uy.edu.tse.hcen.service.TenantAdminService;
+import uy.edu.tse.hcen.utils.HcenCentralUrlUtil;
 
 import java.util.Map;
 
@@ -345,7 +346,7 @@ public class ConfigResource {
             
             // PASO 4: Notificar a HCEN que el registro se completó
             try {
-                String hcenUrl = "http://hcen-backend:8080/api/nodos/" + req.tenantId + "/complete-registration";
+                String hcenUrl = uy.edu.tse.hcen.utils.HcenCentralUrlUtil.buildApiUrl("/nodos/" + req.tenantId + "/complete-registration");
                 LOG.infof("Notifying HCEN about completed registration: %s", hcenUrl);
                 
                 java.net.http.HttpClient httpClient = java.net.http.HttpClient.newHttpClient();

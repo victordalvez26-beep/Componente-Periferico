@@ -2,6 +2,7 @@ package uy.edu.tse.hcen.service;
 
 import uy.edu.tse.hcen.dto.DTMetadatos;
 import uy.edu.tse.hcen.utils.ServiceAuthUtil;
+import uy.edu.tse.hcen.utils.HcenCentralUrlUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.ws.rs.ProcessingException;
 import uy.edu.tse.hcen.exceptions.HcenUnavailableException;
@@ -26,14 +27,8 @@ public class HcenClient {
 
     private static final Logger LOG = Logger.getLogger(HcenClient.class.getName());
 
-        // The HCEN central endpoint can be overridden via the HCEN_CENTRAL_URL environment variable
-        // URL correcta: /api (ApplicationPath) + /metadatos-documento (Path del recurso)
-        // Usar nombre del servicio Docker para comunicación entre contenedores
-        private static final String DEFAULT_CENTRAL_URL = "http://hcen-backend:8080/api/metadatos-documento";
-    
-    // URL para obtener token de servicio
-    // Usar nombre del servicio Docker para comunicación entre contenedores
-    private static final String DEFAULT_SERVICE_AUTH_URL = "http://hcen-backend:8080/api/service-auth/token";
+        // Constantes para endpoints específicos (se construyen desde la URL base)
+        // La URL base se obtiene de HcenCentralUrlUtil que lee HCEN_CENTRAL_BASE_URL
     
     // Cache del token de servicio (para evitar obtener uno nuevo en cada llamada)
     private String cachedServiceToken = null;
@@ -44,7 +39,6 @@ public class HcenClient {
     private static final String SERVICE_NAME = "Componente Periférico HCEN";
     
     // Constantes para evitar duplicación de literales
-    private static final String ENV_HCEN_CENTRAL_URL = "HCEN_CENTRAL_URL";
     private static final String HEADER_AUTHORIZATION = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String ERROR_UNKNOWN = "Unknown error";
@@ -85,8 +79,7 @@ public class HcenClient {
                 return null; // Sin autenticación si no hay secret
             }
             
-            String authUrl = System.getProperty("HCEN_SERVICE_AUTH_URL",
-                    System.getenv().getOrDefault("HCEN_SERVICE_AUTH_URL", DEFAULT_SERVICE_AUTH_URL));
+            String authUrl = HcenCentralUrlUtil.buildApiUrl("/service-auth/token");
             
             // Usar try-with-resources para cerrar recursos automáticamente
             try (Client client = ClientBuilder.newClient()) {
@@ -120,8 +113,7 @@ public class HcenClient {
     }
 
     public void registrarMetadatos(DTMetadatos dto) throws HcenUnavailableException {
-        String centralUrl = System.getProperty(ENV_HCEN_CENTRAL_URL,
-                System.getenv().getOrDefault(ENV_HCEN_CENTRAL_URL, DEFAULT_CENTRAL_URL));
+        String centralUrl = HcenCentralUrlUtil.buildApiUrl("/metadatos-documento");
 
         LOG.info(String.format("HcenClient.registrarMetadatos - URL: %s, CI: %s", 
                 centralUrl, dto != null ? dto.getDocumentoIdPaciente() : "null"));
@@ -181,8 +173,7 @@ public class HcenClient {
      * Envía el payload completo (incluyendo datosPatronimicos) al central.
      */
     public void registrarMetadatosCompleto(Map<String, Object> payload) throws HcenUnavailableException {
-        String centralUrl = System.getProperty(ENV_HCEN_CENTRAL_URL,
-                System.getenv().getOrDefault(ENV_HCEN_CENTRAL_URL, DEFAULT_CENTRAL_URL));
+        String centralUrl = HcenCentralUrlUtil.buildApiUrl("/metadatos-documento");
 
         // Obtener token de servicio
         String serviceToken = getServiceToken();
@@ -228,9 +219,7 @@ public class HcenClient {
             String ciPaciente, String profesionalId, String tenantId, String especialidad, String nombreProfesional) 
             throws HcenUnavailableException {
         // Construir URL del endpoint de metadatos por CI
-        String baseUrl = System.getProperty(ENV_HCEN_CENTRAL_URL,
-                System.getenv().getOrDefault(ENV_HCEN_CENTRAL_URL, "http://hcen-backend:8080/api"));
-        String metadatosUrl = baseUrl.replace("/metadatos-documento", "") + "/metadatos-documento/paciente/" + ciPaciente;
+        String metadatosUrl = HcenCentralUrlUtil.buildApiUrl("/metadatos-documento/paciente/" + ciPaciente);
         
         // Agregar query parameters si están disponibles
         if (profesionalId != null && !profesionalId.isBlank()) {
@@ -290,13 +279,8 @@ public class HcenClient {
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> consultarMetadatosPaciente(String documentoIdPaciente) 
             throws HcenUnavailableException {
-        // URL base de HCEN central para endpoints de paciente
-        // El endpoint es /api/paciente/{id}/metadatos
-        String baseUrl = System.getProperty("HCEN_CENTRAL_BASE_URL",
-                System.getenv().getOrDefault("HCEN_CENTRAL_BASE_URL", "http://127.0.0.1:8080/api"));
-        
         // Construir URL del endpoint de paciente
-        String pacienteUrl = baseUrl + "/paciente/" + documentoIdPaciente + "/metadatos";
+        String pacienteUrl = HcenCentralUrlUtil.buildApiUrl("/paciente/" + documentoIdPaciente + "/metadatos");
 
         // Usar try-with-resources para cerrar recursos automáticamente
         try (Client client = ClientBuilder.newClient();
@@ -339,12 +323,10 @@ public class HcenClient {
         
         // Registrar de forma asíncrona para no bloquear la respuesta
         try {
-            String politicasUrl = System.getenv("POLITICAS_SERVICE_URL");
-            if (politicasUrl == null || politicasUrl.isEmpty()) {
-                politicasUrl = "http://hcen-backend:8080/hcen-politicas-service/api";
-            }
-            
-            String registroUrl = politicasUrl + "/registros";
+            // El servicio de políticas está en el mismo servidor que el HCEN central
+            // Construir URL usando la base del HCEN central
+            String baseUrl = HcenCentralUrlUtil.getBaseUrl();
+            String registroUrl = baseUrl + "/hcen-politicas-service/api/registros";
             
             // Construir payload para registrar acceso
             Map<String, Object> payload = new java.util.HashMap<>();
