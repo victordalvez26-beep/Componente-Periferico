@@ -56,7 +56,7 @@ public class HcenClient {
      * 
      * @return Token JWT de servicio o null si no se pudo obtener
      */
-    private String getServiceToken() {
+    public String getServiceToken() {
         // Verificar si el token cacheado sigue siendo válido (con margen de 5 minutos)
         long now = System.currentTimeMillis();
         if (cachedServiceToken != null && tokenExpiryTime > now + (5 * 60 * 1000)) {
@@ -155,7 +155,7 @@ public class HcenClient {
         }
     }
     
-    private void handleTokenRejection(Client client, String centralUrl, Object payload) throws HcenUnavailableException {
+    public void handleTokenRejection(Client client, String centralUrl, Object payload) throws HcenUnavailableException {
         LOG.warning("Token de servicio rechazado, limpiando cache");
         cachedServiceToken = null;
         tokenExpiryTime = 0;

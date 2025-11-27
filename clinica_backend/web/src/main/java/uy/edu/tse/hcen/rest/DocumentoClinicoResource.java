@@ -110,7 +110,7 @@ public class DocumentoClinicoResource {
             }
             if (contenido == null || contenido.isBlank()) {
                 return DocumentoResponseBuilder.badRequest(DocumentoConstants.ERROR_CONTENIDO_ES_REQUERIDO);
-        }
+            }
 
             // Crear documento
             Map<String, Object> resultado = documentoService.crearDocumentoCompleto(

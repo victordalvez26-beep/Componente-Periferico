@@ -129,7 +129,7 @@ public class StatsService {
         return actividades;
     }
 
-    private int contarProfesionales(String tenantId) {
+    public int contarProfesionales(String tenantId) {
         try {
             // Guardar el tenant actual
             String tenantAnterior = TenantContext.getCurrentTenant();
@@ -157,7 +157,7 @@ public class StatsService {
         }
     }
 
-    private int contarUsuariosSalud(Long tenantId) {
+    public int contarUsuariosSalud(Long tenantId) {
         try {
             List<?> usuarios = usuarioSaludRepository.findByTenant(tenantId);
             int count = usuarios != null ? usuarios.size() : 0;
@@ -169,7 +169,7 @@ public class StatsService {
         }
     }
 
-    private int contarDocumentosTotales(Long tenantId) {
+    public int contarDocumentosTotales(Long tenantId) {
         try {
             // Contar en documentos_pdf
             long countPdf = documentoPdfRepository.getCollectionPublic()
@@ -189,7 +189,7 @@ public class StatsService {
         }
     }
 
-    private int contarDocumentosHoy(Long tenantId) {
+    public int contarDocumentosHoy(Long tenantId) {
         try {
             // Obtener fecha de inicio de hoy (00:00:00)
             LocalDate hoy = LocalDate.now();
@@ -228,7 +228,7 @@ public class StatsService {
         }
     }
 
-    private List<Map<String, Object>> obtenerUltimosDocumentos(Long tenantId, int limite) {
+    public List<Map<String, Object>> obtenerUltimosDocumentos(Long tenantId, int limite) {
         List<Map<String, Object>> actividades = new ArrayList<>();
         try {
             // Obtener últimos documentos de documentos_pdf
@@ -296,7 +296,7 @@ public class StatsService {
         return actividades;
     }
 
-    private List<Map<String, Object>> obtenerUltimosUsuarios(Long tenantId, int limite) {
+    public List<Map<String, Object>> obtenerUltimosUsuarios(Long tenantId, int limite) {
         List<Map<String, Object>> actividades = new ArrayList<>();
         try {
             List<uy.edu.tse.hcen.model.UsuarioSalud> usuarios = usuarioSaludRepository.findByTenant(tenantId);
@@ -338,7 +338,7 @@ public class StatsService {
         return actividades;
     }
 
-    private List<Map<String, Object>> obtenerUltimosProfesionales(String tenantId, int limite) {
+    public List<Map<String, Object>> obtenerUltimosProfesionales(String tenantId, int limite) {
         List<Map<String, Object>> actividades = new ArrayList<>();
         try {
             // Guardar el tenant actual
@@ -379,7 +379,7 @@ public class StatsService {
         return actividades;
     }
 
-    private String obtenerNombreProfesional(String profesionalId, Long tenantId) {
+    public String obtenerNombreProfesional(String profesionalId, Long tenantId) {
         try {
             // Guardar el tenant actual
             String tenantAnterior = TenantContext.getCurrentTenant();
@@ -413,7 +413,7 @@ public class StatsService {
         return profesionalId;
     }
 
-    private Map<String, Object> crearEstadisticasVacias() {
+    public Map<String, Object> crearEstadisticasVacias() {
         Map<String, Object> stats = new HashMap<>();
         stats.put("profesionales", 0);
         stats.put("usuarios", 0);

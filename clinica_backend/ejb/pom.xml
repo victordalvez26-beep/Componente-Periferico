@@ -210,6 +210,17 @@
                         <ejbVersion>4.0</ejbVersion>
                     </configuration>
                 </plugin>
+            <!-- Configure Surefire plugin to set system properties for tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <systemPropertyVariables>
+                        <hcen.jwt.secret.base64>dGVzdC1zZWNyZXQta2V5LWZvci1qd3QtdG9rZW4tZ2VuZXJhdGlvbi0xMjM0NTY3ODkwMTIzNDU2Nzg5MA==</hcen.jwt.secret.base64>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>
