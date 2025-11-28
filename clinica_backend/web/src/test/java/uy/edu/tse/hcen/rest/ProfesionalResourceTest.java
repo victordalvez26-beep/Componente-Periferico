@@ -39,6 +39,20 @@ class ProfesionalResourceTest {
     @BeforeEach
     void setUp() {
         TenantContext.clear();
+        TenantContext.setCurrentTenant("101");
+        
+        // Inyectar mocks usando reflection
+        try {
+            java.lang.reflect.Field field = ProfesionalResource.class.getDeclaredField("politicasAccesoClient");
+            field.setAccessible(true);
+            field.set(resource, politicasAccesoClient);
+            
+            field = ProfesionalResource.class.getDeclaredField("securityContext");
+            field.setAccessible(true);
+            field.set(resource, securityContext);
+        } catch (Exception e) {
+            throw new RuntimeException("Error setting up mocks: " + e.getMessage(), e);
+        }
     }
 
     @Test

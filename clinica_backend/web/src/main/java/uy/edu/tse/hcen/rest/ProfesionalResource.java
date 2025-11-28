@@ -78,16 +78,19 @@ public class ProfesionalResource {
             LOG.info(String.format("Verificando permiso - Profesional: %s, Paciente: %s, TipoDoc: %s, Tenant: %s", 
                     profesionalId, pacienteCI, tipoDoc, tenantId));
             
+            LOG.debugf("verificarPermiso: politicasAccesoClient=%s", politicasAccesoClient);
             boolean tienePermiso = politicasAccesoClient.verificarPermiso(
                     profesionalId, 
                     pacienteCI, 
                     tipoDoc, 
                     tenantId);
             
+            LOG.debugf("verificarPermiso: resultado=%s", tienePermiso);
             return Response.ok(Map.of("tienePermiso", tienePermiso)).build();
             
         } catch (Exception e) {
-            LOG.error("Error al verificar permiso", e);
+            LOG.errorf(e, "Error al verificar permiso - Profesional: %s, Paciente: %s, TipoDoc: %s, Tenant: %s", 
+                    profesionalId, pacienteCI, tipoDoc, TenantContext.getCurrentTenant());
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                 .entity(Map.of("error", "Error al verificar permiso: " + e.getMessage()))
                 .build();

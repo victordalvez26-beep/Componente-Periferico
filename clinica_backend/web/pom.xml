@@ -20,7 +20,7 @@
 
     <parent>
         <groupId>uy.edu.tse</groupId>
-        <artifactId>hcen</artifactId>
+        <artifactId>hcen_clinica</artifactId>
         <version>0.0.1-SNAPSHOT</version>
     </parent>
     <artifactId>hcen-web</artifactId>
@@ -59,6 +59,15 @@
             <artifactId>hcen-ejb</artifactId>
             <type>ejb</type>
             <scope>provided</scope>
+        </dependency>
+
+        <!-- Include EJB classes on the test classpath so unit tests can compile/run locally -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>hcen-ejb</artifactId>
+            <version>${project.version}</version>
+            <type>jar</type>
+            <scope>test</scope>
         </dependency>
 
         <!-- Import the JSF API, we use provided scope as the API is included in WildFly / JBoss EAP -->
@@ -236,6 +245,17 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <!-- Maven Surefire Plugin for running tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <systemPropertyVariables>
+                        <hcen.jwt.secret.base64>dGVzdC1zZWNyZXQta2V5LWZvci1qd3QtdG9rZW4tZ2VuZXJhdGlvbi0xMjM0NTY3ODkwMTIzNDU2Nzg5MA==</hcen.jwt.secret.base64>
+                    </systemPropertyVariables>
+                </configuration>
             </plugin>
         </plugins>
     </build>

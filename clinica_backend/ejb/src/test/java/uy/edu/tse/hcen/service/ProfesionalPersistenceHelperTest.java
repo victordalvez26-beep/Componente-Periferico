@@ -83,7 +83,7 @@ class ProfesionalPersistenceHelperTest {
         when(em.unwrap(Session.class)).thenReturn(session);
         doAnswer(invocation -> null).when(session).doWork(any());
         doThrow(new RuntimeException("Database error")).when(em).persist(any());
-        doThrow(new Exception("Rollback failed")).when(userTransaction).rollback();
+        doThrow(new RuntimeException("Rollback failed")).when(userTransaction).rollback();
 
         assertThrows(RuntimeException.class, () -> {
             helper.persistWithManualTransaction(profesional, schema);

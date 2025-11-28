@@ -74,8 +74,10 @@ public class DocumentoClinicoResource {
     @RolesAllowed("PROFESIONAL")
     public Response crearDocumentoCompleto(Map<String, Object> body) {
         try {
+            LOG.info("=== crearDocumentoCompleto INICIO ===");
             // Validar body
             if (body == null) {
+                LOG.info("crearDocumentoCompleto: body es null - retornando 400");
                 return DocumentoResponseBuilder.badRequest(DocumentoConstants.ERROR_REQUEST_BODY_REQUIRED);
             }
 
@@ -85,13 +87,17 @@ public class DocumentoClinicoResource {
                 profesionalId = securityContext.getUserPrincipal().getName();
             }
 
+            LOG.infof("crearDocumentoCompleto: profesionalId=%s, securityContext=%s", profesionalId, securityContext);
             if (profesionalId == null || profesionalId.isBlank()) {
+                LOG.info("crearDocumentoCompleto: profesionalId es null o vacío - retornando 401");
                 return DocumentoResponseBuilder.unauthorized(DocumentoConstants.ERROR_AUTENTICACION_REQUERIDA);
             }
 
             // Obtener tenant actual
             String tenantIdStr = TenantContext.getCurrentTenant();
+            LOG.infof("crearDocumentoCompleto: tenantIdStr=%s", tenantIdStr);
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
+                LOG.info("crearDocumentoCompleto: tenantIdStr es null o vacío - retornando 400");
                 return DocumentoResponseBuilder.badRequest("Tenant no identificado");
             }
             Long tenantId = Long.parseLong(tenantIdStr);
@@ -105,10 +111,13 @@ public class DocumentoClinicoResource {
             String autor = (String) body.get("autor");
 
             // Validaciones
+            LOG.infof("crearDocumentoCompleto: ciPaciente=%s, contenido=%s", ciPaciente, contenido != null ? "presente" : "null");
             if (ciPaciente == null || ciPaciente.isBlank()) {
+                LOG.info("crearDocumentoCompleto: ciPaciente es null o vacío");
                 return DocumentoResponseBuilder.badRequest("ciPaciente es requerido");
             }
             if (contenido == null || contenido.isBlank()) {
+                LOG.info("crearDocumentoCompleto: contenido es null o vacío");
                 return DocumentoResponseBuilder.badRequest(DocumentoConstants.ERROR_CONTENIDO_ES_REQUERIDO);
             }
 

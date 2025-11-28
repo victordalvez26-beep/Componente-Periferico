@@ -57,6 +57,10 @@ class DocumentoPdfResourceTest {
 
     @BeforeEach
     void setUp() {
+        // Limpiar y configurar TenantContext
+        TenantContext.clear();
+        TenantContext.setCurrentTenant("101");
+        
         try {
             java.lang.reflect.Field field = DocumentoPdfResource.class.getDeclaredField("documentoPdfService");
             field.setAccessible(true);
@@ -389,9 +393,11 @@ class DocumentoPdfResourceTest {
         InputPart archivoPart = mock(InputPart.class);
         InputPart ciPart = mock(InputPart.class);
         
+        jakarta.ws.rs.core.MultivaluedMap<String, String> headers = new jakarta.ws.rs.core.MultivaluedHashMap<>();
+        headers.add("Content-Type", "image/jpeg");
+        
         when(archivoPart.getBody(InputStream.class, null)).thenReturn(mock(InputStream.class));
-        when(archivoPart.getHeaders()).thenReturn(new jakarta.ws.rs.core.MultivaluedHashMap<>());
-        when(archivoPart.getHeaders().getFirst("Content-Type")).thenReturn("image/jpeg");
+        when(archivoPart.getHeaders()).thenReturn(headers);
         when(ciPart.getBodyAsString()).thenReturn("12345678");
         
         formDataMap.put("archivo", Arrays.asList(archivoPart));

@@ -197,6 +197,10 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>${version.jacoco.plugin}</version>
+                <configuration>
+                    <!-- Allow skipping JaCoCo instrumentation during local test runs -->
+                    <skip>${jacoco.skip}</skip>
+                </configuration>
                 <executions>
                     <execution>
                         <id>prepare-agent</id>

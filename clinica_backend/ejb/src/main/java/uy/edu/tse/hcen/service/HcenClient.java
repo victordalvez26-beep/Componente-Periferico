@@ -144,6 +144,10 @@ public class HcenClient {
                 if (status == 401 || status == 403) {
                     // Token inválido o expirado, limpiar cache y reintentar una vez
                     handleTokenRejection(client, centralUrl, dto);
+                    // Si luego de reintentar no se obtuvo nuevo token, considerar HCEN no disponible
+                    if (cachedServiceToken == null) {
+                        throw new HcenUnavailableException("No se pudo obtener nuevo token de servicio");
+                    }
                 } else if (status != 200 && status != 201 && status != 202) {
                     String errorMsg = response.hasEntity() ? response.readEntity(String.class) : ERROR_UNKNOWN;
                     throw new HcenUnavailableException(

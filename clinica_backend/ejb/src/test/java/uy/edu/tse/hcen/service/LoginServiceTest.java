@@ -208,7 +208,6 @@ class LoginServiceTest {
         when(admin.getPasswordHash()).thenReturn(PasswordUtils.hashPassword(password));
         when(admin.getRole()).thenReturn(null); // Sin role explícito
         when(admin.getTenantId()).thenReturn(tenantId);
-        when(admin.checkPassword(password)).thenReturn(true);
         
         doNothing().when(tenantResolver).setTenantIdentifier("public");
         when(userRepository.findByNicknameForLogin(nickname)).thenReturn(admin);
@@ -258,7 +257,6 @@ class LoginServiceTest {
         when(user.getPasswordHash()).thenReturn(PasswordUtils.hashPassword(password));
         when(user.getRole()).thenReturn(null);
         when(user.getTenantId()).thenReturn(tenantId);
-        when(user.checkPassword(password)).thenReturn(true);
         // No es ProfesionalSalud ni AdministradorClinica
         
         doNothing().when(tenantResolver).setTenantIdentifier("public");

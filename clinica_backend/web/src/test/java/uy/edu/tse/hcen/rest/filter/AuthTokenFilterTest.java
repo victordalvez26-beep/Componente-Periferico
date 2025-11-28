@@ -7,6 +7,7 @@ import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriInfo;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +22,7 @@ import uy.edu.tse.hcen.utils.TokenUtils;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Base64;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -44,6 +46,14 @@ class AuthTokenFilterTest {
 
     @InjectMocks
     private AuthTokenFilter filter;
+
+    @BeforeAll
+    static void setUpBeforeAll() {
+        // Configurar la propiedad del sistema ANTES de que se cargue TokenUtils
+        if (System.getProperty("hcen.jwt.secret.base64") == null && System.getenv("JWT_SECRET_BASE64") == null) {
+            System.setProperty("hcen.jwt.secret.base64", Base64.getEncoder().encodeToString("test-secret-key-for-jwt-token-generation-12345678901234567890".getBytes()));
+        }
+    }
 
     @BeforeEach
     void setUp() {

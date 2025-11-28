@@ -77,7 +77,7 @@ class MongoDBProducerTest {
         MongoClient mockClient = mock(MongoClient.class);
         MongoDatabase mockDatabase = mock(MongoDatabase.class);
         
-        when(mockClient.getDatabase("test_db")).thenReturn(mockDatabase);
+        when(mockClient.getDatabase(anyString())).thenReturn(mockDatabase);
 
         MongoDatabase result = producer.createMongoDatabase(mockClient);
 

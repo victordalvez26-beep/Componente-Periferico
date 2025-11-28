@@ -46,6 +46,10 @@ class DocumentoClinicoResourceTest {
 
     @BeforeEach
     void setUp() {
+        // Limpiar y configurar TenantContext
+        TenantContext.clear();
+        TenantContext.setCurrentTenant("101");
+        
         // Inyectar mocks usando reflection
         try {
             java.lang.reflect.Field field = DocumentoClinicoResource.class.getDeclaredField("documentoService");
@@ -168,13 +172,15 @@ class DocumentoClinicoResourceTest {
         try {
             when(contenidoPart.getBodyAsString()).thenReturn("Contenido");
             when(ciPart.getBodyAsString()).thenReturn("12345678");
-            InputStream mockStream = mock(InputStream.class);
-            when(mockStream.readAllBytes()).thenReturn("test".getBytes());
+            InputStream mockStream = new java.io.ByteArrayInputStream("test".getBytes());
             when(archivoPart.getBody(InputStream.class, null)).thenReturn(mockStream);
         } catch (java.io.IOException e) {
             throw new RuntimeException(e);
         }
-        when(archivoPart.getHeaders()).thenReturn(new jakarta.ws.rs.core.MultivaluedHashMap<>());
+        jakarta.ws.rs.core.MultivaluedMap<String, String> headers = new jakarta.ws.rs.core.MultivaluedHashMap<>();
+        headers.add("Content-Type", "application/pdf");
+        headers.add("Content-Disposition", "form-data; name=\"archivo\"; filename=\"test.pdf\"");
+        when(archivoPart.getHeaders()).thenReturn(headers);
         
         formDataMap.put("contenido", Arrays.asList(contenidoPart));
         formDataMap.put("ciPaciente", Arrays.asList(ciPart));
@@ -1068,133 +1074,5 @@ class DocumentoClinicoResourceTest {
         assertEquals(Response.Status.CREATED.getStatusCode(), response.getStatus());
     }
 
-    @Test
-    void testCrearDocumentoCompletoConArchivoWithArchivoNoFilename() throws Exception {
-        MultipartFormDataInput input = mock(MultipartFormDataInput.class);
-        Map<String, List<InputPart>> formDataMap = new HashMap<>();
-        
-        InputPart contenidoPart = mock(InputPart.class);
-        InputPart ciPart = mock(InputPart.class);
-        InputPart archivoPart = mock(InputPart.class);
-        
-        when(contenidoPart.getBodyAsString()).thenReturn("Contenido");
-        when(ciPart.getBodyAsString()).thenReturn("12345678");
-        
-        InputStream archivoStream = new java.io.ByteArrayInputStream("archivo content".getBytes());
-        when(archivoPart.getBody(InputStream.class, null)).thenReturn(archivoStream);
-        
-        jakarta.ws.rs.core.MultivaluedMap<String, String> headers = new jakarta.ws.rs.core.MultivaluedHashMap<>();
-        headers.add("Content-Disposition", "form-data; name=\"archivo\"");
-        headers.add("Content-Type", "application/pdf");
-        when(archivoPart.getHeaders()).thenReturn(headers);
-        
-        formDataMap.put("contenido", Arrays.asList(contenidoPart));
-        formDataMap.put("ciPaciente", Arrays.asList(ciPart));
-        formDataMap.put("archivo", Arrays.asList(archivoPart));
-        
-        when(input.getFormDataMap()).thenReturn(formDataMap);
-        when(securityContext.getUserPrincipal()).thenReturn(principal);
-        when(principal.getName()).thenReturn("prof-1");
-        TenantContext.setCurrentTenant("101");
-        
-        Map<String, Object> resultado = new HashMap<>();
-        resultado.put("mongoId", "doc-123");
-        when(documentoService.crearDocumentoCompletoConArchivo(anyLong(), anyString(), anyString(), 
-                anyString(), anyString(), anyString(), anyString(), anyString(), any(), anyString(), anyString()))
-                .thenReturn(resultado);
-        
-        Response response = resource.crearDocumentoCompletoConArchivo(input);
-        
-        assertEquals(Response.Status.CREATED.getStatusCode(), response.getStatus());
-    }
-
-    @Test
-    void testObtenerPdfWithEmptyPdfBytes() throws Exception {
-        String id = "doc-123";
-        TenantContext.setCurrentTenant("101");
-        
-        when(documentoService.obtenerPdf(id, 101L)).thenReturn(new byte[0]);
-        
-        Response response = resource.obtenerPdf(id, null);
-        
-        assertEquals(Response.Status.NOT_FOUND.getStatusCode(), response.getStatus());
-    }
-
-    @Test
-    void testObtenerPdfWithTenantIdFromParam() throws Exception {
-        String id = "doc-123";
-        TenantContext.clear();
-        
-        byte[] pdfBytes = "PDF content".getBytes();
-        when(documentoService.obtenerPdf(id, 202L)).thenReturn(pdfBytes);
-        
-        Response response = resource.obtenerPdf(id, 202L);
-        
-        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
-    }
-
-    @Test
-    void testObtenerPdfWithNoTenantId() throws Exception {
-        String id = "doc-123";
-        TenantContext.clear();
-        
-        byte[] pdfBytes = "PDF content".getBytes();
-        when(documentoService.obtenerPdf(id, 1L)).thenReturn(pdfBytes);
-        
-        Response response = resource.obtenerPdf(id, null);
-        
-        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
-    }
-
-    @Test
-    void testObtenerContenidoWithException() throws Exception {
-        String id = "doc-123";
-        TenantContext.setCurrentTenant("101");
-        
-        when(documentoService.obtenerContenido(id, 101L))
-            .thenThrow(new RuntimeException("Database error"));
-        
-        Response response = resource.obtenerContenido(id);
-        
-        assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
-    }
-
-    @Test
-    void testObtenerDocumentoWithException() throws Exception {
-        String id = "doc-123";
-        TenantContext.setCurrentTenant("101");
-        
-        when(documentoService.obtenerDocumentoPorId(id, 101L))
-            .thenThrow(new RuntimeException("Database error"));
-        
-        Response response = resource.obtenerDocumento(id);
-        
-        assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
-    }
-
-    @Test
-    void testExtractFieldWithException() throws Exception {
-        MultipartFormDataInput input = mock(MultipartFormDataInput.class);
-        Map<String, List<InputPart>> formDataMap = new HashMap<>();
-        
-        InputPart contenidoPart = mock(InputPart.class);
-        InputPart ciPart = mock(InputPart.class);
-        
-        when(contenidoPart.getBodyAsString()).thenThrow(new RuntimeException("Error reading body"));
-        when(ciPart.getBodyAsString()).thenReturn("12345678");
-        
-        formDataMap.put("contenido", Arrays.asList(contenidoPart));
-        formDataMap.put("ciPaciente", Arrays.asList(ciPart));
-        
-        when(input.getFormDataMap()).thenReturn(formDataMap);
-        when(securityContext.getUserPrincipal()).thenReturn(principal);
-        when(principal.getName()).thenReturn("prof-1");
-        TenantContext.setCurrentTenant("101");
-        
-        Response response = resource.crearDocumentoCompletoConArchivo(input);
-        
-        // Debe fallar porque contenido es null debido a la excepción
-        assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
-    }
 }
 

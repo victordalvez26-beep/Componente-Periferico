@@ -14,7 +14,7 @@ import org.jboss.logging.Logger;
 import uy.edu.tse.hcen.dto.LoginResponse;
 
 @RequestScoped
-public class LoginService {
+public class LoginService implements ILoginService {
 
     @Inject
     private UsuarioPerifericoRepository userRepository;

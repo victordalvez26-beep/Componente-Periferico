@@ -9,7 +9,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import uy.edu.tse.hcen.dto.LoginRequest;
 import uy.edu.tse.hcen.dto.LoginResponse;
-import uy.edu.tse.hcen.service.LoginService;
+import uy.edu.tse.hcen.service.ILoginService;
 
 import jakarta.ws.rs.core.Response;
 import java.lang.reflect.Field;
@@ -23,7 +23,7 @@ import static org.mockito.Mockito.*;
 class AuthResourceTest {
 
     @Mock
-    private LoginService loginService;
+    private ILoginService loginService;
 
     private AuthResource authResource;
 

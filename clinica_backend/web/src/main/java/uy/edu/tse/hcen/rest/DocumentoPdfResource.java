@@ -81,7 +81,9 @@ public class DocumentoPdfResource {
                 profesionalId = securityContext.getUserPrincipal().getName();
             }
 
+            LOG.debugf("subirPdf: profesionalId=%s, securityContext=%s", profesionalId, securityContext);
             if (profesionalId == null || profesionalId.isBlank()) {
+                LOG.debug("subirPdf: profesionalId es null o vacío");
                 return Response.status(Response.Status.UNAUTHORIZED)
                         .entity(Map.of("error", "Autenticación requerida"))
                         .build();
@@ -89,7 +91,9 @@ public class DocumentoPdfResource {
 
             // Obtener tenant actual
             String tenantIdStr = TenantContext.getCurrentTenant();
+            LOG.debugf("subirPdf: tenantIdStr=%s", tenantIdStr);
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
+                LOG.debug("subirPdf: tenantIdStr es null o vacío");
                 return Response.status(Response.Status.BAD_REQUEST)
                         .entity(Map.of("error", "Tenant no identificado"))
                         .build();
@@ -133,7 +137,9 @@ public class DocumentoPdfResource {
 
             // Validar que el archivo sea PDF
             String contentType = archivoPart.getHeaders().getFirst("Content-Type");
+            LOG.debugf("subirPdf: contentType=%s", contentType);
             if (contentType == null || !contentType.equals("application/pdf")) {
+                LOG.debugf("subirPdf: contentType inválido - esperado 'application/pdf', recibido '%s'", contentType);
                 return Response.status(Response.Status.BAD_REQUEST)
                         .entity(Map.of("error", "Solo se permiten archivos PDF"))
                         .build();
