@@ -185,21 +185,44 @@ class ProfesionalResourceTest {
         assertTrue(entity.get("error").toString().contains("profesionalId"));
     }
 
+
     @Test
-    void testVerificarPermisoWithException() {
-        // Arrange
-        TenantContext.setCurrentTenant("101");
-        when(politicasAccesoClient.verificarPermiso(anyString(), anyString(), anyString(), anyString()))
-            .thenThrow(new RuntimeException("Service error"));
+void testVerificarPermisoWithException_Fixed() {
+    // Arrange
+    final String PROFESIONAL_ID = "prof1";
+    final String PACIENTE_CI = "12345678";
+    final String TENANT_ID = "101";
+    
+    TenantContext.setCurrentTenant(TENANT_ID);
 
-        // Act
-        Response response = resource.verificarPermiso("prof1", "12345678", null);
+    // STUBBING CORREGIDO: Usamos isNull() para el tercer argumento (tipoDoc)
+    when(politicasAccesoClient.verificarPermiso(
+        eq(PROFESIONAL_ID),   // Argumento 1: profesionalId
+        eq(PACIENTE_CI),      // Argumento 2: pacienteCI
+        isNull(String.class), // Argumento 3: tipoDoc (null)
+        eq(TENANT_ID)         // Argumento 4: tenantId
+    )).thenThrow(new RuntimeException("Service error: Conexión fallida"));
 
-        // Assert
-        assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> entity = (Map<String, Object>) response.getEntity();
-        assertTrue(entity.get("error").toString().contains("Error"));
-    }
+    // Act
+    // Usamos los mismos parámetros que el stubbing
+    Response response = resource.verificarPermiso(PROFESIONAL_ID, PACIENTE_CI, null);
+
+    // Assert
+    assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus(),
+                 "Debe retornar 500 INTERNAL_SERVER_ERROR cuando el cliente lanza una excepción.");
+    
+    // Verificamos que la llamada al cliente se hizo correctamente (opcional)
+    verify(politicasAccesoClient, times(1)).verificarPermiso(
+        eq(PROFESIONAL_ID), eq(PACIENTE_CI), isNull(), eq(TENANT_ID)
+    );
+    
+    @SuppressWarnings("unchecked")
+    Map<String, Object> entity = (Map<String, Object>) response.getEntity();
+    assertNotNull(entity, "El cuerpo de la respuesta no debe ser nulo.");
+    assertTrue(entity.get("error").toString().contains("Error"),
+               "El mensaje de error debe contener 'Error'.");
+}
+
+
 }
 

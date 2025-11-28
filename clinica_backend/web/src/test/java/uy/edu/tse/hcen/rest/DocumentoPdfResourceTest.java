@@ -1,5 +1,7 @@
 package uy.edu.tse.hcen.rest;
 
+import jakarta.ws.rs.core.MultivaluedHashMap;
+import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.SecurityContext;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
@@ -243,36 +245,55 @@ class DocumentoPdfResourceTest {
     }
 
     @Test
-    void testSubirPdfWithException() throws Exception {
-        MultipartFormDataInput input = mock(MultipartFormDataInput.class);
-        Map<String, List<InputPart>> formDataMap = new HashMap<>();
-        
-        InputPart archivoPart = mock(InputPart.class);
-        InputPart ciPart = mock(InputPart.class);
-        
-        when(archivoPart.getBody(InputStream.class, null)).thenReturn(mock(InputStream.class));
-        jakarta.ws.rs.core.MultivaluedMap<String, String> headers = new jakarta.ws.rs.core.MultivaluedHashMap<>();
-        headers.add("Content-Type", "application/pdf");
-        when(archivoPart.getHeaders()).thenReturn(headers);
-        when(ciPart.getBodyAsString()).thenReturn("12345678");
-        
-        formDataMap.put("archivo", Arrays.asList(archivoPart));
-        formDataMap.put("ciPaciente", Arrays.asList(ciPart));
-        
-        when(input.getFormDataMap()).thenReturn(formDataMap);
-        when(securityContext.getUserPrincipal()).thenReturn(principal);
-        when(principal.getName()).thenReturn("prof-1");
-        TenantContext.setCurrentTenant("101");
-        
-        when(documentoPdfService.procesarYGuardarPdf(anyLong(), anyString(), anyString(), 
-                any(InputStream.class), anyString(), anyString()))
-                .thenThrow(new RuntimeException("Service error"));
-        
-        Response response = resource.subirPdf(input);
-        
-        assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
-    }
+    void testSubirPdfWithException_FinalFix() throws Exception {
+    MultipartFormDataInput input = mock(MultipartFormDataInput.class);
+    Map<String, List<InputPart>> formDataMap = new HashMap<>();
+    
+    // Mocks de las partes
+    InputPart archivoPart = mock(InputPart.class);
+    InputPart ciPart = mock(InputPart.class);
+    
+    // **1. Garantizar Content-Type**
+    MultivaluedMap<String, String> headers = new MultivaluedHashMap<>();
+    headers.add("Content-Type", "application/pdf");
+    when(archivoPart.getHeaders()).thenReturn(headers); 
+    
+    // **2. Garantizar que la lectura de datos intermedios sea exitosa**
+    InputStream mockStream = mock(InputStream.class);
+    when(archivoPart.getBody(eq(InputStream.class), isNull())).thenReturn(mockStream);
+    when(ciPart.getBodyAsString()).thenReturn("12345678");
+    
+    // **3. Configuración del mapa (para pasar las validaciones de existencia)**
+    formDataMap.put("archivo", Arrays.asList(archivoPart));
+    formDataMap.put("ciPaciente", Arrays.asList(ciPart));
+    formDataMap.put("tipoDocumento", null); // Opción de que no exista
+    formDataMap.put("descripcion", null); // Opción de que no exista
+    when(input.getFormDataMap()).thenReturn(formDataMap);
+    
+    // Mocks de seguridad
+    when(securityContext.getUserPrincipal()).thenReturn(principal);
+    when(principal.getName()).thenReturn("prof-1");
+    TenantContext.setCurrentTenant("101");
+    
+    // **4. STUBBING: Simular el fallo del servicio (para obtener 500)**
+    when(documentoPdfService.procesarYGuardarPdf(
+        anyLong(), anyString(), anyString(), 
+        any(InputStream.class), anyString(), anyString())
+    ).thenThrow(new RuntimeException("Error simulado en el servicio"));
+    
+    // ACT
+    Response response = resource.subirPdf(input);
+    
+    // ASSERT (Esperamos 500)
+    assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus(),
+                 "Debe retornar 500 INTERNAL_SERVER_ERROR cuando el servicio lanza una excepción.");
 
+    // Opcional: Verificar que el servicio fue llamado antes de lanzar la excepción
+    verify(documentoPdfService, times(1)).procesarYGuardarPdf(
+        eq(101L), eq("prof-1"), eq("12345678"), 
+        any(InputStream.class), eq("EVALUACION"), isNull(String.class)
+    );
+}
     @Test
     void testListarDocumentosPorPacienteWithException() {
         TenantContext.setCurrentTenant("101");
