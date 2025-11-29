@@ -23,6 +23,36 @@ function ActivatePage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
+  // Departamentos de Uruguay (homologados con hcen)
+  const departamentos = [
+    'ARTIGAS', 'CANELONES', 'CERRO_LARGO', 'COLONIA', 'DURAZNO', 
+    'FLORES', 'FLORIDA', 'LAVALLEJA', 'MALDONADO', 'MONTEVIDEO', 
+    'PAYSANDU', 'RIO_NEGRO', 'RIVERA', 'ROCHA', 'SALTO', 
+    'SAN_JOSE', 'SORIANO', 'TACUAREMBO', 'TREINTA_Y_TRES'
+  ];
+
+  const departamentosDisplay = {
+    'ARTIGAS': 'Artigas',
+    'CANELONES': 'Canelones',
+    'CERRO_LARGO': 'Cerro Largo',
+    'COLONIA': 'Colonia',
+    'DURAZNO': 'Durazno',
+    'FLORES': 'Flores',
+    'FLORIDA': 'Florida',
+    'LAVALLEJA': 'Lavalleja',
+    'MALDONADO': 'Maldonado',
+    'MONTEVIDEO': 'Montevideo',
+    'PAYSANDU': 'Paysandú',
+    'RIO_NEGRO': 'Río Negro',
+    'RIVERA': 'Rivera',
+    'ROCHA': 'Rocha',
+    'SALTO': 'Salto',
+    'SAN_JOSE': 'San José',
+    'SORIANO': 'Soriano',
+    'TACUAREMBO': 'Tacuarembó',
+    'TREINTA_Y_TRES': 'Treinta y Tres'
+  };
+
   const token = searchParams.get('token');
 
   useEffect(() => {
@@ -336,12 +366,10 @@ function ActivatePage() {
                 required
                 style={{width: '100%', padding: '12px 15px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '15px'}}
               >
-                <option value="">Seleccione...</option>
-                <option value="MONTEVIDEO">Montevideo</option>
-                <option value="CANELONES">Canelones</option>
-                <option value="MALDONADO">Maldonado</option>
-                <option value="COLONIA">Colonia</option>
-                <option value="SALTO">Salto</option>
+                <option value="">Seleccione un departamento</option>
+                {departamentos.map(dept => (
+                  <option key={dept} value={dept}>{departamentosDisplay[dept]}</option>
+                ))}
               </select>
             </div>
 
