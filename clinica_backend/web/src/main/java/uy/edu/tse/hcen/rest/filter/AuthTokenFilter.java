@@ -50,12 +50,14 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
         // Excluir endpoints públicos que NO requieren autenticación JWT:
         // - /config/* : Llamados por HCEN central (init, update, delete, activate, health)
         // - /auth/login : Login de usuarios
-        // - /api/documentos-pdf/{id} : Descarga individual de PDFs (el backend HCEN ya valida autenticación)
+        // - /api/documentos-pdf/{id} : Descarga de PDFs (el backend HCEN ya valida autenticación)
+        //   Esto aplica tanto para PDFs subidos directamente como para documentos generados desde texto
         // NO incluir /api/documentos-pdf/paciente/{ci} que requiere autenticación
         String path = requestContext.getUriInfo().getPath();
         if (path.startsWith("config/") || path.equals("auth/login") || 
-            (path.matches("documentos-pdf/[^/]+") && "GET".equals(requestContext.getMethod()) && !path.contains("/paciente/"))) {
+            (path.contains("documentos-pdf/") && "GET".equals(requestContext.getMethod()) && !path.contains("documentos-pdf/paciente/"))) {
             // Permitir acceso sin JWT a estos endpoints públicos
+            // Si viene un token, lo validamos pero no bloqueamos si falta
             return;
         }
         

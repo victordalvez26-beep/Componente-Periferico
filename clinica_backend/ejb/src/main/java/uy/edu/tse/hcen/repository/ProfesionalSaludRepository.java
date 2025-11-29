@@ -15,8 +15,20 @@ public class ProfesionalSaludRepository {
 
     /**
      * @return Todos los profesionales en el schema de la clínica actual.
+     * El EntityManager debería estar usando el esquema del tenant actual
+     * gracias a la configuración multi-tenancy de Hibernate.
      */
     public List<ProfesionalSalud> findAll() {
+        // Verificar que el tenant esté establecido
+        String currentTenant = uy.edu.tse.hcen.multitenancy.TenantContext.getCurrentTenant();
+        if (currentTenant == null || currentTenant.isBlank()) {
+            java.util.logging.Logger.getLogger(ProfesionalSaludRepository.class.getName())
+                .warning("⚠️ TenantContext no está establecido al listar profesionales");
+        } else {
+            java.util.logging.Logger.getLogger(ProfesionalSaludRepository.class.getName())
+                .info("🔍 Listando profesionales para tenant: " + currentTenant);
+        }
+        
         return em.createQuery("SELECT p FROM ProfesionalSalud p", ProfesionalSalud.class)
                  .getResultList();
     }

@@ -41,10 +41,6 @@ public class TenantAuthFilter implements ContainerRequestFilter {
         String path = requestContext.getUriInfo().getPath();
         String method = requestContext.getMethod();
         
-        // Log para debugging
-        java.util.logging.Logger.getLogger(TenantAuthFilter.class.getName())
-            .info("TenantAuthFilter - Path: " + path + ", Method: " + method);
-        
         // Permitir acceso SIN token a endpoints públicos:
         // - /auth/login : Login de usuarios
         // - /config/* : Endpoints llamados por HCEN central (init, update, delete, activate, health)
@@ -76,12 +72,17 @@ public class TenantAuthFilter implements ContainerRequestFilter {
             return; 
         }
         
-        // Para documentos-pdf/{id} GET (descarga individual), permitir acceso siempre
-        // El backend HCEN ya valida la autenticación del usuario del frontend
-        // Puede venir con token de servicio o sin token
-        // NO incluir /paciente/{ci} que requiere autenticación y tenant
+        // Permitir acceso a descargas de PDFs sin token (igual que los PDFs subidos directamente)
+        // Esto aplica tanto para PDFs subidos directamente como para documentos generados desde texto
         // El path puede venir como /documentos-pdf/{id} o /hcen-web/api/documentos-pdf/{id}
-        if (path.contains("documentos-pdf/") && "GET".equals(method) && !path.contains("/paciente/") && !path.contains("documentos-pdf/paciente/")) {
+        // NO permitir /documentos-pdf/paciente/{ci} que requiere autenticación
+        boolean esDescargaPdf = "GET".equals(method) 
+                && path.contains("documentos-pdf/") 
+                && !path.contains("documentos-pdf/paciente/");
+        
+        if (esDescargaPdf) {
+            java.util.logging.Logger logger = java.util.logging.Logger.getLogger(TenantAuthFilter.class.getName());
+            logger.info(String.format("TenantAuthFilter - Permitiendo acceso sin token para descarga PDF: %s", path));
             // Establecer un SecurityContext básico para permitir acceso
             final SecurityContext previous = requestContext.getSecurityContext();
             SecurityContext sc = new SecurityContext() {
@@ -91,7 +92,7 @@ public class TenantAuthFilter implements ContainerRequestFilter {
                 }
                 @Override
                 public boolean isUserInRole(String role) {
-                    return true; // Permitir todos los roles para acceso desde backend HCEN
+                    return true; // Permitir todos los roles
                 }
                 @Override
                 public boolean isSecure() {
@@ -103,9 +104,7 @@ public class TenantAuthFilter implements ContainerRequestFilter {
                 }
             };
             requestContext.setSecurityContext(sc);
-            java.util.logging.Logger.getLogger(TenantAuthFilter.class.getName())
-                .info("TenantAuthFilter - Acceso permitido para documentos-pdf/{id} (con o sin token): " + path);
-            return;
+            return; // Permitir acceso sin validar token (igual que PDFs subidos)
         }
 
         // 1. Obtener el encabezado de autorización
@@ -113,6 +112,8 @@ public class TenantAuthFilter implements ContainerRequestFilter {
 
         if (authorizationHeader == null || !authorizationHeader.startsWith(AUTH_SCHEME + " ")) {
             // No hay token o el formato es incorrecto
+            java.util.logging.Logger logger = java.util.logging.Logger.getLogger(TenantAuthFilter.class.getName());
+            logger.warning(String.format("TenantAuthFilter - Rechazando petición sin token: %s %s", method, path));
             abortRequest(requestContext, "Token de autorización requerido.");
             return;
         }
