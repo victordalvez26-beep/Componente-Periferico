@@ -454,6 +454,61 @@ public class ConfigResource {
     }
 
     /**
+     * Endpoint público (sin autenticación) para que el portal de login
+     * pueda obtener la configuración visual de la clínica.
+     *
+     * Se expone bajo /config/clinic/{id} para diferenciarlo de los endpoints
+     * administrativos (que requieren token) y sólo devuelve los campos necesarios
+     * para personalizar la UI: nombre, colores y logo.
+     *
+     * @param id ID del tenant (clínica).
+     * @return Configuración simplificada para el login.
+     */
+    @GET
+    @Path("/clinic/{id}")
+    public Response getPublicClinicConfig(@PathParam("id") String id) {
+        LOG.infof("Received public clinic config request for tenant: %s", id);
+
+        try {
+            if (id == null || id.isBlank()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "tenantId is required"))
+                        .build();
+            }
+
+            Map<String, Object> config = tenantAdminService.getTenantConfig(id);
+
+            if (config == null || config.isEmpty()) {
+                return Response.ok()
+                        .entity(Map.of(
+                                "tenantId", id,
+                                "nombrePortal", "Clínica " + id,
+                                "colorPrimario", "#667eea",
+                                "colorSecundario", "#764ba2",
+                                "logoUrl", ""
+                        ))
+                        .build();
+            }
+
+            return Response.ok()
+                    .entity(Map.of(
+                            "tenantId", id,
+                            "nombrePortal", config.getOrDefault("nombrePortal", "Clínica " + id),
+                            "colorPrimario", config.getOrDefault("colorPrimario", "#667eea"),
+                            "colorSecundario", config.getOrDefault("colorSecundario", "#764ba2"),
+                            "logoUrl", config.getOrDefault("logoUrl", "")
+                    ))
+                    .build();
+
+        } catch (Exception ex) {
+            LOG.error("Error getting public clinic config", ex);
+            return Response.serverError()
+                    .entity(Map.of("error", ex.getMessage()))
+                    .build();
+        }
+    }
+
+    /**
      * Endpoint PUT para actualizar la configuración de una clínica por su ID.
      * 
      * @param id ID de la clínica (tenantId)

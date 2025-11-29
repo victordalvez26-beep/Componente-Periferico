@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 
 function DocumentosPage() {
   const { tenantId } = useParams();
+  const navigate = useNavigate();
   const [ciPaciente, setCiPaciente] = useState('');
   const [documentos, setDocumentos] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -28,6 +29,7 @@ function DocumentosPage() {
     titulo: '',
     autor: ''
   });
+  const [createError, setCreateError] = useState(null);
 
   const buscarDocumentos = async () => {
     if (!ciPaciente.trim()) {
@@ -37,6 +39,7 @@ function DocumentosPage() {
 
     setLoading(true);
     setError(null);
+    setCreateError(null);
 
     try {
       const token = localStorage.getItem('token');
@@ -257,8 +260,10 @@ function DocumentosPage() {
           buscarDocumentos();
         }
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Error al crear el documento');
+        const errorData = await response.json().catch(() => ({}));
+        const msg = errorData.error || 'Error al crear el documento';
+        setCreateError(msg);
+        setError(null);
       }
     } catch (err) {
       setError('Error de conexión al crear el documento: ' + err.message);
@@ -284,6 +289,42 @@ function DocumentosPage() {
     }
   };
 
+  const renderCreateError = () => {
+    if (!createError) {
+      return null;
+    }
+
+    const normalizedError = createError.toLowerCase();
+    const shouldSuggestCreatePatient =
+      normalizedError.includes('paciente/usuario no encontrado') ||
+      normalizedError.includes('debe crear') ||
+      (normalizedError.includes('paciente') && normalizedError.includes('crear'));
+
+    return (
+      <div style={styles.modalErrorCard}>
+        <div style={styles.modalErrorHeader}>
+          <span style={styles.modalErrorIcon}>⚠️</span>
+          <div>
+            <div style={styles.modalErrorTitle}>No se pudo crear el documento</div>
+            <div style={styles.modalErrorText}>{createError}</div>
+          </div>
+        </div>
+
+        {shouldSuggestCreatePatient && (
+          <div style={styles.modalErrorActions}>
+            <button
+              type="button"
+              style={styles.goCreatePatientButton}
+              onClick={() => navigate(`/portal/clinica/${tenantId}/usuarios`)}
+            >
+              Crear paciente
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div>
       {/* Header con búsqueda */}
@@ -300,6 +341,7 @@ function DocumentosPage() {
               onClick={() => {
                 setShowCreateModal(true);
                 setCreateForm(prev => ({ ...prev, ciPaciente: ciPaciente }));
+                setCreateError(null);
               }}
               style={styles.createButton}
             >
@@ -405,12 +447,21 @@ function DocumentosPage() {
 
       {/* Modal de creación de documento completo */}
       {showCreateModal && (
-        <div style={styles.modalOverlay} onClick={() => setShowCreateModal(false)}>
+        <div
+          style={styles.modalOverlay}
+          onClick={() => {
+            setShowCreateModal(false);
+            setCreateError(null);
+          }}
+        >
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <h3 style={styles.modalTitle}>Crear Documento Clínico</h3>
               <button
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setCreateError(null);
+                }}
                 style={styles.modalClose}
               >
                 ✕
@@ -493,10 +544,15 @@ function DocumentosPage() {
                 />
               </div>
 
+              {renderCreateError()}
+
               <div style={styles.modalActions}>
                 <button
                   type="button"
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setCreateError(null);
+                  }}
                   style={styles.cancelButton}
                 >
                   Cancelar
@@ -951,6 +1007,45 @@ const styles = {
     border: 'none',
     borderRadius: '8px',
     fontSize: '15px',
+    fontWeight: '600',
+    cursor: 'pointer'
+  },
+  modalErrorCard: {
+    marginTop: '12px',
+    padding: '16px',
+    borderRadius: '8px',
+    backgroundColor: '#fef2f2',
+    border: '1px solid #fecaca',
+    color: '#991b1b'
+  },
+  modalErrorHeader: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '12px'
+  },
+  modalErrorIcon: {
+    fontSize: '20px',
+    marginTop: '2px'
+  },
+  modalErrorTitle: {
+    fontWeight: '600',
+    marginBottom: '4px'
+  },
+  modalErrorText: {
+    fontSize: '14px'
+  },
+  modalErrorActions: {
+    marginTop: '12px',
+    display: 'flex',
+    justifyContent: 'flex-end'
+  },
+  goCreatePatientButton: {
+    padding: '10px 18px',
+    backgroundColor: '#10b981',
+    color: 'white',
+    border: 'none',
+    borderRadius: '999px',
+    fontSize: '14px',
     fontWeight: '600',
     cursor: 'pointer'
   }
