@@ -1,0 +1,58 @@
+embed-server --std-out=echo --server-config=standalone.xml
+
+# 1. Registrar el driver PostgreSQL (module files are copied into the image at build time)
+/subsystem=datasources/jdbc-driver=postgres:add(driver-name="postgres", driver-module-name="org.postgresql", driver-class-name=org.postgresql.Driver)
+
+# 2. Configurar el DataSource principal usando variables de entorno
+# Render PostgreSQL proporciona DATABASE_URL como: postgresql://user:password@host:port/dbname
+# Parsearemos esta variable o usaremos DATASOURCE_URL, DATASOURCE_USER, DATASOURCE_PASSWORD
+# 
+# Si DATASOURCE_URL está definida, usarla directamente
+# Si no, construir desde DATABASE_URL o usar valores individuales
+
+# Parsear connection URL desde variables de entorno
+# Formato esperado: jdbc:postgresql://host:port/database
+# o usar DATABASE_URL de Render que viene como: postgresql://user:pass@host:port/db
+
+# Usar valores por defecto si no están definidos
+# En Render, la connection string interna viene en DATABASE_URL o podemos usar variables individuales
+if (result == undefined) of /system-property=datasource.url:read-attribute(name=value)
+    /system-property=datasource.url:add(value="${env.DATASOURCE_URL}")
+end-if
+
+if (result == undefined) of /system-property=datasource.user:read-attribute(name=value)
+    /system-property=datasource.user:add(value="${env.DATASOURCE_USER:postgres}")
+end-if
+
+if (result == undefined) of /system-property=datasource.password:read-attribute(name=value)
+    /system-property=datasource.password:add(value="${env.DATASOURCE_PASSWORD}")
+end-if
+
+# Crear el DataSource principal
+# Usaremos variables de sistema que se establecerán desde el entrypoint
+/subsystem=datasources/data-source=MyMainDataSource:add(
+    jndi-name="java:/jdbc/MyMainDataSource",
+    driver-name="postgres",
+    connection-url="${datasource.url:jdbc:postgresql://localhost:5432/hcen_db}",
+    user-name="${datasource.user:postgres}",
+    password="${datasource.password}",
+    use-java-context=true,
+    enabled=true,
+    max-pool-size=20,
+    flush-strategy=IdleConnections
+)
+
+# 3. Enable debug logging for Hibernate (opcional, puede deshabilitarse en producción)
+/subsystem=logging/logger=org.hibernate:add(level=INFO)
+/subsystem=logging/logger=org.hibernate.persister.entity:add(level=INFO)
+/subsystem=logging/logger=org.hibernate.loader:add(level=INFO)
+
+# Additional logging para debugging de transacciones y EJB
+/subsystem=logging/logger=org.jboss.as.txn:add(level=INFO)
+/subsystem=logging/logger=org.jboss.as.ejb3.tx:add(level=INFO)
+/subsystem=logging/logger=org.jboss.as.jpa:add(level=INFO)
+
+# 4. Persistir cambios y detener el servidor embebido
+/:write-configuration
+stop-embedded-server
+

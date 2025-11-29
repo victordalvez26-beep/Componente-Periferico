@@ -16,14 +16,14 @@ function DocumentosPage() {
   const [uploadForm, setUploadForm] = useState({
     archivo: null,
     ciPaciente: '',
-    tipoDocumento: 'EVALUACION',
+    tipoDocumento: 'CONSULTA_MEDICA',
     descripcion: ''
   });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createForm, setCreateForm] = useState({
     ciPaciente: '',
     contenido: '',
-    tipoDocumento: 'EVALUACION',
+    tipoDocumento: 'CONSULTA_MEDICA',
     descripcion: '',
     titulo: '',
     autor: ''
@@ -365,7 +365,7 @@ function DocumentosPage() {
                 <div style={styles.documentoIcon}>📄</div>
                 <div style={styles.documentoInfo}>
                   <div style={styles.documentoHeader}>
-                    <span style={styles.documentoTipo}>{doc.tipoDocumento || 'EVALUACION'}</span>
+                    <span style={styles.documentoTipo}>{doc.tipoDocumento || 'CONSULTA_MEDICA'}</span>
                     <span style={styles.documentoFecha}>
                       {formatDate(doc.fechaCreacion)}
                     </span>
@@ -457,10 +457,17 @@ function DocumentosPage() {
                   onChange={(e) => setCreateForm(prev => ({ ...prev, tipoDocumento: e.target.value }))}
                   style={styles.formInput}
                 >
-                  <option value="EVALUACION">Evaluación</option>
-                  <option value="INFORME">Informe</option>
-                  <option value="RECETA">Receta</option>
-                  <option value="OTRO">Otro</option>
+                  <option value="CONSULTA_MEDICA">Consulta Médica</option>
+                  <option value="RECETA_MEDICA">Receta Médica</option>
+                  <option value="INFORME_LABORATORIO">Informe de Laboratorio</option>
+                  <option value="RADIOGRAFIA">Radiografía</option>
+                  <option value="RESUMEN_ALTA">Resumen de Alta</option>
+                  <option value="CIRUGIA">Informe Quirúrgico</option>
+                  <option value="ESTUDIO_IMAGENOLOGIA">Estudio de Imagenología</option>
+                  <option value="ELECTROCARDIOGRAMA">Electrocardiograma</option>
+                  <option value="INFORME_PATOLOGIA">Informe de Patología</option>
+                  <option value="VACUNACION">Vacunación</option>
+                  <option value="OTROS">Otros</option>
                 </select>
               </div>
 
@@ -550,10 +557,17 @@ function DocumentosPage() {
                   onChange={(e) => setUploadForm(prev => ({ ...prev, tipoDocumento: e.target.value }))}
                   style={styles.formInput}
                 >
-                  <option value="EVALUACION">Evaluación</option>
-                  <option value="INFORME">Informe</option>
-                  <option value="RECETA">Receta</option>
-                  <option value="OTRO">Otro</option>
+                  <option value="CONSULTA_MEDICA">Consulta Médica</option>
+                  <option value="RECETA_MEDICA">Receta Médica</option>
+                  <option value="INFORME_LABORATORIO">Informe de Laboratorio</option>
+                  <option value="RADIOGRAFIA">Radiografía</option>
+                  <option value="RESUMEN_ALTA">Resumen de Alta</option>
+                  <option value="CIRUGIA">Informe Quirúrgico</option>
+                  <option value="ESTUDIO_IMAGENOLOGIA">Estudio de Imagenología</option>
+                  <option value="ELECTROCARDIOGRAMA">Electrocardiograma</option>
+                  <option value="INFORME_PATOLOGIA">Informe de Patología</option>
+                  <option value="VACUNACION">Vacunación</option>
+                  <option value="OTROS">Otros</option>
                 </select>
               </div>
 
