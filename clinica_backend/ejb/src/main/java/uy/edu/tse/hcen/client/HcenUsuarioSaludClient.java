@@ -3,6 +3,7 @@ package uy.edu.tse.hcen.client;
 import jakarta.ejb.Stateless;
 import org.jboss.logging.Logger;
 import uy.edu.tse.hcen.model.UsuarioSalud;
+import uy.edu.tse.hcen.utils.HcenCentralUrlUtil;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -18,9 +19,6 @@ import java.time.Duration;
 public class HcenUsuarioSaludClient {
     
     private static final Logger LOGGER = Logger.getLogger(HcenUsuarioSaludClient.class);
-    
-    // URL del backend de HCEN (comunicación interna Docker)
-    private static final String HCEN_BASE_URL = "http://hcen-backend:8080";
     
     // Timeout para las peticiones HTTP
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
@@ -45,9 +43,10 @@ public class HcenUsuarioSaludClient {
                 .connectTimeout(TIMEOUT)
                 .build();
             
-            // Crear request
+            // Crear request usando URL base centralizada
+            String url = HcenCentralUrlUtil.buildApiUrl("/usuarios-salud/crear-modificar");
             HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(HCEN_BASE_URL + "/api/usuarios-salud/crear-modificar"))
+                .uri(URI.create(url))
                 .header("Content-Type", "application/json")
                 .timeout(TIMEOUT)
                 .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))

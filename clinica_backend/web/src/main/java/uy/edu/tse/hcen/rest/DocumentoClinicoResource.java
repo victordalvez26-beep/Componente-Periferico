@@ -450,13 +450,8 @@ public class DocumentoClinicoResource {
                 LOG.info(String.format("Proxy: TenantId obtenido: %s", tenantIdStr));
             }
             
-            // URL del backend HCEN Central
-            String hcenCentralUrl = System.getenv("HCEN_CENTRAL_URL");
-            if (hcenCentralUrl == null || hcenCentralUrl.isEmpty()) {
-                hcenCentralUrl = System.getProperty("HCEN_CENTRAL_URL", "http://hcen-backend:8080/api");
-            }
-            
-            String solicitudUrl = hcenCentralUrl + "/metadatos-documento/solicitar-acceso";
+            // URL del backend HCEN Central (usando utilidad centralizada)
+            String solicitudUrl = uy.edu.tse.hcen.utils.HcenCentralUrlUtil.buildApiUrl("/metadatos-documento/solicitar-acceso");
             LOG.info(String.format("Proxy: Redirigiendo solicitud a HCEN Central: %s", solicitudUrl));
             
             // Construir payload para HCEN Central (debe incluir el profesionalId y tenantId del usuario autenticado)
