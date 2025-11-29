@@ -65,7 +65,8 @@ services:
       MONGODB_DB: "hcen_db"
       # URL base del nodo periférico para construir URIs de acceso a documentos
       # Desde el backend HCEN se convertirá a hcen-wildfly-app:8080 para acceso interno Docker
-      NODO_BASE_URL: "http://localhost:8081"
+      NODO_BASE_URL: "http://ec2-3-144-76-133.us-east-2.compute.amazonaws.com:8081"
+      HCEN_CENTRAL_BASE_URL: "https://env-6105410.web.elasticloud.uy/hcen"
       
     volumes:
       # Deploy ONLY the EAR file (not the whole directory to avoid WildFly deploying extracted contents)
