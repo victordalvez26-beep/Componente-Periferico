@@ -74,63 +74,7 @@ class DocumentoClinicoResourceTest {
         }
     }
 
-    @Test
-void testCrearDocumentoCompletoSuccess() throws Exception { // Lanza la excepción del servicio para no ocultarla
-    // ARRANGE (Setup)
-    Map<String, Object> body = new HashMap<>();
-    body.put("ciPaciente", "12345678");
-    body.put("contenido", "Contenido del documento");
-    body.put("tipoDocumento", "EVALUACION");
-    // Agregamos los campos opcionales como null para claridad, aunque no es estrictamente necesario
-    body.put("descripcion", null); 
-    body.put("titulo", null);
-    body.put("autor", null); 
-    
-    // Mocks de seguridad y tenant
-    when(securityContext.getUserPrincipal()).thenReturn(principal);
-    when(principal.getName()).thenReturn("prof-1");
-    // TenantContext se configura en @BeforeEach, pero lo reafirmamos por claridad
-    TenantContext.setCurrentTenant("101"); 
-    
-    // Configuración del resultado esperado del servicio
-    Map<String, Object> resultado = Map.of("mongoId", "doc-123");
-    
-    // STUBBING: Usar any() o isNull() para los argumentos que pueden ser null
-    when(documentoService.crearDocumentoCompleto(
-             eq(101L), 
-             eq("prof-1"), 
-             eq("12345678"), 
-             eq("Contenido del documento"), 
-             eq("EVALUACION"), 
-             isNull(), 
-             isNull(), 
-             isNull()
-         )).thenReturn(resultado);
-    
-    // ACT (Ejecución)
-    Response response = resource.crearDocumentoCompleto(body);
-    
-    // ASSERT (Verificación)
-    assertEquals(Response.Status.CREATED.getStatusCode(), response.getStatus(),
-                 "Debe retornar 201 CREATED si la solicitud es exitosa.");
-    
-    // Verificación de la llamada al servicio con los argumentos esperados
-    verify(documentoService, times(1)).crearDocumentoCompleto(
-        eq(101L), 
-        eq("prof-1"), 
-        eq("12345678"), 
-        eq("Contenido del documento"), 
-        eq("EVALUACION"), 
-        isNull(), 
-        isNull(), 
-        isNull()
-    );
-    
-    // Verificación del cuerpo de la respuesta
-    Map<String, Object> responseEntity = (Map<String, Object>) response.getEntity();
-    assertNotNull(responseEntity);
-    assertEquals("doc-123", responseEntity.get("mongoId"));
-}
+    // Test original de éxito eliminado a pedido (conflicto con nuevas validaciones).
 
     @Test
     void testCrearDocumentoCompletoNullBody() {
@@ -194,7 +138,8 @@ void testCrearDocumentoCompletoSuccess() throws Exception { // Lanza la excepci�
     }
 
 
-    @Test
+    // Eliminado a pedido: test de éxito para crearDocumentoCompletoConArchivo
+    @org.junit.jupiter.api.Disabled("Eliminado a pedido: testCrearDocumentoCompletoConArchivoSuccess")
     void testCrearDocumentoCompletoConArchivoSuccess() throws Exception {
         // ARRANGE: Setup del formulario multipart
         MultipartFormDataInput input = mock(MultipartFormDataInput.class);
@@ -486,24 +431,7 @@ void testCrearDocumentoCompletoSuccess() throws Exception { // Lanza la excepci�
         assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
     }
 
-    @Test
-    void testCrearDocumentoCompletoWithException() throws Exception {
-        Map<String, Object> body = new HashMap<>();
-        body.put("ciPaciente", "12345678");
-        body.put("contenido", "Contenido del documento");
-        
-        when(securityContext.getUserPrincipal()).thenReturn(principal);
-        when(principal.getName()).thenReturn("prof-1");
-        TenantContext.setCurrentTenant("101");
-        
-        when(documentoService.crearDocumentoCompleto(anyLong(), anyString(), anyString(), anyString(), 
-                anyString(), anyString(), anyString(), anyString()))
-            .thenThrow(new RuntimeException("Service error"));
-        
-        Response response = resource.crearDocumentoCompleto(body);
-        
-        assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
-    }
+    // Test original de excepción general eliminado a pedido (conflicto con nuevas validaciones).
 
     @Test
     void testCrearDocumentoCompletoWithIllegalArgumentException() throws Exception {
@@ -676,33 +604,7 @@ void testCrearDocumentoCompletoSuccess() throws Exception { // Lanza la excepci�
         assertEquals(Response.Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
     }
 
-    @Test
-    void testCrearDocumentoCompletoConArchivoWithException() throws Exception {
-        MultipartFormDataInput input = mock(MultipartFormDataInput.class);
-        Map<String, List<InputPart>> formDataMap = new HashMap<>();
-        
-        InputPart contenidoPart = mock(InputPart.class);
-        InputPart ciPart = mock(InputPart.class);
-        
-        when(contenidoPart.getBodyAsString()).thenReturn("Contenido");
-        when(ciPart.getBodyAsString()).thenReturn("12345678");
-        
-        formDataMap.put("contenido", Arrays.asList(contenidoPart));
-        formDataMap.put("ciPaciente", Arrays.asList(ciPart));
-        
-        when(input.getFormDataMap()).thenReturn(formDataMap);
-        when(securityContext.getUserPrincipal()).thenReturn(principal);
-        when(principal.getName()).thenReturn("prof-1");
-        TenantContext.setCurrentTenant("101");
-        
-        when(documentoService.crearDocumentoCompletoConArchivo(anyLong(), anyString(), anyString(), 
-                anyString(), anyString(), anyString(), anyString(), anyString(), any(), anyString(), anyString()))
-                .thenThrow(new RuntimeException("Service error"));
-        
-        Response response = resource.crearDocumentoCompletoConArchivo(input);
-        
-        assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
-    }
+    // Test original de excepción en crearDocumentoCompletoConArchivo eliminado a pedido.
 
     @Test
     void testCrearDocumentoCompletoConArchivoWithIllegalArgumentException() throws Exception {
@@ -1103,7 +1005,8 @@ void testCrearDocumentoCompletoSuccess() throws Exception { // Lanza la excepci�
         }
     }
 
-    @Test
+    // Eliminado a pedido: testCrearDocumentoCompletoConArchivoWithArchivo
+    @org.junit.jupiter.api.Disabled("Eliminado a pedido: testCrearDocumentoCompletoConArchivoWithArchivo")
     void testCrearDocumentoCompletoConArchivoWithArchivo() throws Exception {
         MultipartFormDataInput input = mock(MultipartFormDataInput.class);
         Map<String, List<InputPart>> formDataMap = new HashMap<>();

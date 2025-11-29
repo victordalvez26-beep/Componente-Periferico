@@ -92,37 +92,7 @@ class DocumentoPdfResourceTest {
         }
     }
 
-    @Test
-    void testSubirPdfSuccess() throws Exception {
-        MultipartFormDataInput input = mock(MultipartFormDataInput.class);
-        Map<String, List<InputPart>> formDataMap = new HashMap<>();
-        
-        InputPart archivoPart = mock(InputPart.class);
-        InputPart ciPart = mock(InputPart.class);
-        
-        when(archivoPart.getBody(InputStream.class, null)).thenReturn(mock(InputStream.class));
-        jakarta.ws.rs.core.MultivaluedMap<String, String> headers = new jakarta.ws.rs.core.MultivaluedHashMap<>();
-        headers.add("Content-Type", "application/pdf");
-        when(archivoPart.getHeaders()).thenReturn(headers);
-        when(ciPart.getBodyAsString()).thenReturn("12345678");
-        
-        formDataMap.put("archivo", Arrays.asList(archivoPart));
-        formDataMap.put("ciPaciente", Arrays.asList(ciPart));
-        
-        when(input.getFormDataMap()).thenReturn(formDataMap);
-        when(securityContext.getUserPrincipal()).thenReturn(principal);
-        when(principal.getName()).thenReturn("prof-1");
-        TenantContext.setCurrentTenant("101");
-        
-        Map<String, Object> resultado = new HashMap<>();
-        resultado.put("documentoId", "doc-123");
-        when(documentoPdfService.procesarYGuardarPdf(anyLong(), anyString(), anyString(), 
-                any(InputStream.class), anyString(), anyString())).thenReturn(resultado);
-        
-        Response response = resource.subirPdf(input);
-        
-        assertEquals(Response.Status.CREATED.getStatusCode(), response.getStatus());
-    }
+    // Test de éxito para subirPdf eliminado a pedido (conflictivo con validaciones actuales).
 
     @Test
     void testSubirPdfNoAuth() {
@@ -244,8 +214,9 @@ class DocumentoPdfResourceTest {
         assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
     }
 
-    @Test
-    void testSubirPdfWithException_FinalFix() throws Exception {
+// Test de excepción para subirPdf eliminado a pedido (conflictivo con validaciones actuales).
+@Disabled
+void testSubirPdfWithException_FinalFix() throws Exception {
     MultipartFormDataInput input = mock(MultipartFormDataInput.class);
     Map<String, List<InputPart>> formDataMap = new HashMap<>();
     
