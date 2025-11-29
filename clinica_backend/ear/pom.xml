@@ -20,9 +20,8 @@
 
     <parent>
         <groupId>uy.edu.tse</groupId>
-        <artifactId>hcen_clinica</artifactId>
+        <artifactId>hcen</artifactId>
         <version>0.0.1-SNAPSHOT</version>
-	<relativePath>..</relativePath>
     </parent>
     <artifactId>hcen-ear</artifactId>
     <packaging>ear</packaging>

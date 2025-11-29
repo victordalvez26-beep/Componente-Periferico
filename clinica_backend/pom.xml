@@ -175,12 +175,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>${version.compiler.plugin}</version>
                 <configuration>
-                         <fork>true</fork>
-                    <executable>/usr/lib/jvm/java-17-openjdk-amd64/bin/javac</executable>
-
-                    <!-- Compilar a Java 17 -->
-                    <source>17</source>
-                    <target>17</target> <!-- put your configurations here -->
+                    <!-- put your configurations here -->
                 </configuration>
             </plugin>
             <!-- The WildFly plugin deploys your ear to a local JBoss AS container -->

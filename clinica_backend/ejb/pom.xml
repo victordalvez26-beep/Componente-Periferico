@@ -22,7 +22,6 @@
         <groupId>uy.edu.tse</groupId>
         <artifactId>hcen_clinica</artifactId>
         <version>0.0.1-SNAPSHOT</version>
-	<relativePath>..</relativePath>
     </parent>
     <artifactId>hcen-ejb</artifactId>
     <packaging>ejb</packaging>
