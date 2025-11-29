@@ -10,6 +10,13 @@ function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [clinicInfo, setClinicInfo] = useState(null);
+  const [textColor, setTextColor] = useState('#ffffff');
+  const [backgroundColor, setBackgroundColor] = useState('#f4f6fb');
+  const [headerColor, setHeaderColor] = useState('#000000');
+  const [buttonColor, setButtonColor] = useState('#3b82f6');
+  const [buttonTextColor, setButtonTextColor] = useState('#ffffff');
+  const [buttonHoverColor, setButtonHoverColor] = useState('#315fde');
+  const [cardBorderColor, setCardBorderColor] = useState('#e5e7eb');
 
   // Verificar si ya hay sesión activa
   useEffect(() => {
@@ -31,6 +38,24 @@ function LoginPage() {
       if (res.ok) {
         const data = await res.json();
         setClinicInfo(data);
+
+        const primaryColor = data.colorPrimario && data.colorPrimario.trim() !== ''
+          ? ensureReadableColor(data.colorPrimario)
+          : '#667eea';
+
+        const secondaryColor = data.colorSecundario && data.colorSecundario.trim() !== ''
+          ? ensureReadableColor(data.colorSecundario)
+          : '#6b7280';
+
+        setBackgroundColor(lightenColor(secondaryColor, 0.65));
+        setHeaderColor(primaryColor);
+        setButtonColor(primaryColor);
+        setButtonTextColor(getReadableTextColor(primaryColor));
+        setButtonHoverColor(darkenColor(primaryColor, 0.1));
+        setCardBorderColor(lightenColor(primaryColor, 0.4));
+
+        setTextColor(getReadableTextColor(primaryColor));
+
       }
     } catch (err) {
       console.error('Error fetching clinic info:', err);
@@ -83,16 +108,120 @@ function LoginPage() {
     }
   };
 
+  const ensureReadableColor = (hexColor) => {
+    if (!hexColor) return '#667eea';
+    const luminance = getLuminance(hexColor);
+    if (luminance < 0.15) {
+      return lightenColor(hexColor, 0.35);
+    }
+    return hexColor;
+  };
+
+  const getReadableTextColor = (hexColor) => {
+    const luminance = getLuminance(hexColor);
+    return luminance > 0.55 ? '#111827' : '#ffffff';
+  };
+
+  const getLuminance = (hexColor) => {
+    if (!hexColor) {
+      return 1;
+    }
+    let hex = hexColor.replace('#', '');
+    if (hex.length === 3) {
+      hex = hex.split('').map((c) => c + c).join('');
+    }
+    const r = parseInt(hex.substring(0, 2), 16) / 255;
+    const g = parseInt(hex.substring(2, 4), 16) / 255;
+    const b = parseInt(hex.substring(4, 6), 16) / 255;
+    return (0.299 * r + 0.587 * g + 0.114 * b);
+  };
+
+  const lightenColor = (hexColor, amount = 0.2) => {
+    if (!hexColor) return '#667eea';
+    let hex = hexColor.replace('#', '');
+    if (hex.length === 3) {
+      hex = hex.split('').map((c) => c + c).join('');
+    }
+    const num = parseInt(hex, 16);
+    let r = (num >> 16) + Math.round(255 * amount);
+    let g = ((num >> 8) & 0x00ff) + Math.round(255 * amount);
+    let b = (num & 0x0000ff) + Math.round(255 * amount);
+    r = Math.min(255, r);
+    g = Math.min(255, g);
+    b = Math.min(255, b);
+    const newHex = (r << 16) | (g << 8) | b;
+    return `#${newHex.toString(16).padStart(6, '0')}`;
+  };
+
+  const darkenColor = (hexColor, amount = 0.15) => {
+    if (!hexColor) return '#315fde';
+    let hex = hexColor.replace('#', '');
+    if (hex.length === 3) {
+      hex = hex.split('').map((c) => c + c).join('');
+    }
+    const num = parseInt(hex, 16);
+    let r = (num >> 16) - Math.round(255 * amount);
+    let g = ((num >> 8) & 0x00ff) - Math.round(255 * amount);
+    let b = (num & 0x0000ff) - Math.round(255 * amount);
+    r = Math.max(0, r);
+    g = Math.max(0, g);
+    b = Math.max(0, b);
+    const newHex = (r << 16) | (g << 8) | b;
+    return `#${newHex.toString(16).padStart(6, '0')}`;
+  };
+
+  const handleButtonMouseEnter = (e) => {
+    e.currentTarget.style.backgroundColor = buttonHoverColor;
+  };
+
+  const handleButtonMouseLeave = (e) => {
+    e.currentTarget.style.backgroundColor = buttonColor;
+  };
+
+  const cardStyle = {
+    ...styles.card,
+    borderTop: `4px solid ${headerColor}`,
+    border: `1px solid ${cardBorderColor}`,
+    boxShadow: '0 18px 45px rgba(15, 23, 42, 0.25)'
+  };
+
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
+    <div
+      style={{
+        ...styles.container,
+        background: backgroundColor
+      }}
+    >
+      <div style={cardStyle}>
         {/* Header */}
-        <div style={styles.header}>
-          <div style={styles.icon}>🏥</div>
-          <h1 style={styles.title}>
-            {clinicInfo?.nombre || `Clínica ${tenantId}`}
+        <div
+          style={{
+            ...styles.header,
+            backgroundColor: headerColor,
+            color: textColor
+          }}
+        >
+          {clinicInfo?.logoUrl ? (
+            <div style={styles.logoWrapper}>
+              <img
+                src={clinicInfo.logoUrl}
+                alt="Logo de la clínica"
+                style={styles.logoImage}
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.style.display = 'none';
+                }}
+              />
+            </div>
+          ) : (
+            <div style={{ ...styles.icon, color: textColor }}>🏥</div>
+          )}
+          <h1 style={{ ...styles.title, color: textColor }}>
+            {clinicInfo?.nombrePortal || clinicInfo?.nombre || `Clínica ${tenantId}`}
           </h1>
-          <p style={styles.subtitle}>Portal de Administración</p>
+          <p style={{ ...styles.subtitle, color: textColor === '#ffffff' ? 'rgba(255,255,255,0.85)' : '#4b5563' }}>
+            Portal de Administración
+          </p>
         </div>
 
         {/* Form */}
@@ -133,9 +262,13 @@ function LoginPage() {
             disabled={loading}
             style={{
               ...styles.button,
+              backgroundColor: "#000000",
+              color: buttonTextColor,
               opacity: loading ? 0.6 : 1,
               cursor: loading ? 'not-allowed' : 'pointer'
             }}
+            onMouseEnter={handleButtonMouseEnter}
+            onMouseLeave={handleButtonMouseLeave}
           >
             {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
           </button>
@@ -182,6 +315,16 @@ const styles = {
   icon: {
     fontSize: '48px',
     marginBottom: '15px'
+  },
+  logoWrapper: {
+    display: 'flex',
+    justifyContent: 'center',
+    marginBottom: '15px'
+  },
+  logoImage: {
+    maxHeight: '64px',
+    maxWidth: '200px',
+    objectFit: 'contain'
   },
   title: {
     margin: '0 0 8px 0',
