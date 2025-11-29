@@ -144,8 +144,10 @@ public class DocumentoPdfService {
         metadata.setTenantId(String.valueOf(tenantId));
         metadata.setFormato("application/pdf");
         metadata.setTipoDocumento(tipoDocumento);
-        metadata.setFechaCreacion(LocalDateTime.now());
-        metadata.setFechaRegistro(LocalDateTime.now());
+        // Usar zona horaria de Uruguay explícitamente
+        java.time.ZoneId uruguayZone = java.time.ZoneId.of("America/Montevideo");
+        metadata.setFechaCreacion(LocalDateTime.now(uruguayZone));
+        metadata.setFechaRegistro(LocalDateTime.now(uruguayZone));
         metadata.setUrlAcceso(urlAcceso);
         metadata.setAutor(nombreProfesional);
         metadata.setTitulo("Evaluación - " + tipoDocumento);
@@ -174,7 +176,7 @@ public class DocumentoPdfService {
         resultado.put("ciPaciente", ciPaciente);
         resultado.put("urlAcceso", urlAcceso);
         resultado.put("tipoDocumento", tipoDocumento);
-        resultado.put("fechaCreacion", LocalDateTime.now().toString());
+        resultado.put("fechaCreacion", LocalDateTime.now(java.time.ZoneId.of("America/Montevideo")).toString());
         resultado.put("sincronizado", true);
 
         return resultado;
