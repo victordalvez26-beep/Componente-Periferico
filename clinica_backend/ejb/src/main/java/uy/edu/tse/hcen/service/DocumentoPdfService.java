@@ -126,9 +126,13 @@ public class DocumentoPdfService {
         // 8. Construir URL de acceso al documento
         // La URL debe usar localhost:8081 para que el backend HCEN pueda convertirla
         // a hcen-wildfly-app:8080 cuando acceda desde Docker
-        String nodoBaseUrl = System.getProperty(PROP_NODO_BASE_URL,
-                System.getenv().getOrDefault(PROP_NODO_BASE_URL, DEFAULT_NODO_BASE_URL));
-        String urlAcceso = nodoBaseUrl + "/hcen-web/api/documentos-pdf/" + mongoId;
+        // Buscar también PERIPHERAL_NODE_URL por compatibilidad con HCEN Backend
+        String nodoBaseUrl = System.getenv().getOrDefault("PERIPHERAL_NODE_URL", 
+                System.getProperty(PROP_NODO_BASE_URL,
+                    System.getenv().getOrDefault(PROP_NODO_BASE_URL, DEFAULT_NODO_BASE_URL)));
+                    
+        // Incluir tenantId en la URL para que el acceso directo funcione
+        String urlAcceso = nodoBaseUrl + "/hcen-web/api/documentos-pdf/" + mongoId + "?tenantId=" + tenantId;
         
         LOG.info(String.format("📝 [PERIFERICO] Construyendo URL de acceso - Base URL: %s, MongoId: %s, URL completa: %s", 
                 nodoBaseUrl, mongoId, urlAcceso));
