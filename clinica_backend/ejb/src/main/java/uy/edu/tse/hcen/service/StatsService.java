@@ -112,12 +112,12 @@ public class StatsService {
         
         // Ordenar por fecha descendente y tomar los más recientes
         actividades.sort((a, b) -> {
-            Date fechaA = (Date) a.get("fecha");
-            Date fechaB = (Date) b.get("fecha");
+            String fechaA = (String) a.get("fecha");
+            String fechaB = (String) b.get("fecha");
             if (fechaA == null && fechaB == null) return 0;
             if (fechaA == null) return 1;
             if (fechaB == null) return -1;
-            return fechaB.compareTo(fechaA); // Orden descendente
+            return fechaB.compareTo(fechaA); // Orden descendente lexicográfico funciona para ISO-8601
         });
         
         // Limitar resultados
@@ -254,7 +254,7 @@ public class StatsService {
                     }
                 }
                 actividad.put("texto", String.format("Documento clínico agregado por <strong>%s</strong>", nombreProfesional));
-                actividad.put("fecha", doc.getDate("fechaCreacion"));
+                actividad.put("fecha", formatearFecha(doc.getDate("fechaCreacion")));
                 actividades.add(actividad);
             }
             
@@ -286,7 +286,7 @@ public class StatsService {
                     nombreProfesional = autor;
                 }
                 actividad.put("texto", String.format("Documento clínico agregado por <strong>%s</strong>", nombreProfesional));
-                actividad.put("fecha", doc.getDate("fechaCreacion"));
+                actividad.put("fecha", formatearFecha(doc.getDate("fechaCreacion")));
                 actividades.add(actividad);
             }
             
@@ -325,9 +325,9 @@ public class StatsService {
                     String nombreCompleto = (nombre != null ? nombre : "") + " " + (apellido != null ? apellido : "");
                     actividad.put("texto", String.format("Nuevo usuario de salud registrado en INUS: <strong>%s</strong>", nombreCompleto.trim()));
                     if (fechaAlta != null) {
-                        actividad.put("fecha", Date.from(fechaAlta.atZone(ZoneId.systemDefault()).toInstant()));
+                        actividad.put("fecha", fechaAlta.atZone(ZoneId.systemDefault()).toInstant().toString());
                     } else {
-                        actividad.put("fecha", new Date());
+                        actividad.put("fecha", new Date().toInstant().toString());
                     }
                     actividades.add(actividad);
                 }
@@ -361,7 +361,7 @@ public class StatsService {
                         actividad.put("icono", "🩺");
                         actividad.put("texto", String.format("Nuevo profesional registrado: <strong>%s</strong>", nombre != null ? nombre : "Profesional"));
                         // No tenemos fecha de creación, usar fecha actual como aproximación
-                        actividad.put("fecha", new Date());
+                        actividad.put("fecha", new Date().toInstant().toString());
                         actividades.add(actividad);
                     }
                 }
@@ -411,6 +411,11 @@ public class StatsService {
             LOGGER.warning(String.format("Error al obtener nombre del profesional %s: %s", profesionalId, e.getMessage()));
         }
         return profesionalId;
+    }
+
+    private String formatearFecha(Date fecha) {
+        if (fecha == null) return null;
+        return fecha.toInstant().toString();
     }
 
     private Map<String, Object> crearEstadisticasVacias() {

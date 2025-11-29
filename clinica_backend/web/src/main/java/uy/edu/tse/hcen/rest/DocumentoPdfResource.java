@@ -119,10 +119,17 @@ public class DocumentoPdfResource {
             InputStream archivoStream = archivoPart.getBody(InputStream.class, null);
             String ciPaciente = ciPacientePart.getBodyAsString();
             
-            String tipoDocumento = "EVALUACION";
+            String tipoDocumento = uy.edu.tse.hcen.model.enums.TipoDocumento.CONSULTA_MEDICA.name();
             List<InputPart> tipoDocParts = formDataMap.get("tipoDocumento");
             if (tipoDocParts != null && !tipoDocParts.isEmpty()) {
-                tipoDocumento = tipoDocParts.get(0).getBodyAsString();
+                String tipoRecibido = tipoDocParts.get(0).getBodyAsString();
+                try {
+                    // Validar que sea un valor del enum
+                    tipoDocumento = uy.edu.tse.hcen.model.enums.TipoDocumento.valueOf(tipoRecibido).name();
+                } catch (IllegalArgumentException e) {
+                    LOG.warn("Tipo de documento desconocido: " + tipoRecibido + ". Usando OTROS.");
+                    tipoDocumento = uy.edu.tse.hcen.model.enums.TipoDocumento.OTROS.name();
+                }
             }
             
             String descripcion = null;
