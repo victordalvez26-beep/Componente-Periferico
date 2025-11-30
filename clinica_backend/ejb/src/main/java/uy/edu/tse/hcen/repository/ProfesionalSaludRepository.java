@@ -23,14 +23,13 @@ public class ProfesionalSaludRepository {
         // Verificar que el tenant esté establecido
         java.util.logging.Logger logger = java.util.logging.Logger.getLogger(ProfesionalSaludRepository.class.getName());
         String currentTenant = uy.edu.tse.hcen.multitenancy.TenantContext.getCurrentTenant();
+        
         if (currentTenant == null || currentTenant.isBlank()) {
             if (logger.isLoggable(Level.WARNING)) {
                 logger.warning("⚠️ TenantContext no está establecido al listar profesionales");
             }
-        } else {
-            if (logger.isLoggable(Level.INFO)) {
-                logger.info(String.format("🔍 Listando profesionales para tenant: %s", currentTenant));
-            }
+        } else if (logger.isLoggable(Level.INFO)) {
+            logger.info(String.format("🔍 Listando profesionales para tenant: %s", currentTenant));
         }
         
         return em.createQuery("SELECT p FROM ProfesionalSalud p", ProfesionalSalud.class)

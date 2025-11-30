@@ -180,7 +180,7 @@ class DocumentoPdfServiceTest {
     }
 
     @Test
-    void testObtenerPdfPorIdGenerarOnDemand() throws IOException {
+    void testObtenerPdfPorIdGenerarOnDemand() {
         String mongoId = new ObjectId().toHexString();
         Long tenantId = 1L;
         Document doc = new Document("contenido", "Contenido del documento");
@@ -241,8 +241,8 @@ class DocumentoPdfServiceTest {
         metadatos.add(metadata1);
 
         when(profesionalSaludRepository.findByNickname(profesionalId)).thenReturn(Optional.of(profesional));
-        when(hcenClient.obtenerMetadatosDocumentosPorCI(eq(ciPaciente), eq(profesionalId), eq(tenantIdProfesional),
-                eq("MEDICINA_GENERAL"), eq("Dr. Test"))).thenReturn(metadatos);
+        when(hcenClient.obtenerMetadatosDocumentosPorCI(ciPaciente, profesionalId, tenantIdProfesional,
+                "MEDICINA_GENERAL", "Dr. Test")).thenReturn(metadatos);
 
         List<Map<String, Object>> result = documentoPdfService.listarDocumentosPorPaciente(
                 ciPaciente, profesionalId, tenantIdProfesional);
@@ -335,6 +335,8 @@ class DocumentoPdfServiceTest {
         Map<String, Object> result = documentoPdfService.obtenerMetadataPorId(mongoId, tenantId);
 
         assertNull(result);
+        verify(documentoPdfRepository).buscarPorId(mongoId, tenantId);
+        verify(documentoClinicoRepository).buscarPorId(mongoId, tenantId);
     }
 
     @Test
@@ -364,8 +366,8 @@ class DocumentoPdfServiceTest {
         List<Map<String, Object>> metadatos = new ArrayList<>();
 
         when(profesionalSaludRepository.findByNickname(profesionalId)).thenReturn(Optional.of(profesional));
-        when(hcenClient.obtenerMetadatosDocumentosPorCI(eq(ciPaciente), eq(profesionalId), eq(tenantIdProfesional),
-                eq("CARDIOLOGIA"), eq("Dr. Test"))).thenReturn(metadatos);
+        when(hcenClient.obtenerMetadatosDocumentosPorCI(ciPaciente, profesionalId, tenantIdProfesional,
+                "CARDIOLOGIA", "Dr. Test")).thenReturn(metadatos);
 
         List<Map<String, Object>> result = documentoPdfService.listarDocumentosPorPaciente(
                 ciPaciente, profesionalId, tenantIdProfesional);
@@ -496,7 +498,7 @@ class DocumentoPdfServiceTest {
     }
 
     @Test
-    void testObtenerPdfPorIdWithIOExceptionOnGeneration() throws IOException {
+    void testObtenerPdfPorIdWithIOExceptionOnGeneration() {
         String mongoId = new ObjectId().toHexString();
         Long tenantId = 1L;
         Document doc = new Document("contenido", "Contenido");
