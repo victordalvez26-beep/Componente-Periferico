@@ -1,11 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useClinicConfig } from '../hooks/useClinicConfig';
 import './DocumentosPage.css';
 import SimplePopup from '../components/SimplePopup';
+
+// Función auxiliar para convertir hex a RGB
+function hexToRgb(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result 
+    ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
+    : '59, 130, 246'; // Default azul
+}
 
 function DocumentosPage() {
   const { tenantId } = useParams();
   const navigate = useNavigate();
+  const { config } = useClinicConfig(tenantId);
   const [ciPaciente, setCiPaciente] = useState('');
   const [documentos, setDocumentos] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -453,6 +463,9 @@ function DocumentosPage() {
     if (!tipoDocumento) return 'N/A';
     return tipoDocumento.replace(/_/g, ' ');
   };
+
+  // Obtener estilos con el color primario personalizado
+  const styles = getStyles(config);
 
   const renderCreateError = () => {
     if (!createError) {
@@ -1027,7 +1040,7 @@ function DocumentosPage() {
   );
 }
 
-const styles = {
+const getStyles = (config) => ({
   headerCard: {
     backgroundColor: 'white',
     borderRadius: '12px',
@@ -1057,7 +1070,7 @@ const styles = {
     color: '#6b7280'
   },
   createButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: config.colorPrimario,
     color: 'white',
     border: 'none',
     borderRadius: '8px',
@@ -1071,7 +1084,7 @@ const styles = {
     transition: 'all 0.2s'
   },
   uploadButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: config.colorPrimario,
     color: 'white',
     border: 'none',
     borderRadius: '8px',
@@ -1084,7 +1097,7 @@ const styles = {
     gap: '8px'
   },
   solicitarAccesoButton: {
-    backgroundColor: '#3b82f6', // Azul
+    backgroundColor: config.colorPrimario,
     color: 'white',
     border: 'none',
     borderRadius: '8px',
@@ -1115,7 +1128,7 @@ const styles = {
   },
   searchButton: {
     padding: '12px 24px',
-    backgroundColor: '#3b82f6',
+    backgroundColor: config.colorPrimario,
     color: 'white',
     border: 'none',
     borderRadius: '8px',
@@ -1126,7 +1139,7 @@ const styles = {
   },
   resumenButton: {
     padding: '12px 24px',
-    backgroundColor: '#3b82f6',
+    backgroundColor: config.colorPrimario,
     color: 'white',
     border: 'none',
     borderRadius: '8px',
@@ -1137,7 +1150,7 @@ const styles = {
     alignItems: 'center',
     gap: '8px',
     transition: 'all 0.2s',
-    boxShadow: '0 2px 4px rgba(59, 130, 246, 0.3)'
+    boxShadow: `0 2px 4px rgba(${hexToRgb(config.colorPrimario)}, 0.3)`
   },
   errorCard: {
     backgroundColor: '#fef2f2',
@@ -1216,7 +1229,7 @@ const styles = {
     flexWrap: 'wrap'
   },
   downloadButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: config.colorPrimario,
     color: 'white',
     border: 'none',
     borderRadius: '8px',
@@ -1329,8 +1342,8 @@ const styles = {
   cancelButton: {
     padding: '12px 24px',
     backgroundColor: '#ffffff',
-    color: '#3b82f6',
-    border: '2px solid #3b82f6',
+    color: config.colorPrimario,
+    border: `2px solid ${config.colorPrimario}`,
     borderRadius: '8px',
     fontSize: '15px',
     fontWeight: '600',
@@ -1339,7 +1352,7 @@ const styles = {
   },
   submitButton: {
     padding: '12px 24px',
-    backgroundColor: '#3b82f6',
+    backgroundColor: config.colorPrimario,
     color: 'white',
     border: 'none',
     borderRadius: '8px',
@@ -1379,7 +1392,7 @@ const styles = {
   },
   goCreatePatientButton: {
     padding: '10px 18px',
-    backgroundColor: '#3b82f6',
+    backgroundColor: config.colorPrimario,
     color: 'white',
     border: 'none',
     borderRadius: '999px',
@@ -1499,7 +1512,7 @@ const styles = {
     gap: '12px'
   },
   permisoSolicitarButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: config.colorPrimario,
     color: 'white',
     border: 'none',
     borderRadius: '8px',
@@ -1512,7 +1525,7 @@ const styles = {
     alignItems: 'center',
     gap: '8px'
   }
-};
+});
 
 export default DocumentosPage;
 

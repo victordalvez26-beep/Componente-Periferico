@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { useClinicConfig } from '../hooks/useClinicConfig';
 import SimplePopup from '../components/SimplePopup';
 
 function UsuariosPage() {
   const { tenantId } = useParams();
+  const { config } = useClinicConfig(tenantId);
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -82,7 +84,7 @@ function UsuariosPage() {
         <button
           onClick={() => setShowForm(!showForm)}
           style={{
-            backgroundColor: '#3b82f6',
+            backgroundColor: config.colorPrimario,
             color: 'white',
             border: 'none',
             padding: '12px 24px',

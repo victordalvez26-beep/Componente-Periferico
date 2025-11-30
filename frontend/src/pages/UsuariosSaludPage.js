@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { useClinicConfig } from '../hooks/useClinicConfig';
 import './UsuariosSaludPage.css';
 
 /**
@@ -8,6 +9,7 @@ import './UsuariosSaludPage.css';
  */
 function UsuariosSaludPage() {
   const { tenantId } = useParams();
+  const { config } = useClinicConfig(tenantId);
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -249,6 +251,9 @@ function UsuariosSaludPage() {
           <button 
             className="btn-primary"
             onClick={() => setShowForm(true)}
+            style={{
+              background: `linear-gradient(135deg, ${config.colorPrimario} 0%, ${config.colorPrimario}dd 100%)`
+            }}
           >
             + Agregar Paciente
           </button>
@@ -372,13 +377,23 @@ function UsuariosSaludPage() {
             </div>
             
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <button 
+                type="submit" 
+                className="btn-primary"
+                style={{
+                  background: `linear-gradient(135deg, ${config.colorPrimario} 0%, ${config.colorPrimario}dd 100%)`
+                }}
+              >
                 {editingId ? 'Actualizar' : 'Guardar'}
               </button>
               <button 
                 type="button" 
                 className="btn-secondary"
                 onClick={handleCancelar}
+                style={{
+                  color: config.colorPrimario,
+                  border: `2px solid ${config.colorPrimario}`
+                }}
               >
                 Cancelar
               </button>
@@ -441,6 +456,9 @@ function UsuariosSaludPage() {
                       className="btn-sm btn-edit"
                       onClick={() => handleEditar(usuario)}
                       title="Editar paciente"
+                      style={{
+                        background: config.colorPrimario
+                      }}
                     >
                       ✏️ Editar
                     </button>
