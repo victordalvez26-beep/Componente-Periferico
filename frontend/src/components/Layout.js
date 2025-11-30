@@ -11,7 +11,7 @@ function Layout({ children }) {
   const [username, setUsername] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { config } = useClinicConfig(tenantId);
+  const { config, loading: configLoading } = useClinicConfig(tenantId);
 
   useEffect(() => {
     const role = localStorage.getItem('role');
@@ -24,6 +24,23 @@ function Layout({ children }) {
     localStorage.clear();
     navigate(`/portal/clinica/${tenantId}/login`, { replace: true });
   };
+
+  // No renderizar hasta que la configuración esté cargada
+  if (configLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        fontSize: '16px',
+        color: '#6b7280',
+        backgroundColor: '#f9fafb'
+      }}>
+        Cargando configuración...
+      </div>
+    );
+  }
 
   const menuItems = {
     ADMINISTRADOR: [

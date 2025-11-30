@@ -4,7 +4,7 @@ import { useClinicConfig } from '../hooks/useClinicConfig';
 
 function HomePage() {
   const { tenantId } = useParams();
-  const { config } = useClinicConfig(tenantId);
+  const { config, loading: configLoading } = useClinicConfig(tenantId);
   const [stats, setStats] = useState({
     profesionales: 0,
     usuarios: 0,
@@ -122,8 +122,8 @@ function HomePage() {
       title: 'Profesionales',
       value: stats.profesionales,
       icon: '🩺',
-      color: '#3b82f6',
-      bgColor: '#eff6ff'
+      color: config.colorPrimario,
+      bgColor: `rgba(${hexToRgb(config.colorPrimario)}, 0.1)`
     },
     {
       title: 'Usuarios de Salud',
@@ -147,6 +147,22 @@ function HomePage() {
       bgColor: '#ede9fe'
     }
   ];
+
+  // No renderizar hasta que la configuración esté cargada
+  if (configLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        fontSize: '16px',
+        color: '#6b7280'
+      }}>
+        Cargando...
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -494,6 +510,14 @@ const styles = {
     backgroundColor: '#10b981'
   }
 };
+
+// Función auxiliar para convertir hex a RGB
+function hexToRgb(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result 
+    ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
+    : '59, 130, 246'; // Default azul
+}
 
 export default HomePage;
 
