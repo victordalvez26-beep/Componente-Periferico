@@ -69,3 +69,51 @@ body {
 .input { padding:8px; border-radius:6px; border:1px solid var(--border-gray); flex:1 }
 
 .footer { margin-top: 18px; border-top:1px solid var(--footer-separator); padding-top:12px; font-size:0.9rem; color:#666 }
+
+/* Responsive Global Styles */
+@media (max-width: 768px) {
+  .app {
+    margin: 12px;
+    padding: 16px;
+  }
+  
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .title {
+    font-size: 1.3rem;
+  }
+  
+  .button-primary,
+  .button-secondary {
+    width: 100%;
+    padding: 10px;
+  }
+  
+  .form-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .input {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .app {
+    margin: 8px;
+    padding: 12px;
+  }
+  
+  .title {
+    font-size: 1.2rem;
+  }
+  
+  .card {
+    padding: 10px;
+  }
+}

@@ -258,8 +258,19 @@ public class HcenClient {
                     LOG.info(String.format("Obtenidos %d metadatos (ya filtrados por políticas) desde HCEN para CI: %s", 
                             metadatos.size(), ciPaciente));
                     return metadatos;
+                } else if (status == 404) {
+                    // 404 puede significar que no hay documentos, no necesariamente un error
+                    LOG.warning(String.format("Metadatos no encontrados (404) para paciente %s - retornando lista vacía", ciPaciente));
+                    return new ArrayList<>(); // Retornar lista vacía en lugar de lanzar excepción
                 } else {
-                    String errorMsg = response.hasEntity() ? response.readEntity(String.class) : ERROR_UNKNOWN;
+                    String errorMsg = ERROR_UNKNOWN;
+                    try {
+                        if (response.hasEntity()) {
+                            errorMsg = response.readEntity(String.class);
+                        }
+                    } catch (Exception e) {
+                        LOG.log(java.util.logging.Level.WARNING, "No se pudo leer el cuerpo del error", e);
+                    }
                     throw new HcenUnavailableException(
                         String.format("Error al obtener metadatos: HTTP %d - %s", status, errorMsg));
                 }

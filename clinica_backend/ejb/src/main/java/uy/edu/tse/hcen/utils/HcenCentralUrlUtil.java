@@ -23,7 +23,7 @@ public class HcenCentralUrlUtil {
     /**
      * URL base por defecto del HCEN Central (comunicación interna Docker).
      */
-    private static final String DEFAULT_HCEN_CENTRAL_BASE_URL = "http://hcen-backend:8080";
+    private static final String DEFAULT_HCEN_CENTRAL_BASE_URL = "http://hcen-backend:8080/hcen";
     
     /**
      * Obtiene la URL base del backend HCEN Central.

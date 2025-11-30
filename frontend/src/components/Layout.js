@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useClinicConfig } from '../hooks/useClinicConfig';
+import './Layout.css';
 
 function Layout({ children }) {
   const { tenantId } = useParams();
@@ -9,6 +10,7 @@ function Layout({ children }) {
   const [userRole, setUserRole] = useState(null);
   const [username, setUsername] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { config } = useClinicConfig(tenantId);
 
   useEffect(() => {
@@ -25,15 +27,15 @@ function Layout({ children }) {
 
   const menuItems = {
     ADMINISTRADOR: [
-      { icon: '🏠', label: 'Inicio', path: `/portal/clinica/${tenantId}/home` },
-      { icon: '🩺', label: 'Profesionales', path: `/portal/clinica/${tenantId}/profesionales` },
-      { icon: '👥', label: 'Usuarios de Salud', path: `/portal/clinica/${tenantId}/usuarios` },
-      { icon: '⚙️', label: 'Configuración', path: `/portal/clinica/${tenantId}/configuracion` },
+      { icon: '', label: 'Inicio', path: `/portal/clinica/${tenantId}/home` },
+      { icon: '', label: 'Profesionales', path: `/portal/clinica/${tenantId}/profesionales` },
+      { icon: '', label: 'Usuarios de Salud', path: `/portal/clinica/${tenantId}/usuarios` },
+      { icon: '', label: 'Configuración', path: `/portal/clinica/${tenantId}/configuracion` },
     ],
     PROFESIONAL: [
-      { icon: '🏠', label: 'Inicio', path: `/portal/clinica/${tenantId}/home` },
-      { icon: '👤', label: 'Pacientes', path: `/portal/clinica/${tenantId}/pacientes` },
-      { icon: '📄', label: 'Documentos', path: `/portal/clinica/${tenantId}/documentos` },
+      { icon: '', label: 'Inicio', path: `/portal/clinica/${tenantId}/home` },
+      { icon: '', label: 'Pacientes', path: `/portal/clinica/${tenantId}/pacientes` },
+      { icon: '', label: 'Documentos', path: `/portal/clinica/${tenantId}/documentos` },
     ]
   };
 
@@ -41,14 +43,14 @@ function Layout({ children }) {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <div style={styles.container}>
+    <div style={styles.container} className="layout-container">
       {/* Sidebar */}
       <aside style={{
         ...styles.sidebar,
         width: sidebarCollapsed ? '70px' : '260px'
-      }}>
+      }} className={`layout-sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         {/* Logo */}
-        <div style={styles.logoContainer}>
+        <div style={styles.logoContainer} className="layout-logo-container">
           {config.logoUrl ? (
             <img 
               src={config.logoUrl} 
@@ -61,7 +63,7 @@ function Layout({ children }) {
               }}
             />
           ) : (
-            <div style={styles.logo}>🏥</div>
+            <div style={styles.logo}>HCEN</div>
           )}
           {!sidebarCollapsed && (
             <div>
@@ -88,11 +90,14 @@ function Layout({ children }) {
         </button>
 
         {/* Navigation */}
-        <nav style={styles.nav}>
+        <nav style={styles.nav} className="layout-nav">
           {currentMenu.map((item, index) => (
             <button
               key={index}
-              onClick={() => navigate(item.path)}
+              onClick={() => {
+                navigate(item.path);
+                setMobileMenuOpen(false);
+              }}
               style={{
                 ...styles.navItem,
                 ...(isActive(item.path) ? {
@@ -101,15 +106,16 @@ function Layout({ children }) {
                 } : {})
               }}
               title={sidebarCollapsed ? item.label : ''}
+              className="layout-nav-item"
             >
-              <span style={styles.navIcon}>{item.icon}</span>
+              {item.icon && <span style={styles.navIcon}>{item.icon}</span>}
               {!sidebarCollapsed && <span>{item.label}</span>}
             </button>
           ))}
         </nav>
 
         {/* User Info */}
-        <div style={styles.userSection}>
+        <div style={styles.userSection} className="layout-user-section">
           <div style={styles.userInfo}>
             <div style={{
               ...styles.avatar,
@@ -128,24 +134,39 @@ function Layout({ children }) {
           </div>
           <button
             onClick={handleLogout}
-            style={styles.logoutButton}
+            style={{
+              ...styles.logoutButton,
+              minWidth: sidebarCollapsed ? '36px' : 'auto',
+              fontSize: sidebarCollapsed ? '18px' : '14px',
+              padding: sidebarCollapsed ? '0' : '8px 12px'
+            }}
             title="Cerrar sesión"
           >
-            🚪
+            {sidebarCollapsed ? '🚪' : 'Salir'}
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main style={styles.main}>
+      <main style={styles.main} className="layout-main">
         {/* Top Bar */}
-        <header style={styles.header}>
-          <div style={styles.headerContent}>
-            <h1 style={styles.headerTitle}>
-              {getPageTitle(location.pathname)}
-            </h1>
-            <div style={styles.headerActions}>
-              <span style={styles.tenantBadge}>
+        <header style={styles.header} className="layout-header">
+          <div style={styles.headerContent} className="layout-header-content">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                style={styles.mobileMenuButton}
+                className="mobile-menu-button"
+                title="Menú"
+              >
+                ☰
+              </button>
+              <h1 style={styles.headerTitle} className="layout-header-title">
+                {getPageTitle(location.pathname)}
+              </h1>
+            </div>
+            <div style={styles.headerActions} className="layout-header-actions">
+              <span style={styles.tenantBadge} className="layout-tenant-badge">
                 Tenant: {tenantId}
               </span>
             </div>
@@ -153,7 +174,7 @@ function Layout({ children }) {
         </header>
 
         {/* Page Content */}
-        <div style={styles.content}>
+        <div style={styles.content} className="layout-content">
           {children}
         </div>
       </main>
@@ -282,15 +303,21 @@ const styles = {
     opacity: 0.7
   },
   logoutButton: {
-    width: '36px',
     height: '36px',
     borderRadius: '8px',
     backgroundColor: 'rgba(239, 68, 68, 0.2)',
     border: 'none',
     color: 'white',
-    fontSize: '18px',
+    fontSize: '14px',
     cursor: 'pointer',
-    transition: 'all 0.2s'
+    transition: 'all 0.2s',
+    padding: '8px 12px',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    fontWeight: '600',
+    minWidth: 'auto',
+    flexShrink: 0
   },
   main: {
     flex: 1,
@@ -331,7 +358,22 @@ const styles = {
   content: {
     flex: 1,
     overflow: 'auto',
-    padding: '32px'
+    padding: '32px',
+    boxSizing: 'border-box',
+    width: '100%',
+    minWidth: 0,
+    maxWidth: '100%'
+  },
+  mobileMenuButton: {
+    display: 'none',
+    backgroundColor: 'transparent',
+    border: 'none',
+    fontSize: '24px',
+    cursor: 'pointer',
+    color: '#111827',
+    padding: '8px',
+    borderRadius: '4px',
+    transition: 'background-color 0.2s'
   }
 };
 

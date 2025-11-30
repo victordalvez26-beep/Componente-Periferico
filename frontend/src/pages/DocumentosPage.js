@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import './DocumentosPage.css';
 
 function DocumentosPage() {
   const { tenantId } = useParams();
@@ -8,6 +9,17 @@ function DocumentosPage() {
   const [documentos, setDocumentos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Limpiar datos al montar el componente
+  useEffect(() => {
+    setDocumentos([]);
+    setError(null);
+    setCreateError(null);
+    setCiPaciente('');
+    setResumen(null);
+    setShowResumenModal(false);
+    setErrorResumen(null);
+  }, [tenantId]);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showSolicitarAccesoModal, setShowSolicitarAccesoModal] = useState(false);
   const [solicitarAccesoForm, setSolicitarAccesoForm] = useState({
@@ -30,6 +42,30 @@ function DocumentosPage() {
     autor: ''
   });
   const [createError, setCreateError] = useState(null);
+  const [showResumenModal, setShowResumenModal] = useState(false);
+  const [resumen, setResumen] = useState(null);
+  const [loadingResumen, setLoadingResumen] = useState(false);
+  const [errorResumen, setErrorResumen] = useState(null);
+
+  // Función helper para detectar errores de MongoDB/base de datos
+  const isDatabaseError = (errorMsg) => {
+    if (!errorMsg) return false;
+    const msg = errorMsg.toLowerCase();
+    return msg.includes('mongo') || 
+           msg.includes('database') || 
+           msg.includes('connection') ||
+           msg.includes('timeout') ||
+           msg.includes('network') ||
+           msg.includes('unable to connect') ||
+           msg.includes('connection refused');
+  };
+
+  const handleDatabaseError = (errorMsg, defaultMsg = 'Error de conexión') => {
+    if (isDatabaseError(errorMsg)) {
+      return 'Error al conectarse con la base de datos. Contacte a su administrador.';
+    }
+    return errorMsg || defaultMsg;
+  };
 
   const buscarDocumentos = async () => {
     if (!ciPaciente.trim()) {
@@ -56,24 +92,50 @@ function DocumentosPage() {
         setDocumentos([]);
         setError('No se encontraron documentos para este paciente');
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Error al buscar documentos');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.error || 'Error al buscar documentos';
+        setError(handleDatabaseError(errorMsg, 'Error al buscar documentos'));
       }
     } catch (err) {
-      setError('Error de conexión. Verifique que el servidor esté disponible.');
+      const errMsg = err.message || String(err);
+      setError(handleDatabaseError(errMsg, 'Error de conexión. Verifique que el servidor esté disponible.'));
       console.error('Error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const descargarDocumento = async (documentoId) => {
+  const descargarDocumento = async (documento) => {
     try {
-      // Usar el mismo flujo que el frontend HCEN: llamar al backend HCEN con el ID de la metadata
-      // El backend HCEN hará proxy al componente periférico usando la URI almacenada
-      const backendUrl = process.env.REACT_APP_HCEN_BACKEND_URL || 'http://localhost:8080';
-      const response = await fetch(`${backendUrl}/api/metadatos-documento/${documentoId}/descargar`, {
+      // El documento puede tener uriDocumento o urlAcceso que apunta directamente al componente periférico
+      // o podemos usar el ID para descargar desde HCEN Central que hace proxy
+      let downloadUrl;
+      
+      // Priorizar uriDocumento o urlAcceso (URI directa al componente periférico)
+      if (documento.uriDocumento) {
+        downloadUrl = documento.uriDocumento;
+      } else if (documento.urlAcceso) {
+        downloadUrl = documento.urlAcceso;
+      } else if (documento.id) {
+        // Si no tiene URI, usar el endpoint de HCEN Central que hace proxy
+        // IMPORTANTE: Incluir el prefijo /hcen en la URL
+        const backendUrl = process.env.REACT_APP_HCEN_BACKEND_URL || 'http://localhost:8080';
+        downloadUrl = `${backendUrl}/hcen/api/metadatos-documento/${documento.id}/descargar`;
+      } else {
+        alert('No se puede descargar: el documento no tiene información de descarga disponible.');
+        return;
+      }
+
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+      };
+
+      console.log('Descargando documento desde:', downloadUrl);
+
+      const response = await fetch(downloadUrl, {
         method: 'GET',
+        headers: headers,
         credentials: 'include', // Incluir cookies para autenticación
       });
 
@@ -82,7 +144,10 @@ function DocumentosPage() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `documento-${documentoId}.pdf`;
+        const fileName = documento.tipoDocumento 
+          ? `documento-${documento.tipoDocumento}-${documento.id || 'descarga'}.pdf`
+          : `documento-${documento.id || 'descarga'}.pdf`;
+        a.download = fileName;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
@@ -90,13 +155,21 @@ function DocumentosPage() {
       } else if (response.status === 403) {
         const errorText = await response.text();
         alert(`No tiene permiso para acceder a este documento. Use el botón "Solicitar Acceso" para solicitar acceso.`);
+      } else if (response.status === 404) {
+        alert(`No se encontró el documento (404). Puede que el documento ya no esté disponible o que la URL sea incorrecta. URL intentada: ${downloadUrl}`);
       } else {
-        const errorText = await response.text();
-        alert(`Error al descargar el documento: ${errorText || 'Error desconocido'}`);
+        const errorText = await response.text().catch(() => 'Error desconocido');
+        const errorMsg = handleDatabaseError(errorText, 'Error al descargar el documento');
+        alert(`Error al descargar el documento (${response.status}): ${errorMsg}`);
       }
     } catch (err) {
-      alert('Error al descargar el documento: ' + err.message);
-      console.error('Error:', err);
+      const errMsg = err.message || String(err);
+      console.error('Error al descargar:', err);
+      if (errMsg.includes('Failed to fetch') || errMsg.includes('CORS')) {
+        alert(`Error de conexión: No se pudo conectar al servidor para descargar el documento. Verifique su conexión y que el servidor esté disponible. Error: ${errMsg}`);
+      } else {
+        alert(`Error al descargar el documento: ${handleDatabaseError(errMsg)}`);
+      }
     }
   };
 
@@ -137,11 +210,21 @@ function DocumentosPage() {
         setSolicitarAccesoForm({ ciPaciente: '', motivo: '' });
         setError(null);
       } else {
-        const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
-        setError(`Error al enviar solicitud: ${errorData.error || 'Error desconocido'}`);
+        const errorText = await response.text().catch(() => 'Error desconocido');
+        let errorMsg = 'Error desconocido';
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMsg = errorData.error || errorData.detalle || errorText;
+        } catch {
+          errorMsg = errorText.includes('404') || errorText.includes('Not Found') 
+            ? 'El servicio de solicitud de acceso no está disponible en este momento. Contacte al administrador.'
+            : errorText;
+        }
+        setError(`Error al enviar solicitud: ${handleDatabaseError(errorMsg)}`);
       }
     } catch (err) {
-      setError('Error al enviar solicitud de acceso: ' + err.message);
+      const errMsg = err.message || String(err);
+      setError(`Error al enviar solicitud de acceso: ${handleDatabaseError(errMsg)}`);
       console.error('Error:', err);
     } finally {
       setLoading(false);
@@ -193,11 +276,13 @@ function DocumentosPage() {
           buscarDocumentos();
         }
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Error al subir el documento');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.error || 'Error al subir el documento';
+        setError(handleDatabaseError(errorMsg, 'Error al subir el documento'));
       }
     } catch (err) {
-      setError('Error de conexión al subir el documento');
+      const errMsg = err.message || String(err);
+      setError(handleDatabaseError(errMsg, 'Error de conexión al subir el documento'));
       console.error('Error:', err);
     } finally {
       setLoading(false);
@@ -247,10 +332,11 @@ function DocumentosPage() {
         const data = await response.json();
         alert('Documento creado exitosamente. El contenido se ha convertido automáticamente a PDF.');
         setShowCreateModal(false);
+        setCreateError(null);
         setCreateForm({
           ciPaciente: '',
           contenido: '',
-          tipoDocumento: 'EVALUACION',
+          tipoDocumento: 'CONSULTA_MEDICA',
           descripcion: '',
           titulo: '',
           autor: ''
@@ -262,14 +348,59 @@ function DocumentosPage() {
       } else {
         const errorData = await response.json().catch(() => ({}));
         const msg = errorData.error || 'Error al crear el documento';
-        setCreateError(msg);
+        setCreateError(handleDatabaseError(msg, 'Error al crear el documento'));
         setError(null);
       }
     } catch (err) {
-      setError('Error de conexión al crear el documento: ' + err.message);
+      const errMsg = err.message || String(err);
+      setError(handleDatabaseError(errMsg, 'Error de conexión al crear el documento'));
+      setCreateError(null);
       console.error('Error:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const generarResumen = async () => {
+    if (!ciPaciente.trim()) {
+      setErrorResumen('Por favor ingrese un CI del paciente');
+      return;
+    }
+
+    setLoadingResumen(true);
+    setErrorResumen(null);
+    setResumen(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      const backendBase = process.env.REACT_APP_BACKEND_URL || '';
+      const response = await fetch(`${backendBase}/hcen-web/api/documentos/${ciPaciente}/resumen`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setResumen(data);
+        setShowResumenModal(true);
+        setErrorResumen(null);
+      } else if (response.status === 404) {
+        setErrorResumen('No se encontraron documentos para este paciente');
+      } else if (response.status === 403) {
+        const errorData = await response.json().catch(() => ({}));
+        setErrorResumen(errorData.error || 'No tiene permisos para acceder a la historia clínica de este paciente');
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.error || 'Error al generar el resumen';
+        setErrorResumen(handleDatabaseError(errorMsg, 'Error al generar el resumen'));
+      }
+    } catch (err) {
+      const errMsg = err.message || String(err);
+      setErrorResumen(handleDatabaseError(errMsg, 'Error de conexión al generar el resumen'));
+      console.error('Error:', err);
+    } finally {
+      setLoadingResumen(false);
     }
   };
 
@@ -297,16 +428,27 @@ function DocumentosPage() {
     const normalizedError = createError.toLowerCase();
     const shouldSuggestCreatePatient =
       normalizedError.includes('paciente/usuario no encontrado') ||
+      normalizedError.includes('no encontrado') ||
       normalizedError.includes('debe crear') ||
+      normalizedError.includes('registre al paciente') ||
       (normalizedError.includes('paciente') && normalizedError.includes('crear'));
+    
+    // Verificar si el error es por cédula incompleta
+    const isCedulaIncompleta = normalizedError.includes('cedula') || 
+                                 normalizedError.includes('cédula') ||
+                                 normalizedError.includes('ci') && normalizedError.includes('incompleto');
 
     return (
       <div style={styles.modalErrorCard}>
         <div style={styles.modalErrorHeader}>
-          <span style={styles.modalErrorIcon}>⚠️</span>
+          <span style={styles.modalErrorIcon}>!</span>
           <div>
             <div style={styles.modalErrorTitle}>No se pudo crear el documento</div>
-            <div style={styles.modalErrorText}>{createError}</div>
+            <div style={styles.modalErrorText}>
+              {createError.toLowerCase().includes('no encontrado') && createError.toLowerCase().includes('paciente')
+                ? 'El paciente no está registrado en esta clínica. Por favor, verifique que la cédula esté completa y registre al paciente antes de crear documentos.'
+                : createError}
+            </div>
           </div>
         </div>
 
@@ -326,7 +468,7 @@ function DocumentosPage() {
   };
 
   return (
-    <div>
+    <div className="documentos-page-container">
       {/* Header con búsqueda */}
       <div style={styles.headerCard}>
         <div style={styles.headerContent}>
@@ -336,7 +478,7 @@ function DocumentosPage() {
               Busque y gestione documentos PDF de pacientes
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             <button
               onClick={() => {
                 setShowCreateModal(true);
@@ -345,23 +487,23 @@ function DocumentosPage() {
               }}
               style={styles.createButton}
             >
-              ✏️ Crear Documento
+              Crear Documento
             </button>
-          <button
-            onClick={() => {
-              setShowUploadModal(true);
-              setUploadForm(prev => ({ ...prev, ciPaciente: ciPaciente }));
-            }}
-            style={styles.uploadButton}
-          >
-              📤 Subir PDF
+            <button
+              onClick={() => {
+                setShowUploadModal(true);
+                setUploadForm(prev => ({ ...prev, ciPaciente: ciPaciente }));
+              }}
+              style={styles.uploadButton}
+            >
+              Subir PDF
             </button>
             <button
               onClick={() => setShowSolicitarAccesoModal(true)}
               style={styles.solicitarAccesoButton}
             >
-              🔓 Solicitar Acceso
-          </button>
+              Solicitar Acceso
+            </button>
           </div>
         </div>
 
@@ -381,16 +523,47 @@ function DocumentosPage() {
               disabled={loading}
               style={styles.searchButton}
             >
-              {loading ? '🔍 Buscando...' : '🔍 Buscar'}
+              {loading ? 'Buscando...' : 'Buscar'}
+            </button>
+            <button
+              onClick={generarResumen}
+              disabled={loadingResumen || !ciPaciente.trim()}
+              style={styles.resumenButton}
+              title="Generar resumen de la historia clínica"
+            >
+              {loadingResumen ? 'Generando...' : 'Resumen'}
             </button>
           </div>
+          {errorResumen && (
+            <div style={styles.permisoErrorCard}>
+              <div style={styles.permisoErrorHeader}>
+                <span style={styles.permisoErrorIcon}>⚠️</span>
+                <h4 style={styles.permisoErrorTitle}>Acceso Denegado</h4>
+              </div>
+              <p style={styles.permisoErrorText}>{errorResumen}</p>
+              {errorResumen.includes('permisos') && ciPaciente && (
+                <div style={styles.permisoErrorActions}>
+                  <button
+                    onClick={() => {
+                      setShowSolicitarAccesoModal(true);
+                      setSolicitarAccesoForm(prev => ({ ...prev, ciPaciente: ciPaciente }));
+                      setErrorResumen(null);
+                    }}
+                    style={styles.permisoSolicitarButton}
+                  >
+                    📝 Solicitar Acceso
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Error message */}
       {error && (
         <div style={styles.errorCard}>
-          <span style={styles.errorIcon}>⚠️</span>
+          <span style={styles.errorIcon}>!</span>
           <span>{error}</span>
         </div>
       )}
@@ -423,12 +596,12 @@ function DocumentosPage() {
                   </div>
                 </div>
                 <button
-                  onClick={() => descargarDocumento(doc.id)}
+                  onClick={() => descargarDocumento(doc)}
                   style={styles.downloadButton}
                   title="Descargar PDF"
-                  disabled={!doc.id}
+                  disabled={!doc.id && !doc.uriDocumento}
                 >
-                  ⬇️ Descargar
+                  Descargar
                 </button>
               </div>
             ))}
@@ -452,6 +625,14 @@ function DocumentosPage() {
           onClick={() => {
             setShowCreateModal(false);
             setCreateError(null);
+            setCreateForm({
+              ciPaciente: '',
+              contenido: '',
+              tipoDocumento: 'CONSULTA_MEDICA',
+              descripcion: '',
+              titulo: '',
+              autor: ''
+            });
           }}
         >
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -572,7 +753,15 @@ function DocumentosPage() {
 
       {/* Modal de subida */}
       {showUploadModal && (
-        <div style={styles.modalOverlay} onClick={() => setShowUploadModal(false)}>
+        <div style={styles.modalOverlay} onClick={() => {
+          setShowUploadModal(false);
+          setUploadForm({
+            archivo: null,
+            ciPaciente: '',
+            tipoDocumento: 'CONSULTA_MEDICA',
+            descripcion: ''
+          });
+        }}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <h3 style={styles.modalTitle}>Subir Documento PDF</h3>
@@ -658,6 +847,83 @@ function DocumentosPage() {
         </div>
       )}
 
+      {/* Modal para mostrar resumen */}
+      {showResumenModal && resumen && (
+        <div
+          style={styles.modalOverlay}
+          onClick={() => {
+            setShowResumenModal(false);
+            setErrorResumen(null);
+          }}
+        >
+          <div style={styles.resumenModalContent} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>
+                Resumen de Historia Clínica
+              </h3>
+              <button
+                onClick={() => {
+                  setShowResumenModal(false);
+                  setErrorResumen(null);
+                }}
+                style={styles.modalClose}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={styles.resumenModalBody}>
+              <div style={styles.resumenInfo}>
+                <div style={styles.resumenInfoItem}>
+                  <span style={styles.resumenInfoLabel}>Paciente:</span>
+                  <span style={styles.resumenInfoValue}>{resumen.paciente}</span>
+                </div>
+                <div style={styles.resumenInfoItem}>
+                  <span style={styles.resumenInfoLabel}>Documentos procesados:</span>
+                  <span style={styles.resumenInfoValue}>{resumen.documentosProcesados || 0}</span>
+                </div>
+              </div>
+              <div style={styles.resumenContent}>
+                <div style={styles.resumenHeader}>
+                  <h4 style={styles.resumenTitle}>Resumen Generado</h4>
+                </div>
+                <div style={styles.resumenText}>
+                  {resumen.resumen?.split('\n').map((line, index) => {
+                    // Si la línea está vacía o solo tiene espacios, mostrar un párrafo vacío
+                    if (!line.trim()) {
+                      return <br key={index} />;
+                    }
+                    // Si la línea parece un encabezado (empieza con ===), darle estilo especial
+                    if (line.trim().startsWith('===')) {
+                      return (
+                        <h5 key={index} style={styles.resumenHeading}>
+                          {line.replace(/=/g, '').trim()}
+                        </h5>
+                      );
+                    }
+                    return (
+                      <p key={index} style={styles.resumenParagraph}>
+                        {line}
+                      </p>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            <div style={styles.modalActions}>
+              <button
+                onClick={() => {
+                  setShowResumenModal(false);
+                  setErrorResumen(null);
+                }}
+                style={styles.submitButton}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal para solicitar acceso */}
       {showSolicitarAccesoModal && (
         <div style={styles.modalOverlay} onClick={() => setShowSolicitarAccesoModal(false)}>
@@ -727,13 +993,17 @@ const styles = {
     borderRadius: '12px',
     padding: '24px',
     marginBottom: '24px',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    width: '100%',
+    boxSizing: 'border-box'
   },
   headerContent: {
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '20px'
+    alignItems: 'flex-start',
+    marginBottom: '20px',
+    flexWrap: 'wrap',
+    gap: '16px'
   },
   headerTitle: {
     margin: '0 0 4px 0',
@@ -747,7 +1017,7 @@ const styles = {
     color: '#6b7280'
   },
   createButton: {
-    backgroundColor: '#10b981',
+    backgroundColor: '#3b82f6',
     color: 'white',
     border: 'none',
     borderRadius: '8px',
@@ -757,7 +1027,8 @@ const styles = {
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
-    gap: '8px'
+    gap: '8px',
+    transition: 'all 0.2s'
   },
   uploadButton: {
     backgroundColor: '#3b82f6',
@@ -773,7 +1044,7 @@ const styles = {
     gap: '8px'
   },
   solicitarAccesoButton: {
-    backgroundColor: '#fbbf24', // Amarillo
+    backgroundColor: '#3b82f6', // Azul
     color: 'white',
     border: 'none',
     borderRadius: '8px',
@@ -790,7 +1061,8 @@ const styles = {
   },
   searchInputGroup: {
     display: 'flex',
-    gap: '12px'
+    gap: '12px',
+    flexWrap: 'wrap'
   },
   searchInput: {
     flex: 1,
@@ -803,13 +1075,29 @@ const styles = {
   },
   searchButton: {
     padding: '12px 24px',
-    backgroundColor: '#10b981',
+    backgroundColor: '#3b82f6',
     color: 'white',
     border: 'none',
     borderRadius: '8px',
     fontSize: '15px',
     fontWeight: '600',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    transition: 'background-color 0.2s'
+  },
+  resumenButton: {
+    padding: '12px 24px',
+    backgroundColor: '#3b82f6',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '15px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    transition: 'all 0.2s',
+    boxShadow: '0 2px 4px rgba(59, 130, 246, 0.3)'
   },
   errorCard: {
     backgroundColor: '#fef2f2',
@@ -849,7 +1137,8 @@ const styles = {
     padding: '16px',
     border: '1px solid #e5e7eb',
     borderRadius: '8px',
-    transition: 'all 0.2s'
+    transition: 'all 0.2s',
+    flexWrap: 'wrap'
   },
   documentoIcon: {
     fontSize: '32px'
@@ -861,7 +1150,9 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '8px'
+    marginBottom: '8px',
+    flexWrap: 'wrap',
+    gap: '8px'
   },
   documentoTipo: {
     fontSize: '16px',
@@ -881,10 +1172,11 @@ const styles = {
     fontSize: '13px',
     color: '#9ca3af',
     display: 'flex',
-    gap: '12px'
+    gap: '12px',
+    flexWrap: 'wrap'
   },
   downloadButton: {
-    backgroundColor: '#10b981',
+    backgroundColor: '#3b82f6',
     color: 'white',
     border: 'none',
     borderRadius: '8px',
@@ -892,6 +1184,7 @@ const styles = {
     fontSize: '14px',
     fontWeight: '600',
     cursor: 'pointer',
+    transition: 'all 0.2s',
     display: 'flex',
     alignItems: 'center',
     gap: '8px'
@@ -929,7 +1222,9 @@ const styles = {
     width: '90%',
     maxWidth: '600px',
     maxHeight: '90vh',
-    overflow: 'auto'
+    overflow: 'auto',
+    margin: '16px',
+    boxSizing: 'border-box'
   },
   modalHeader: {
     display: 'flex',
@@ -988,17 +1283,19 @@ const styles = {
     display: 'flex',
     justifyContent: 'flex-end',
     gap: '12px',
-    marginTop: '24px'
+    marginTop: '24px',
+    flexWrap: 'wrap'
   },
   cancelButton: {
     padding: '12px 24px',
-    backgroundColor: '#f3f4f6',
-    color: '#374151',
-    border: 'none',
+    backgroundColor: '#ffffff',
+    color: '#3b82f6',
+    border: '2px solid #3b82f6',
     borderRadius: '8px',
     fontSize: '15px',
     fontWeight: '600',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    transition: 'all 0.2s'
   },
   submitButton: {
     padding: '12px 24px',
@@ -1008,7 +1305,8 @@ const styles = {
     borderRadius: '8px',
     fontSize: '15px',
     fontWeight: '600',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    transition: 'all 0.2s'
   },
   modalErrorCard: {
     marginTop: '12px',
@@ -1041,13 +1339,138 @@ const styles = {
   },
   goCreatePatientButton: {
     padding: '10px 18px',
-    backgroundColor: '#10b981',
+    backgroundColor: '#3b82f6',
     color: 'white',
     border: 'none',
     borderRadius: '999px',
     fontSize: '14px',
     fontWeight: '600',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    transition: 'all 0.2s'
+  },
+  resumenModalContent: {
+    backgroundColor: 'white',
+    borderRadius: '12px',
+    width: '90%',
+    maxWidth: '800px',
+    maxHeight: '90vh',
+    overflow: 'auto',
+    boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+    margin: '16px',
+    boxSizing: 'border-box'
+  },
+  resumenModalBody: {
+    padding: '24px'
+  },
+  resumenInfo: {
+    display: 'flex',
+    gap: '24px',
+    marginBottom: '24px',
+    padding: '16px',
+    backgroundColor: '#f9fafb',
+    borderRadius: '8px',
+    border: '1px solid #e5e7eb',
+    flexWrap: 'wrap'
+  },
+  resumenInfoItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px'
+  },
+  resumenInfoLabel: {
+    fontSize: '13px',
+    color: '#6b7280',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px'
+  },
+  resumenInfoValue: {
+    fontSize: '16px',
+    color: '#111827',
+    fontWeight: '600'
+  },
+  resumenContent: {
+    backgroundColor: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '8px',
+    padding: '24px'
+  },
+  resumenHeader: {
+    marginBottom: '16px',
+    paddingBottom: '12px',
+    borderBottom: '2px solid #e5e7eb'
+  },
+  resumenTitle: {
+    margin: 0,
+    fontSize: '18px',
+    fontWeight: '700',
+    color: '#111827'
+  },
+  resumenText: {
+    fontSize: '15px',
+    lineHeight: '1.8',
+    color: '#374151'
+  },
+  resumenParagraph: {
+    margin: '0 0 12px 0',
+    whiteSpace: 'pre-wrap',
+    wordWrap: 'break-word',
+    textAlign: 'justify'
+  },
+  resumenHeading: {
+    margin: '16px 0 8px 0',
+    fontSize: '16px',
+    fontWeight: '700',
+    color: '#8b5cf6',
+    borderBottom: '2px solid #e5e7eb',
+    paddingBottom: '8px'
+  },
+  permisoErrorCard: {
+    backgroundColor: '#fef3c7',
+    border: '2px solid #f59e0b',
+    borderRadius: '12px',
+    padding: '20px',
+    marginTop: '16px',
+    boxShadow: '0 2px 8px rgba(245, 158, 11, 0.2)'
+  },
+  permisoErrorHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    marginBottom: '12px'
+  },
+  permisoErrorIcon: {
+    fontSize: '24px'
+  },
+  permisoErrorTitle: {
+    margin: 0,
+    fontSize: '18px',
+    fontWeight: '700',
+    color: '#92400e'
+  },
+  permisoErrorText: {
+    margin: '0 0 16px 0',
+    fontSize: '15px',
+    color: '#78350f',
+    lineHeight: '1.6'
+  },
+  permisoErrorActions: {
+    display: 'flex',
+    gap: '12px'
+  },
+  permisoSolicitarButton: {
+    backgroundColor: '#3b82f6',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '10px 20px',
+    fontSize: '15px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'background-color 0.2s',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
   }
 };
 

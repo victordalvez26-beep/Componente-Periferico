@@ -9,7 +9,6 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.core.HttpHeaders;
-import jakarta.ws.rs.container.ContainerRequestContext;
 import org.jboss.logging.Logger;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
@@ -17,7 +16,8 @@ import org.bson.Document;
 import org.bson.types.Binary;
 import uy.edu.tse.hcen.multitenancy.TenantContext;
 import uy.edu.tse.hcen.service.DocumentoService;
-
+import uy.edu.tse.hcen.service.OpenAIService;
+import jakarta.ws.rs.core.SecurityContext;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.HashMap;
@@ -41,12 +41,19 @@ public class DocumentoClinicoResource {
 
     @Inject
     private DocumentoService documentoService;
+
+    @Inject
+    private OpenAIService openAIService;
+
+    @Inject
+    private uy.edu.tse.hcen.client.PoliticasAccesoClient politicasAccesoClient;
     
     @Context
-    private jakarta.ws.rs.core.SecurityContext securityContext;
+    private SecurityContext securityContext;
     
     @Context
     private HttpHeaders httpHeaders;
+
 
     /**
      * POST /api/documentos/completo
@@ -456,7 +463,14 @@ public class DocumentoClinicoResource {
             
             // Construir payload para HCEN Central (debe incluir el profesionalId y tenantId del usuario autenticado)
             Map<String, Object> payload = new HashMap<>();
-            payload.put("pacienteCI", body.get("pacienteCI"));
+            
+            // Asegurarse de que pacienteCI sea un String válido
+            Object pacienteCI = body.get("pacienteCI");
+            if (pacienteCI != null) {
+                payload.put("pacienteCI", pacienteCI.toString());
+            } else {
+                LOG.warn("Proxy: pacienteCI es null, no se incluirá en el payload");
+            }
             
             // Agregar tenantId (clinicaAutorizada) para que se guarde en la solicitud y se use al crear la política
             if (tenantIdStr != null && !tenantIdStr.isBlank()) {
@@ -467,7 +481,8 @@ public class DocumentoClinicoResource {
             // documentoId es opcional - si no se proporciona, es para todos los documentos del paciente
             // NO agregamos documentoId si no está presente o es null
             if (body.containsKey("documentoId") && body.get("documentoId") != null) {
-                payload.put("documentoId", body.get("documentoId"));
+                Object documentoId = body.get("documentoId");
+                payload.put("documentoId", documentoId != null ? documentoId.toString() : null);
                 LOG.info("Proxy: Incluyendo documentoId en payload");
             } else {
                 LOG.info("Proxy: No se incluye documentoId - solicitud para todos los documentos del paciente");
@@ -475,10 +490,15 @@ public class DocumentoClinicoResource {
             
             // tipoDocumento es opcional
             if (body.containsKey("tipoDocumento") && body.get("tipoDocumento") != null) {
-                payload.put("tipoDocumento", body.get("tipoDocumento"));
-    }
+                Object tipoDocumento = body.get("tipoDocumento");
+                if (tipoDocumento != null) {
+                    payload.put("tipoDocumento", tipoDocumento.toString());
+                }
+            }
 
-            payload.put("motivo", body.getOrDefault("motivo", "Acceso necesario para atención médica"));
+            // Motivo - asegurarse de que sea un String válido
+            Object motivo = body.getOrDefault("motivo", "Acceso necesario para atención médica");
+            payload.put("motivo", motivo != null ? motivo.toString() : "Acceso necesario para atención médica");
             
             LOG.info(String.format("Proxy: Payload final enviado a HCEN Central: %s", payload));
             
@@ -516,31 +536,63 @@ public class DocumentoClinicoResource {
                 
                 LOG.info(String.format("Proxy: Respuesta de HCEN Central - Status: %d", status));
                 
+                // Manejar errores específicos ANTES de intentar leer la respuesta
+                if (status == 404) {
+                    String errorDetail = "";
+                    try {
+                        if (response.hasEntity()) {
+                            errorDetail = response.readEntity(String.class);
+                        }
+                    } catch (Exception e) {
+                        // Ignorar errores al leer el cuerpo del 404
+                    }
+                    LOG.warn(String.format("Proxy: Endpoint no encontrado en HCEN Central (404). El servicio puede no estar disponible. Detalle: %s", errorDetail));
+                    if (client != null) {
+                        client.close();
+                    }
+                    return Response.status(Response.Status.SERVICE_UNAVAILABLE)
+                        .entity(Map.of(
+                            "error", "El servicio de solicitud de acceso no está disponible",
+                            "detalle", "El endpoint solicitado no fue encontrado en HCEN Central. Es posible que el servicio no esté configurado o no esté disponible en este momento."
+                        ))
+                        .build();
+                }
+                
                 // Leer la respuesta de manera más robusta
                 Object responseEntity = null;
                 if (response.hasEntity()) {
-        try {
-                        responseEntity = response.readEntity(Object.class);
-                        LOG.info(String.format("Proxy: Respuesta recibida: %s", responseEntity));
+                    try {
+                        // Leer primero como String para evitar problemas con content-type
+                        String textResponse = response.readEntity(String.class);
+                        LOG.info(String.format("Proxy: Respuesta recibida (texto): %s", textResponse));
+                        
+                        // Si parece JSON, intentar parsearlo manualmente o dejarlo como texto
+                        if (textResponse.trim().startsWith("{") || textResponse.trim().startsWith("[")) {
+                            // Intentar parsear JSON simple manualmente o usar el texto
+                            responseEntity = Map.of("mensaje", textResponse);
+                        } else {
+                            // Es HTML u otro formato
+                            responseEntity = Map.of("error", textResponse.contains("404") ? 
+                                "El servicio no está disponible" : textResponse);
+                        }
                     } catch (Exception e) {
                         LOG.error("Error al leer respuesta de HCEN Central", e);
-                        try {
-                            String textResponse = response.readEntity(String.class);
-                            LOG.warn(String.format("Proxy: Respuesta como texto: %s", textResponse));
-                            responseEntity = Map.of("error", textResponse);
-                        } catch (Exception e2) {
-                            LOG.error("Error al leer respuesta como texto", e2);
-                            responseEntity = Map.of("error", "Error desconocido al procesar respuesta");
-                        }
+                        responseEntity = Map.of("error", "Error al procesar respuesta del servidor");
                     }
                 }
                 
                 return Response.status(status)
-                    .entity(responseEntity != null ? responseEntity : Map.of())
+                    .entity(responseEntity != null ? responseEntity : Map.of("status", status))
                     .build();
                     
             } finally {
-                client.close();
+                if (client != null) {
+                    try {
+                        client.close();
+                    } catch (Exception e) {
+                        LOG.warn("Error al cerrar cliente HTTP", e);
+                    }
+                }
         }
             
         } catch (Exception e) {
@@ -549,6 +601,151 @@ public class DocumentoClinicoResource {
                 .entity(Map.of("error", "Error al procesar la solicitud: " + e.getMessage()))
                 .build();
             }
+    }
+
+    /**
+     * GET /api/documentos/{documentoIdPaciente}/resumen
+     * 
+     * Genera un resumen de la historia clínica completa de un paciente.
+     * 
+     * @param documentoIdPaciente CI del paciente
+     * @return Resumen de la historia clínica generado con IA
+     */
+    @GET
+    @Path("/{documentoIdPaciente}/resumen")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RolesAllowed("PROFESIONAL")
+    public Response generarResumenHistoriaClinica(@PathParam("documentoIdPaciente") String documentoIdPaciente) {
+        Response validation = DocumentoValidator.validateDocumentoIdPaciente(documentoIdPaciente);
+        if (validation != null) {
+            return validation;
+        }
+
+        try {
+            String profesionalId = getUsuarioId();
+            Response usuarioValidation = DocumentoValidator.validateUsuarioId(profesionalId);
+            if (usuarioValidation != null) {
+                return usuarioValidation;
+            }
+
+            // Verificar permisos usando el servicio de políticas
+            String tenantIdStr = TenantContext.getCurrentTenant();
+            if (tenantIdStr == null || tenantIdStr.isBlank()) {
+                return DocumentoResponseBuilder.badRequest("Tenant no identificado");
+            }
+            
+            boolean tienePermiso = true; // Por defecto permitir si no se puede verificar
+            try {
+                tienePermiso = politicasAccesoClient.verificarPermiso(
+                        profesionalId, 
+                        documentoIdPaciente, 
+                        null, 
+                        tenantIdStr);
+            } catch (Exception ex) {
+                LOG.warnf("No se pudo verificar permisos con el servicio de políticas (continuando): %s", ex.getMessage());
+                // Continuar sin verificación de permisos si el servicio no está disponible
+            }
+
+            if (!tienePermiso) {
+                LOG.warnf("Acceso denegado - Profesional: %s, Paciente: %s, Endpoint: /api/documentos/%s/resumen", 
+                        profesionalId, documentoIdPaciente, documentoIdPaciente);
+                return DocumentoResponseBuilder.forbidden(
+                        "No tiene permisos para acceder a la historia clínica completa del paciente");
+            }
+
+            // Obtener contenidos de todos los documentos del paciente
+            List<String> contenidos = documentoService.obtenerContenidosPorPaciente(documentoIdPaciente);
+            if (contenidos == null || contenidos.isEmpty()) {
+                return DocumentoResponseBuilder.notFound("No se encontraron documentos para el paciente");
+            }
+
+            // Construir historia clínica completa
+            String historiaClinicaCompleta = construirHistoriaClinicaCompleta(contenidos);
+            
+            // Intentar generar resumen con OpenAI
+            String resumen;
+            try {
+                resumen = openAIService.generarResumenHistoriaClinica(historiaClinicaCompleta);
+            } catch (RuntimeException ex) {
+                LOG.warnf("No se pudo generar resumen con OpenAI, usando fallback: %s", ex.getMessage());
+                resumen = generarResumenFallback(contenidos);
+            }
+
+            // Registrar acceso sensible
+            LOG.infof("Acceso sensible registrado - Profesional: %s, Paciente: %s, Endpoint: /api/documentos/%s/resumen", 
+                    profesionalId, documentoIdPaciente, documentoIdPaciente);
+            
+            return DocumentoResponseBuilder.ok(Map.of(
+                    "paciente", documentoIdPaciente,
+                    "resumen", resumen,
+                    "documentosProcesados", contenidos.size()
+            ));
+        } catch (IllegalArgumentException ex) {
+            return DocumentoResponseBuilder.badRequest(ex.getMessage());
+        } catch (RuntimeException ex) {
+            LOG.error("Error generando resumen de historia clínica", ex);
+            return DocumentoResponseBuilder.internalServerError("Error al generar resumen: " + ex.getMessage());
+        } catch (Exception ex) {
+            LOG.error("Error inesperado generando resumen", ex);
+            return DocumentoResponseBuilder.internalServerError("Error inesperado al generar resumen");
+        }
+    }
+
+    /**
+     * Obtiene el ID del usuario autenticado.
+     */
+    private String getUsuarioId() {
+        if (securityContext != null && securityContext.getUserPrincipal() != null) {
+            return securityContext.getUserPrincipal().getName();
+        }
+        return null;
+    }
+
+    /**
+     * Construye una historia clínica completa concatenando todos los contenidos.
+     */
+    private String construirHistoriaClinicaCompleta(List<String> contenidos) {
+        StringBuilder historiaClinicaCompleta = new StringBuilder();
+        for (int i = 0; i < contenidos.size(); i++) {
+            historiaClinicaCompleta.append("=== Documento ").append(i + 1).append(" ===\n");
+            historiaClinicaCompleta.append(contenidos.get(i));
+            historiaClinicaCompleta.append("\n\n");
+        }
+        return historiaClinicaCompleta.toString();
+    }
+
+    /**
+     * Genera un resumen básico cuando el servicio de IA no está disponible.
+     */
+    private String generarResumenFallback(List<String> contenidos) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("Resumen automático (sin servicio de IA)\n");
+        builder.append("Documentos procesados: ").append(contenidos.size()).append("\n\n");
+        
+        for (int i = 0; i < contenidos.size(); i++) {
+            String texto = contenidos.get(i);
+            if (texto == null || texto.isBlank()) {
+                continue;
+            }
+            builder.append("Documento ").append(i + 1).append(":\n");
+            String snippet = texto.trim();
+            if (snippet.length() > 400) {
+                snippet = snippet.substring(0, 400) + "...";
+            }
+            builder.append(snippet).append("\n\n");
+            
+            if (i >= 2) {
+                builder.append("... (").append(contenidos.size() - 3).append(" documentos adicionales)\n");
+                break;
+            }
+        }
+        
+        if (builder.length() == 0) {
+            builder.append("No hay contenido clínico para resumir.");
+        }
+        
+        builder.append("\nEste resumen fue generado automáticamente debido a que el servicio de IA no está disponible.");
+        return builder.toString();
     }
 
     /**
@@ -566,4 +763,7 @@ public class DocumentoClinicoResource {
         }
         return null;
     }
+
+
+    
 }

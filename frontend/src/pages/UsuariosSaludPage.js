@@ -22,6 +22,35 @@ function UsuariosSaludPage() {
     'SAN_JOSE', 'SORIANO', 'TACUAREMBO', 'TREINTA_Y_TRES'
   ];
   
+  // Función helper para formatear departamentos
+  const formatDepartamento = (dept) => {
+    if (!dept) return '-';
+    
+    const departamentoMap = {
+      'ARTIGAS': 'Artigas',
+      'CANELONES': 'Canelones',
+      'CERRO_LARGO': 'Cerro Largo',
+      'COLONIA': 'Colonia',
+      'DURAZNO': 'Durazno',
+      'FLORES': 'Flores',
+      'FLORIDA': 'Florida',
+      'LAVALLEJA': 'Lavalleja',
+      'MALDONADO': 'Maldonado',
+      'MONTEVIDEO': 'Montevideo',
+      'PAYSANDU': 'Paysandú',
+      'RIO_NEGRO': 'Río Negro',
+      'RIVERA': 'Rivera',
+      'ROCHA': 'Rocha',
+      'SALTO': 'Salto',
+      'SAN_JOSE': 'San José',
+      'SORIANO': 'Soriano',
+      'TACUAREMBO': 'Tacuarembó',
+      'TREINTA_Y_TRES': 'Treinta y Tres'
+    };
+    
+    return departamentoMap[dept] || dept.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+  
   const [formData, setFormData] = useState({
     ci: '',
     nombre: '',
@@ -55,11 +84,23 @@ function UsuariosSaludPage() {
         const data = await response.json();
         setUsuarios(data);
       } else {
-        mostrarMensaje('error', 'Error al cargar la lista de pacientes');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.error || 'Error al cargar la lista de pacientes';
+        const msg = errorMsg.toLowerCase();
+        if (msg.includes('mongo') || msg.includes('database') || msg.includes('connection')) {
+          mostrarMensaje('error', 'Error al conectarse con la base de datos. Contacte a su administrador.');
+        } else {
+          mostrarMensaje('error', errorMsg);
+        }
       }
     } catch (error) {
       console.error('Error:', error);
-      mostrarMensaje('error', 'Error de conexión al cargar pacientes');
+      const errMsg = (error.message || String(error)).toLowerCase();
+      if (errMsg.includes('mongo') || errMsg.includes('database') || errMsg.includes('connection')) {
+        mostrarMensaje('error', 'Error al conectarse con la base de datos. Contacte a su administrador.');
+      } else {
+        mostrarMensaje('error', 'Error de conexión al cargar pacientes');
+      }
     } finally {
       setLoading(false);
     }
@@ -80,6 +121,20 @@ function UsuariosSaludPage() {
     if (!formData.ci || formData.ci.trim() === '') {
       mostrarMensaje('error', 'El CI es obligatorio');
       return;
+    }
+    
+    // Validar fecha de nacimiento si está presente
+    if (formData.fechaNacimiento) {
+      const fecha = new Date(formData.fechaNacimiento);
+      if (isNaN(fecha.getTime())) {
+        mostrarMensaje('error', 'La fecha de nacimiento no es válida');
+        return;
+      }
+      // Validar que la fecha no sea futura
+      if (fecha > new Date()) {
+        mostrarMensaje('error', 'La fecha de nacimiento no puede ser una fecha futura');
+        return;
+      }
     }
     
     try {
@@ -109,12 +164,24 @@ function UsuariosSaludPage() {
         resetForm();
         cargarUsuarios();
       } else {
-        const errorData = await response.json();
-        mostrarMensaje('error', errorData.error || 'Error al guardar el paciente');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.error || 'Error al guardar el paciente';
+        // Verificar si es un error de base de datos
+        const msg = errorMsg.toLowerCase();
+        if (msg.includes('mongo') || msg.includes('database') || msg.includes('connection')) {
+          mostrarMensaje('error', 'Error al conectarse con la base de datos. Contacte a su administrador.');
+        } else {
+          mostrarMensaje('error', errorMsg);
+        }
       }
     } catch (error) {
       console.error('Error:', error);
-      mostrarMensaje('error', 'Error de conexión al guardar');
+      const errMsg = (error.message || String(error)).toLowerCase();
+      if (errMsg.includes('mongo') || errMsg.includes('database') || errMsg.includes('connection')) {
+        mostrarMensaje('error', 'Error al conectarse con la base de datos. Contacte a su administrador.');
+      } else {
+        mostrarMensaje('error', 'Error de conexión al guardar');
+      }
     }
   };
   
@@ -162,7 +229,7 @@ function UsuariosSaludPage() {
   };
   
   return (
-    <div className="usuarios-salud-page">
+    <div className="usuarios-salud-page" style={{ width: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
       <div className="page-header">
         <h1>👥 Gestión de Pacientes</h1>
         <p className="subtitle">
@@ -286,7 +353,7 @@ function UsuariosSaludPage() {
                   <option value="">-- Seleccione --</option>
                   {departamentos.map(dept => (
                     <option key={dept} value={dept}>
-                      {dept.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      {formatDepartamento(dept)}
                     </option>
                   ))}
                 </select>
@@ -331,7 +398,8 @@ function UsuariosSaludPage() {
             <p>Haz clic en "Agregar Paciente" para registrar el primero.</p>
           </div>
         ) : (
-          <table className="data-table">
+          <div style={{ overflowX: 'auto', width: '100%' }}>
+            <table className="data-table">
             <thead>
               <tr>
                 <th>CI</th>
@@ -339,6 +407,7 @@ function UsuariosSaludPage() {
                 <th>Fecha Nacimiento</th>
                 <th>Teléfono</th>
                 <th>Email</th>
+                <th>Departamento</th>
                 <th>HCEN ID</th>
                 <th>Acciones</th>
               </tr>
@@ -355,6 +424,7 @@ function UsuariosSaludPage() {
                   <td>{usuario.fechaNacimiento || '-'}</td>
                   <td>{usuario.telefono || '-'}</td>
                   <td>{usuario.email || '-'}</td>
+                  <td>{formatDepartamento(usuario.departamento)}</td>
                   <td>
                     {usuario.hcenUserId ? (
                       <span className="badge badge-success">
@@ -379,6 +449,7 @@ function UsuariosSaludPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

@@ -29,9 +29,23 @@ function ConfiguracionPage() {
       if (res.ok) {
         const data = await res.json();
         setConfig(data);
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        const errorMsg = errorData.error || errorData.message || '';
+        const msg = errorMsg.toLowerCase();
+        if (msg.includes('mongo') || msg.includes('database') || msg.includes('connection')) {
+          console.error('Error de base de datos al cargar configuración');
+        } else {
+          console.error('Error al cargar configuración:', errorMsg || 'Error desconocido');
+        }
       }
     } catch (err) {
-      console.error('Error al cargar configuración:', err);
+      const errMsg = (err.message || String(err)).toLowerCase();
+      if (errMsg.includes('mongo') || errMsg.includes('database') || errMsg.includes('connection')) {
+        console.error('Error de conexión con la base de datos:', err);
+      } else {
+        console.error('Error al cargar configuración:', err);
+      }
     }
   };
 
@@ -51,16 +65,29 @@ function ConfiguracionPage() {
       });
 
       if (res.ok) {
-        setMessage('✅ Configuración guardada exitosamente');
+        setMessage('Configuración guardada exitosamente');
         // Recargar la página después de 1 segundo para aplicar los cambios (nombre y logo)
         setTimeout(() => {
           window.location.reload();
         }, 1000);
       } else {
-        setMessage('❌ Error al guardar configuración');
+        const errorData = await res.json().catch(() => ({}));
+        const errorMsg = errorData.error || errorData.message || 'Error al guardar configuración';
+        const msg = errorMsg.toLowerCase();
+        if (msg.includes('mongo') || msg.includes('database') || msg.includes('connection')) {
+          setMessage('Error al conectarse con la base de datos. Contacte a su administrador.');
+        } else {
+          setMessage(`Error al guardar configuración: ${errorMsg}`);
+        }
       }
     } catch (err) {
-      setMessage('❌ Error de conexión');
+      const errMsg = (err.message || String(err)).toLowerCase();
+      if (errMsg.includes('mongo') || errMsg.includes('database') || errMsg.includes('connection')) {
+        setMessage('Error al conectarse con la base de datos. Contacte a su administrador.');
+      } else {
+        setMessage('Error de conexión al guardar configuración');
+      }
+      console.error('Error:', err);
     } finally {
       setLoading(false);
     }
@@ -71,8 +98,8 @@ function ConfiguracionPage() {
       {message && (
         <div style={{
           padding: '16px',
-          backgroundColor: message.includes('✅') ? '#d1fae5' : '#fee2e2',
-          color: message.includes('✅') ? '#065f46' : '#991b1b',
+          backgroundColor: message.includes('exitosamente') ? '#d1fae5' : '#fee2e2',
+          color: message.includes('exitosamente') ? '#065f46' : '#991b1b',
           borderRadius: '8px',
           marginBottom: '24px',
           fontSize: '15px',

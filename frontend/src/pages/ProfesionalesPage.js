@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useClinicConfig } from '../hooks/useClinicConfig';
+import './ProfesionalesPage.css';
 
 function ProfesionalesPage() {
   const { tenantId } = useParams();
@@ -19,6 +20,26 @@ function ProfesionalesPage() {
     telefono: ''
   });
   const [message, setMessage] = useState({ type: '', text: '' });
+
+  // Función helper para detectar errores de MongoDB/base de datos
+  const isDatabaseError = (errorMsg) => {
+    if (!errorMsg) return false;
+    const msg = errorMsg.toLowerCase();
+    return msg.includes('mongo') || 
+           msg.includes('database') || 
+           msg.includes('connection') ||
+           msg.includes('timeout') ||
+           msg.includes('network') ||
+           msg.includes('unable to connect') ||
+           msg.includes('connection refused');
+  };
+
+  const handleDatabaseError = (errorMsg, defaultMsg = 'Error de conexión') => {
+    if (isDatabaseError(errorMsg)) {
+      return 'Error al conectarse con la base de datos. Contacte a su administrador.';
+    }
+    return errorMsg || defaultMsg;
+  };
 
   // Especialidades médicas (deben coincidir EXACTAMENTE con el enum del backend)
   const especialidades = [
@@ -69,9 +90,15 @@ function ProfesionalesPage() {
       if (res.ok) {
         const data = await res.json();
         setProfesionales(data);
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        const errorMsg = errorData.message || errorData.error || 'Error al cargar profesionales';
+        showMessage('error', handleDatabaseError(errorMsg, 'Error al cargar profesionales'));
       }
     } catch (err) {
-      showMessage('error', 'Error al cargar profesionales');
+      const errMsg = err.message || String(err);
+      showMessage('error', handleDatabaseError(errMsg, 'Error de conexión al cargar profesionales'));
+      console.error('Error:', err);
     } finally {
       setLoading(false);
     }
@@ -107,11 +134,14 @@ function ProfesionalesPage() {
         resetForm();
         loadProfesionales();
       } else {
-        const error = await res.json();
-        showMessage('error', error.message || 'Error al guardar');
+        const error = await res.json().catch(() => ({}));
+        const errorMsg = error.message || error.error || 'Error al guardar';
+        showMessage('error', handleDatabaseError(errorMsg, 'Error al guardar'));
       }
     } catch (err) {
-      showMessage('error', 'Error de conexión');
+      const errMsg = err.message || String(err);
+      showMessage('error', handleDatabaseError(errMsg, 'Error de conexión al guardar'));
+      console.error('Error:', err);
     } finally {
       setLoading(false);
     }
@@ -145,10 +175,14 @@ function ProfesionalesPage() {
         showMessage('success', 'Profesional eliminado');
         loadProfesionales();
       } else {
-        showMessage('error', 'Error al eliminar');
+        const error = await res.json().catch(() => ({}));
+        const errorMsg = error.message || error.error || 'Error al eliminar';
+        showMessage('error', handleDatabaseError(errorMsg, 'Error al eliminar'));
       }
     } catch (err) {
-      showMessage('error', 'Error de conexión');
+      const errMsg = err.message || String(err);
+      showMessage('error', handleDatabaseError(errMsg, 'Error de conexión al eliminar'));
+      console.error('Error:', err);
     }
   };
 
@@ -205,7 +239,7 @@ function ProfesionalesPage() {
 
       {/* Form */}
       {showForm && (
-        <div style={styles.formCard}>
+        <div style={styles.formCard} className="form-card">
           <h3 style={styles.formTitle}>
             {editingId ? '✏️ Editar Profesional' : '➕ Nuevo Profesional'}
           </h3>
@@ -423,7 +457,10 @@ const styles = {
     borderRadius: '12px',
     padding: '32px',
     marginBottom: '24px',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    width: '100%',
+    maxWidth: '100%',
+    boxSizing: 'border-box'
   },
   formTitle: {
     margin: '0 0 24px 0',
@@ -435,7 +472,9 @@ const styles = {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
     gap: '20px',
-    marginBottom: '24px'
+    marginBottom: '24px',
+    width: '100%',
+    boxSizing: 'border-box'
   },
   formGroup: {
     display: 'flex',
@@ -458,7 +497,8 @@ const styles = {
   formActions: {
     display: 'flex',
     gap: '12px',
-    justifyContent: 'flex-end'
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap'
   },
   saveButton: {
     backgroundColor: '#10b981', // Se sobrescribe dinámicamente

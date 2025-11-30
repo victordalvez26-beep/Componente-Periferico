@@ -213,9 +213,38 @@ public class DocumentoPdfService {
             LOG.info(String.format("✅ [PERIFERICO] Metadata encontrada en DocumentoPdfRepository - ID: %s", mongoId));
         }
         
+        // Si no se encuentra con el tenantId proporcionado, intentar buscar sin filtrar por tenantId
+        // (útil cuando la URL de descarga no incluye el tenantId correcto)
+        if (doc == null && tenantId != null) {
+            LOG.info(String.format("🔍 [PERIFERICO] Metadata no encontrada con tenant %d, buscando sin filtrar por tenant - ID: %s", tenantId, mongoId));
+            try {
+                // Buscar en DocumentoPdfRepository sin filtrar por tenant
+                doc = documentoPdfRepository.buscarPorId(mongoId, null);
+                if (doc == null) {
+                    // Buscar en DocumentoClinicoRepository sin filtrar por tenant
+                    doc = documentoClinicoRepository.buscarPorId(mongoId, null);
+                }
+                
+                if (doc != null) {
+                    Long docTenantId = doc.getLong("tenantId");
+                    LOG.info(String.format("✅ [PERIFERICO] Metadata encontrada sin filtrar por tenant - ID: %s, Tenant real: %d", mongoId, docTenantId));
+                    // Actualizar tenantId al real del documento
+                    tenantId = docTenantId;
+                }
+            } catch (Exception ex) {
+                LOG.warn(String.format("⚠️ [PERIFERICO] Error al buscar metadata sin filtrar por tenant: %s", ex.getMessage()));
+            }
+        }
+        
         if (doc == null) {
             LOG.warn(String.format("❌ [PERIFERICO] Metadata no encontrada en ningún repositorio - ID: %s, Tenant: %d", mongoId, tenantId));
             return null;
+        }
+        
+        // Obtener el tenantId real del documento si está disponible
+        Long docTenantId = doc.getLong("tenantId");
+        if (docTenantId != null) {
+            tenantId = docTenantId;
         }
         
         Map<String, Object> metadata = new HashMap<>();
@@ -225,8 +254,8 @@ public class DocumentoPdfService {
         metadata.put("profesionalId", doc.getString("profesionalId"));
         metadata.put("tenantId", tenantId);
         
-        LOG.info(String.format("✅ [PERIFERICO] Metadata obtenida - CI Paciente: %s, Tipo: %s", 
-                metadata.get("ciPaciente"), metadata.get("tipoDocumento")));
+        LOG.info(String.format("✅ [PERIFERICO] Metadata obtenida - CI Paciente: %s, Tipo: %s, Tenant: %d", 
+                metadata.get("ciPaciente"), metadata.get("tipoDocumento"), tenantId));
         
         return metadata;
     }
@@ -260,6 +289,27 @@ public class DocumentoPdfService {
             }
         } else {
             LOG.info(String.format("✅ [PERIFERICO] Documento encontrado en DocumentoPdfRepository - ID: %s", mongoId));
+        }
+        
+        // Si no se encuentra con el tenantId proporcionado, intentar buscar sin filtrar por tenantId
+        // (útil cuando la URL de descarga no incluye el tenantId correcto)
+        if (documento == null && tenantId != null) {
+            LOG.info(String.format("🔍 [PERIFERICO] Documento no encontrado con tenant %d, buscando sin filtrar por tenant - ID: %s", tenantId, mongoId));
+            try {
+                // Buscar en DocumentoPdfRepository sin filtrar por tenant
+                documento = documentoPdfRepository.buscarPorId(mongoId, null);
+                if (documento == null) {
+                    // Buscar en DocumentoClinicoRepository sin filtrar por tenant
+                    documento = documentoClinicoRepository.buscarPorId(mongoId, null);
+                }
+                
+                if (documento != null) {
+                    Long docTenantId = documento.getLong("tenantId");
+                    LOG.info(String.format("✅ [PERIFERICO] Documento encontrado sin filtrar por tenant - ID: %s, Tenant real: %d", mongoId, docTenantId));
+                }
+            } catch (Exception ex) {
+                LOG.warn(String.format("⚠️ [PERIFERICO] Error al buscar sin filtrar por tenant: %s", ex.getMessage()));
+            }
         }
         
         if (documento == null) {

@@ -12,6 +12,11 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
     volumes:
       - mongo-volumen:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongo --username ${MONGO_INITDB_ROOT_USERNAME} --password ${MONGO_INITDB_ROOT_PASSWORD} --eval \"db.adminCommand('ping')\" --authenticationDatabase admin || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - hcen_network
 
@@ -48,7 +53,7 @@ services:
       db:
         condition: service_healthy
       mongodb:
-        condition: service_started
+        condition: service_healthy
     environment:
       # Provide the application with a Docker-network-accessible MongoDB URI
       MONGODB_URI: ${MONGODB_URI}

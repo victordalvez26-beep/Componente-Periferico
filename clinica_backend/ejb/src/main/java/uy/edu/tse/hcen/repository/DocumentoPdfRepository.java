@@ -95,7 +95,10 @@ public class DocumentoPdfRepository {
         try {
             ObjectId objectId = new ObjectId(mongoId);
             Document query = new Document("_id", objectId);
-            query.append("tenantId", tenantId); // Validación multi-tenant: solo documentos de esta clínica
+            if (tenantId != null) {
+                query.append("tenantId", tenantId); // Validación multi-tenant: solo documentos de esta clínica
+            }
+            // Si tenantId es null, buscar sin filtrar por tenant (útil para fallback)
             
             return getCollection().find(query).first();
         } catch (IllegalArgumentException ex) {

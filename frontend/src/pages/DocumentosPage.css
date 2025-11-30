@@ -1,0 +1,133 @@
+/* Responsive Styles para DocumentosPage */
+
+/* Tablet y Desktop pequeño */
+@media (max-width: 1024px) {
+  .documentos-page-container {
+    padding: 16px;
+  }
+  
+  .documentos-page-container .header-content {
+    gap: 16px;
+  }
+  
+  .documentos-page-container .search-input-group {
+    flex-wrap: wrap;
+  }
+}
+
+/* Tablet */
+@media (max-width: 768px) {
+  .documentos-page-container .header-content {
+    flex-direction: column;
+    align-items: flex-start !important;
+  }
+  
+  .documentos-page-container .search-input-group {
+    flex-direction: column;
+    gap: 8px !important;
+  }
+  
+  .documentos-page-container .search-input-group button {
+    width: 100%;
+  }
+  
+  .documentos-page-container .documento-item {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  
+  .documentos-page-container .documento-header {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 8px;
+  }
+  
+  .documentos-page-container .documento-meta {
+    flex-direction: column;
+    gap: 4px !important;
+  }
+  
+  .documentos-page-container .modal-content {
+    width: 95% !important;
+    max-width: 95% !important;
+  }
+  
+  .documentos-page-container .resumen-modal-content {
+    width: 95% !important;
+    max-width: 95% !important;
+  }
+  
+  .documentos-page-container .resumen-info {
+    flex-direction: column;
+    gap: 12px !important;
+  }
+  
+  .documentos-page-container .download-button {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .documentos-page-container .documentos-list {
+    gap: 16px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .documentos-page-container {
+    padding: 12px;
+  }
+  
+  .documentos-page-container .header-card {
+    padding: 16px !important;
+  }
+  
+  .documentos-page-container .header-title {
+    font-size: 20px !important;
+  }
+  
+  .documentos-page-container .header-subtitle {
+    font-size: 13px !important;
+  }
+  
+  .documentos-page-container .button-group {
+    width: 100%;
+    flex-direction: column;
+  }
+  
+  .documentos-page-container .button-group button {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .documentos-page-container .documentos-card {
+    padding: 16px !important;
+  }
+  
+  .documentos-page-container .documento-item {
+    padding: 12px !important;
+  }
+  
+  .documentos-page-container .modal-header {
+    padding: 16px !important;
+  }
+  
+  .documentos-page-container .modal-form {
+    padding: 16px !important;
+  }
+  
+  .documentos-page-container .modal-actions {
+    flex-direction: column;
+    gap: 8px !important;
+  }
+  
+  .documentos-page-container .modal-actions button {
+    width: 100%;
+  }
+  
+  .documentos-page-container .resumen-modal-body {
+    padding: 16px !important;
+  }
+}
+

@@ -9,14 +9,20 @@ services:
     container_name: mongodb
     restart: always
     environment:
-      MONGO_INITDB_ROOT_USERNAME: "admin"
-      MONGO_INITDB_ROOT_PASSWORD: "adminpassword"
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-adminpassword}
     volumes:
       - mongo-volumen:/data/db
     ports:
       - "27017:27017"
     networks:
       - hcen_network
+    healthcheck:
+      # Use mongosh (modern client) to run ping; some Mongo images don't include the legacy `mongo` binary.
+      test: ["CMD-SHELL", "mongosh --username $${MONGO_INITDB_ROOT_USERNAME} --password $${MONGO_INITDB_ROOT_PASSWORD} --authenticationDatabase admin --eval \"db.adminCommand({ping:1})\" || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   # ----------------------------------------------------
   # 2. Base de Datos Relacional (PostgreSQL)
@@ -52,20 +58,24 @@ services:
       db:
         condition: service_healthy 
       mongodb:
-        condition: service_started
+        condition: service_healthy
         
     # Variables de Entorno cruciales para su aplicación Java EE (JWT y MongoDB)
     environment:
       JWT_SECRET_BASE64: "bXlzdXBlcnNlY3JldGtleWZvcmhjZW5qd3R0b2tlbnNzaG91bGRiZWxvbmdlcg=="
       MONGO_HOST: mongodb # Host para la conexión desde Java
       MONGO_PORT: 27017
-      MONGO_USER: "admin"
-      MONGO_PASSWORD: "adminpassword"
-      MONGODB_URI: "mongodb://admin:adminpassword@mongodb:27017/hcen_db?authSource=admin"
-      MONGODB_DB: "hcen_db"
+      MONGO_USER: ${MONGO_INITDB_ROOT_USERNAME:-admin}
+      MONGO_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-adminpassword}
+      MONGODB_URI: mongodb://admin:adminpassword@mongodb:27017/hcen_db?authSource=admin
+      MONGODB_DB: ${MONGODB_DB:-hcen_db}
       # URL base del nodo periférico para construir URIs de acceso a documentos
       # Desde el backend HCEN se convertirá a hcen-wildfly-app:8080 para acceso interno Docker
       NODO_BASE_URL: "http://localhost:8081"
+      # URL del backend HCEN Central - usar nombre del servicio Docker para comunicación interna
+      HCEN_CENTRAL_BASE_URL: "http://hcen-backend:8080/hcen"
+      # OpenRouter API Key para generación de resúmenes con IA (debe estar en .env)
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       
     volumes:
       # Deploy ONLY the EAR file (not the whole directory to avoid WildFly deploying extracted contents)

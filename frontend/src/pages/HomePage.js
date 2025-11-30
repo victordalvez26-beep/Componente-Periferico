@@ -33,9 +33,22 @@ function HomePage() {
       if (res.ok) {
         const data = await res.json();
         setStats(data);
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        const errorMsg = errorData.error || errorData.message || '';
+        if (errorMsg.toLowerCase().includes('mongo') || 
+            errorMsg.toLowerCase().includes('database') || 
+            errorMsg.toLowerCase().includes('connection')) {
+          console.error('Error de base de datos al cargar estadísticas');
+        }
       }
     } catch (err) {
-      console.error('Error fetching stats:', err);
+      const errMsg = (err.message || String(err)).toLowerCase();
+      if (errMsg.includes('mongo') || errMsg.includes('database') || errMsg.includes('connection')) {
+        console.error('Error de conexión con la base de datos:', err);
+      } else {
+        console.error('Error fetching stats:', err);
+      }
     } finally {
       setLoading(false);
     }
@@ -54,9 +67,22 @@ function HomePage() {
       if (res.ok) {
         const data = await res.json();
         setActividades(data);
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        const errorMsg = errorData.error || errorData.message || '';
+        if (errorMsg.toLowerCase().includes('mongo') || 
+            errorMsg.toLowerCase().includes('database') || 
+            errorMsg.toLowerCase().includes('connection')) {
+          console.error('Error de base de datos al cargar actividades');
+        }
       }
     } catch (err) {
-      console.error('Error fetching actividad reciente:', err);
+      const errMsg = (err.message || String(err)).toLowerCase();
+      if (errMsg.includes('mongo') || errMsg.includes('database') || errMsg.includes('connection')) {
+        console.error('Error de conexión con la base de datos:', err);
+      } else {
+        console.error('Error fetching actividad reciente:', err);
+      }
     } finally {
       setLoadingActividades(false);
     }
@@ -185,7 +211,7 @@ function HomePage() {
 
       {/* Recent Activity */}
       <div style={styles.section}>
-        <h3 style={styles.sectionTitle}>📌 Actividad Reciente</h3>
+        <h3 style={styles.sectionTitle}>Actividad Reciente</h3>
         <div style={styles.activityCard}>
           {loadingActividades ? (
             <div style={styles.loadingText}>Cargando actividad reciente...</div>
@@ -194,7 +220,7 @@ function HomePage() {
           ) : (
             actividades.map((actividad, index) => (
               <div key={index} style={styles.activityItem}>
-                <div style={styles.activityIcon}>{actividad.icono || '📌'}</div>
+                <div style={styles.activityIcon}>•</div>
                 <div>
                   <div 
                     style={styles.activityText}
@@ -212,7 +238,7 @@ function HomePage() {
 
       {/* Quick Actions */}
       <div style={styles.section}>
-        <h3 style={styles.sectionTitle}>⚡ Acciones Rápidas</h3>
+        <h3 style={styles.sectionTitle}>Acciones Rápidas</h3>
         <div style={styles.actionsGrid}>
           <button style={{
             ...styles.actionButton,
@@ -227,8 +253,7 @@ function HomePage() {
             e.target.style.backgroundColor = 'white';
             e.target.style.color = config.colorPrimario;
           }}>
-            <span style={styles.actionIcon}>➕</span>
-            <span>Agregar Profesional</span>
+            Agregar Profesional
           </button>
           <button style={{
             ...styles.actionButton,
@@ -243,8 +268,7 @@ function HomePage() {
             e.target.style.backgroundColor = 'white';
             e.target.style.color = config.colorPrimario;
           }}>
-            <span style={styles.actionIcon}>👤</span>
-            <span>Registrar Usuario</span>
+            Registrar Usuario
           </button>
           <button style={{
             ...styles.actionButton,
@@ -259,8 +283,7 @@ function HomePage() {
             e.target.style.backgroundColor = 'white';
             e.target.style.color = config.colorPrimario;
           }}>
-            <span style={styles.actionIcon}>📄</span>
-            <span>Nuevo Documento</span>
+            Nuevo Documento
           </button>
           <button style={{
             ...styles.actionButton,
@@ -275,15 +298,14 @@ function HomePage() {
             e.target.style.backgroundColor = 'white';
             e.target.style.color = config.colorPrimario;
           }}>
-            <span style={styles.actionIcon}>⚙️</span>
-            <span>Configuración</span>
+            Configuración
           </button>
         </div>
       </div>
 
       {/* Integration Status */}
       <div style={styles.section}>
-        <h3 style={styles.sectionTitle}>🔗 Estado de Integración</h3>
+        <h3 style={styles.sectionTitle}>Estado de Integración</h3>
         <div style={styles.integrationCard}>
           <div style={styles.integrationItem}>
             <div style={styles.integrationLabel}>INUS (Índice Nacional de Usuarios)</div>

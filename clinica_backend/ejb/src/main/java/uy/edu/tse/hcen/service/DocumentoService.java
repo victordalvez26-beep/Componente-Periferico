@@ -15,7 +15,9 @@ import org.bson.types.Binary;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -89,8 +91,8 @@ public class DocumentoService {
         var paciente = usuarioSaludRepository.findByCiAndTenant(ciPaciente, tenantId);
         if (paciente == null) {
             throw new IllegalArgumentException(
-                "Paciente no encontrado en esta clínica: " + ciPaciente + 
-                ". Por favor, registre al paciente antes de crear documentos."
+                "El paciente con CI " + ciPaciente + 
+                " no está registrado en esta clínica. Por favor, verifique que la cédula esté completa y registre al paciente antes de crear documentos."
             );
         }
 
@@ -131,9 +133,10 @@ public class DocumentoService {
         LOG.info(String.format("Documento guardado en MongoDB con ID: %s", mongoId));
 
         // 7. Construir URL de acceso al documento (PDF) - usar el mismo endpoint que funciona para PDFs subidos
+        // IMPORTANTE: Incluir tenantId en la URL para que la descarga funcione correctamente
         String nodoBaseUrl = System.getProperty(PROP_NODO_BASE_URL,
                 System.getenv().getOrDefault(PROP_NODO_BASE_URL, DEFAULT_NODO_BASE_URL));
-        String urlAcceso = nodoBaseUrl + "/hcen-web/api/documentos-pdf/" + mongoId;
+        String urlAcceso = nodoBaseUrl + "/hcen-web/api/documentos-pdf/" + mongoId + "?tenantId=" + tenantId;
         
         LOG.info(String.format("URL de acceso construida: %s", urlAcceso));
 
@@ -225,8 +228,8 @@ public class DocumentoService {
         var paciente = usuarioSaludRepository.findByCiAndTenant(ciPaciente, tenantId);
         if (paciente == null) {
             throw new IllegalArgumentException(
-                "Paciente no encontrado en esta clínica: " + ciPaciente + 
-                ". Por favor, registre al paciente antes de crear documentos."
+                "El paciente con CI " + ciPaciente + 
+                " no está registrado en esta clínica. Por favor, verifique que la cédula esté completa y registre al paciente antes de crear documentos."
             );
         }
 
@@ -387,6 +390,32 @@ public class DocumentoService {
             }
         }
         return null;
+    }
+
+    /**
+     * Obtiene los contenidos de texto de todos los documentos de un paciente.
+     * Busca en todas las clínicas (sin filtrar por tenant).
+     * 
+     * @param ciPaciente CI del paciente
+     * @return Lista de contenidos de texto de los documentos del paciente
+     */
+    public List<String> obtenerContenidosPorPaciente(String ciPaciente) {
+        if (ciPaciente == null || ciPaciente.isBlank()) {
+            return new ArrayList<>();
+        }
+        
+        // Buscar en todas las clínicas
+        List<Document> documentos = documentoRepository.buscarPorCiPaciente(ciPaciente, null);
+        
+        List<String> contenidos = new ArrayList<>();
+        for (Document doc : documentos) {
+            String contenido = doc.getString("contenido");
+            if (contenido != null && !contenido.isBlank()) {
+                contenidos.add(contenido);
+            }
+        }
+        
+        return contenidos;
     }
 }
 
