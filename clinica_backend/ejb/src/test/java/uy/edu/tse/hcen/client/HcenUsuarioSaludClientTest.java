@@ -14,8 +14,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -52,20 +50,21 @@ class HcenUsuarioSaludClientTest {
             HttpClient mockHttpClient = mock(HttpClient.class);
             HttpRequest.Builder mockRequestBuilder = mock(HttpRequest.Builder.class);
             HttpRequest mockRequest = mock(HttpRequest.class);
-            HttpResponse<String> mockResponse = mock(HttpResponse.class);
+            @SuppressWarnings("unchecked")
+            HttpResponse<Object> mockResponse = mock(HttpResponse.class);
 
             httpClientMock.when(HttpClient::newBuilder).thenReturn(mockBuilder);
             when(mockBuilder.connectTimeout(any())).thenReturn(mockBuilder);
             when(mockBuilder.build()).thenReturn(mockHttpClient);
 
-            httpRequestMock.when(() -> HttpRequest.newBuilder()).thenReturn(mockRequestBuilder);
+            httpRequestMock.when(HttpRequest::newBuilder).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.uri(any())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.header(anyString(), anyString())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.timeout(any())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.POST(any())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.build()).thenReturn(mockRequest);
 
-            when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(mockResponse);
+            when(mockHttpClient.send(any(HttpRequest.class), any())).thenReturn((HttpResponse<Object>) mockResponse);
             when(mockResponse.statusCode()).thenReturn(200);
             when(mockResponse.body()).thenReturn("{\"userId\":123,\"mensaje\":\"Usuario registrado\"}");
 
@@ -86,20 +85,21 @@ class HcenUsuarioSaludClientTest {
             HttpClient mockHttpClient = mock(HttpClient.class);
             HttpRequest.Builder mockRequestBuilder = mock(HttpRequest.Builder.class);
             HttpRequest mockRequest = mock(HttpRequest.class);
-            HttpResponse<String> mockResponse = mock(HttpResponse.class);
+            @SuppressWarnings("unchecked")
+            HttpResponse<Object> mockResponse = mock(HttpResponse.class);
 
             httpClientMock.when(HttpClient::newBuilder).thenReturn(mockBuilder);
             when(mockBuilder.connectTimeout(any())).thenReturn(mockBuilder);
             when(mockBuilder.build()).thenReturn(mockHttpClient);
 
-            httpRequestMock.when(() -> HttpRequest.newBuilder()).thenReturn(mockRequestBuilder);
+            httpRequestMock.when(HttpRequest::newBuilder).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.uri(any())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.header(anyString(), anyString())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.timeout(any())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.POST(any())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.build()).thenReturn(mockRequest);
 
-            when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(mockResponse);
+            when(mockHttpClient.send(any(HttpRequest.class), any())).thenReturn((HttpResponse<Object>) mockResponse);
             when(mockResponse.statusCode()).thenReturn(500);
             when(mockResponse.body()).thenReturn("Internal Server Error");
 
@@ -125,7 +125,7 @@ class HcenUsuarioSaludClientTest {
             when(mockBuilder.connectTimeout(any())).thenReturn(mockBuilder);
             when(mockBuilder.build()).thenReturn(mockHttpClient);
 
-            httpRequestMock.when(() -> HttpRequest.newBuilder()).thenReturn(mockRequestBuilder);
+            httpRequestMock.when(HttpRequest::newBuilder).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.uri(any())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.header(anyString(), anyString())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.timeout(any())).thenReturn(mockRequestBuilder);
@@ -155,20 +155,21 @@ class HcenUsuarioSaludClientTest {
             HttpClient mockHttpClient = mock(HttpClient.class);
             HttpRequest.Builder mockRequestBuilder = mock(HttpRequest.Builder.class);
             HttpRequest mockRequest = mock(HttpRequest.class);
-            HttpResponse<String> mockResponse = mock(HttpResponse.class);
+            @SuppressWarnings("unchecked")
+            HttpResponse<Object> mockResponse = mock(HttpResponse.class);
 
             httpClientMock.when(HttpClient::newBuilder).thenReturn(mockBuilder);
             when(mockBuilder.connectTimeout(any())).thenReturn(mockBuilder);
             when(mockBuilder.build()).thenReturn(mockHttpClient);
 
-            httpRequestMock.when(() -> HttpRequest.newBuilder()).thenReturn(mockRequestBuilder);
+            httpRequestMock.when(HttpRequest::newBuilder).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.uri(any())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.header(anyString(), anyString())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.timeout(any())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.POST(any())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.build()).thenReturn(mockRequest);
 
-            when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(mockResponse);
+            when(mockHttpClient.send(any(HttpRequest.class), any())).thenReturn((HttpResponse<Object>) mockResponse);
             when(mockResponse.statusCode()).thenReturn(200);
             when(mockResponse.body()).thenReturn("{\"userId\":123,\"mensaje\":\"Usuario registrado\"}");
 
@@ -209,20 +210,21 @@ class HcenUsuarioSaludClientTest {
             HttpClient mockHttpClient = mock(HttpClient.class);
             HttpRequest.Builder mockRequestBuilder = mock(HttpRequest.Builder.class);
             HttpRequest mockRequest = mock(HttpRequest.class);
-            HttpResponse<String> mockResponse = mock(HttpResponse.class);
+            @SuppressWarnings("unchecked")
+            HttpResponse<Object> mockResponse = mock(HttpResponse.class);
 
             httpClientMock.when(HttpClient::newBuilder).thenReturn(mockBuilder);
             when(mockBuilder.connectTimeout(any())).thenReturn(mockBuilder);
             when(mockBuilder.build()).thenReturn(mockHttpClient);
 
-            httpRequestMock.when(() -> HttpRequest.newBuilder()).thenReturn(mockRequestBuilder);
+            httpRequestMock.when(HttpRequest::newBuilder).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.uri(any())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.header(anyString(), anyString())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.timeout(any())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.POST(any())).thenReturn(mockRequestBuilder);
             when(mockRequestBuilder.build()).thenReturn(mockRequest);
 
-            when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(mockResponse);
+            when(mockHttpClient.send(any(HttpRequest.class), any())).thenReturn((HttpResponse<Object>) mockResponse);
             when(mockResponse.statusCode()).thenReturn(200);
             when(mockResponse.body()).thenReturn("{\"userId\":123,\"mensaje\":\"Usuario registrado\"}");
 

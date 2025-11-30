@@ -7,6 +7,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
@@ -76,21 +78,7 @@ class SchemaMultiTenantProviderTest {
         verify(statement).execute(contains("SET search_path"));
     }
 
-    @Test
-    void testGetConnectionWithPublicSchema() throws SQLException {
-        Connection result = provider.getConnection("public");
-        
-        assertNotNull(result);
-        verify(connection, never()).createStatement();
-    }
 
-    @Test
-    void testGetConnectionWithNull() throws SQLException {
-        Connection result = provider.getConnection(null);
-        
-        assertNotNull(result);
-        verify(connection, never()).createStatement();
-    }
 
     @Test
     void testReleaseConnection() throws SQLException {
@@ -188,9 +176,14 @@ class SchemaMultiTenantProviderTest {
         }
     }
 
-    @Test
-    void testGetConnectionWithEmptySchema() throws SQLException {
-        Connection result = provider.getConnection("");
+    @ParameterizedTest
+    @CsvSource(value = {
+        "public",
+        "NULL",
+        "''"
+    }, nullValues = "NULL")
+    void testGetConnectionWithDefaultSchema(String schema) throws SQLException {
+        Connection result = provider.getConnection(schema);
         
         assertNotNull(result);
         verify(connection, never()).createStatement();

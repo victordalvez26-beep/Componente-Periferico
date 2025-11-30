@@ -1,8 +1,6 @@
 package uy.edu.tse.hcen.repository;
 
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.NoResultException;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -13,8 +11,9 @@ import uy.edu.tse.hcen.model.NodoPeriferico;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class NodoPerifericoRepositoryTest {

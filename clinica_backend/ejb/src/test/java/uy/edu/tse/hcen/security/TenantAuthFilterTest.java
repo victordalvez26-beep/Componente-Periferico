@@ -10,6 +10,8 @@ import jakarta.ws.rs.core.UriInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -20,7 +22,6 @@ import uy.edu.tse.hcen.multitenancy.SchemaTenantResolver;
 import uy.edu.tse.hcen.utils.TokenUtils;
 
 import java.io.IOException;
-import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -53,11 +54,17 @@ class TenantAuthFilterTest {
         uy.edu.tse.hcen.multitenancy.TenantContext.clear();
     }
 
-    @Test
-    void testFilterLoginPath() throws IOException {
+    @ParameterizedTest
+    @CsvSource({
+        "/auth/login, POST",
+        "config/init, POST",
+        "/documentos-pdf/123, GET",
+        "config/health, GET"
+    })
+    void testFilterPublicPaths(String path, String method) throws IOException {
         when(requestContext.getUriInfo()).thenReturn(uriInfo);
-        when(uriInfo.getPath()).thenReturn("/auth/login");
-        when(requestContext.getMethod()).thenReturn("POST");
+        when(uriInfo.getPath()).thenReturn(path);
+        when(requestContext.getMethod()).thenReturn(method);
         when(requestContext.getSecurityContext()).thenReturn(securityContext);
         when(securityContext.isSecure()).thenReturn(true);
         
@@ -67,52 +74,18 @@ class TenantAuthFilterTest {
         verify(requestContext, never()).abortWith(any(Response.class));
     }
 
-    @Test
-    void testFilterConfigPath() throws IOException {
+    @ParameterizedTest
+    @CsvSource({
+        "/api/profesionales, GET, ",
+        "/api/profesionales, GET, Invalid token",
+        "/documentos-pdf/paciente/12345678, GET, "
+    })
+    void testFilterRequiresAuthorization(String path, String method, String authHeader) throws IOException {
         when(requestContext.getUriInfo()).thenReturn(uriInfo);
-        when(uriInfo.getPath()).thenReturn("config/init");
-        when(requestContext.getMethod()).thenReturn("POST");
-        when(requestContext.getSecurityContext()).thenReturn(securityContext);
-        when(securityContext.isSecure()).thenReturn(true);
-        
-        filter.filter(requestContext);
-        
-        verify(requestContext).setSecurityContext(any(SecurityContext.class));
-        verify(requestContext, never()).abortWith(any(Response.class));
-    }
-
-    @Test
-    void testFilterPdfDownload() throws IOException {
-        when(requestContext.getUriInfo()).thenReturn(uriInfo);
-        when(uriInfo.getPath()).thenReturn("/documentos-pdf/123");
-        when(requestContext.getMethod()).thenReturn("GET");
-        when(requestContext.getSecurityContext()).thenReturn(securityContext);
-        when(securityContext.isSecure()).thenReturn(true);
-        
-        filter.filter(requestContext);
-        
-        verify(requestContext).setSecurityContext(any(SecurityContext.class));
-        verify(requestContext, never()).abortWith(any(Response.class));
-    }
-
-    @Test
-    void testFilterNoAuthorizationHeader() throws IOException {
-        when(requestContext.getUriInfo()).thenReturn(uriInfo);
-        when(uriInfo.getPath()).thenReturn("/api/profesionales");
-        when(requestContext.getMethod()).thenReturn("GET");
-        when(requestContext.getHeaderString(HttpHeaders.AUTHORIZATION)).thenReturn(null);
-        
-        filter.filter(requestContext);
-        
-        verify(requestContext).abortWith(any(Response.class));
-    }
-
-    @Test
-    void testFilterInvalidTokenFormat() throws IOException {
-        when(requestContext.getUriInfo()).thenReturn(uriInfo);
-        when(uriInfo.getPath()).thenReturn("/api/profesionales");
-        when(requestContext.getMethod()).thenReturn("GET");
-        when(requestContext.getHeaderString(HttpHeaders.AUTHORIZATION)).thenReturn("Invalid token");
+        when(uriInfo.getPath()).thenReturn(path);
+        when(requestContext.getMethod()).thenReturn(method);
+        String headerValue = authHeader == null || authHeader.trim().isEmpty() ? null : authHeader;
+        when(requestContext.getHeaderString(HttpHeaders.AUTHORIZATION)).thenReturn(headerValue);
         
         filter.filter(requestContext);
         
@@ -193,32 +166,6 @@ class TenantAuthFilterTest {
         }
     }
 
-    @Test
-    void testFilterConfigHealthPath() throws IOException {
-        when(requestContext.getUriInfo()).thenReturn(uriInfo);
-        when(uriInfo.getPath()).thenReturn("config/health");
-        when(requestContext.getMethod()).thenReturn("GET");
-        when(requestContext.getSecurityContext()).thenReturn(securityContext);
-        when(securityContext.isSecure()).thenReturn(true);
-        
-        filter.filter(requestContext);
-        
-        verify(requestContext).setSecurityContext(any(SecurityContext.class));
-        verify(requestContext, never()).abortWith(any(Response.class));
-    }
-
-    @Test
-    void testFilterPdfDownloadWithPacientePath() throws IOException {
-        when(requestContext.getUriInfo()).thenReturn(uriInfo);
-        when(uriInfo.getPath()).thenReturn("/documentos-pdf/paciente/12345678");
-        when(requestContext.getMethod()).thenReturn("GET");
-        when(requestContext.getHeaderString(HttpHeaders.AUTHORIZATION)).thenReturn(null);
-        
-        filter.filter(requestContext);
-        
-        // No debe permitir acceso sin token para /documentos-pdf/paciente/
-        verify(requestContext).abortWith(any(Response.class));
-    }
 
     @Test
     void testFilterTokenWithEmptyTenantId() throws IOException {

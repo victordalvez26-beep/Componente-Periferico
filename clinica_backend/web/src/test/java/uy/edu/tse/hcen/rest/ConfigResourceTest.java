@@ -31,16 +31,16 @@ class ConfigResourceTest {
     @Test
     void testInitSuccess() throws SQLException {
         ConfigResource.InitRequest req = new ConfigResource.InitRequest();
-        req.id = 123L;
-        req.rut = "123456789012";
-        req.nombre = "Clínica Test";
-        req.contacto = "test@example.com";
+        req.setId(123L);
+        req.setRut("123456789012");
+        req.setNombre("Clínica Test");
+        req.setContacto("test@example.com");
         
         TenantAdminService.AdminCreationResult adminResult = new TenantAdminService.AdminCreationResult();
-        adminResult.adminNickname = "admin_c123";
-        adminResult.activationToken = "token-123";
-        adminResult.activationUrl = "http://localhost:8081/activate?token=token-123";
-        adminResult.tokenExpiry = LocalDateTime.now().plusHours(24);
+        adminResult.setAdminNickname("admin_c123");
+        adminResult.setActivationToken("token-123");
+        adminResult.setActivationUrl("http://localhost:8081/activate?token=token-123");
+        adminResult.setTokenExpiry(LocalDateTime.now().plusHours(24));
         
         doNothing().when(tenantAdminService).createTenantSchema(anyString(), anyString(), anyString());
         doNothing().when(tenantAdminService).registerNodoInPublic(anyLong(), anyString(), anyString(), anyString());
@@ -55,8 +55,8 @@ class ConfigResourceTest {
     @Test
     void testInitMissingId() {
         ConfigResource.InitRequest req = new ConfigResource.InitRequest();
-        req.rut = "123456789012";
-        req.nombre = "Clínica Test";
+        req.setRut("123456789012");
+        req.setNombre("Clínica Test");
         
         Response response = resource.init(req);
         
@@ -66,8 +66,8 @@ class ConfigResourceTest {
     @Test
     void testInitMissingRut() {
         ConfigResource.InitRequest req = new ConfigResource.InitRequest();
-        req.id = 123L;
-        req.nombre = "Clínica Test";
+        req.setId(123L);
+        req.setNombre("Clínica Test");
         
         Response response = resource.init(req);
         
@@ -77,8 +77,8 @@ class ConfigResourceTest {
     @Test
     void testInitMissingNombre() {
         ConfigResource.InitRequest req = new ConfigResource.InitRequest();
-        req.id = 123L;
-        req.rut = "123456789012";
+        req.setId(123L);
+        req.setRut("123456789012");
         
         Response response = resource.init(req);
         
@@ -88,8 +88,8 @@ class ConfigResourceTest {
     @Test
     void testUpdateSuccess() {
         ConfigResource.InitRequest req = new ConfigResource.InitRequest();
-        req.id = 123L;
-        req.rut = "123456789012";
+        req.setId(123L);
+        req.setRut("123456789012");
         
         Response response = resource.update(req);
         
@@ -118,15 +118,15 @@ class ConfigResourceTest {
     @Test
     void testActivateSuccess() throws SQLException {
         ConfigResource.ActivationRequest req = new ConfigResource.ActivationRequest();
-        req.tenantId = "123";
-        req.token = "token-123";
-        req.username = "admin_user";
-        req.password = "password123";
-        req.rut = "123456789012";
-        req.departamento = "Montevideo";
-        req.localidad = "Centro";
-        req.direccion = "Av. 18 de Julio 1234";
-        req.telefono = "099123456";
+        req.setTenantId("123");
+        req.setToken("token-123");
+        req.setUsername("admin_user");
+        req.setPassword("password123");
+        req.setRut("123456789012");
+        req.setDepartamento("Montevideo");
+        req.setLocalidad("Centro");
+        req.setDireccion("Av. 18 de Julio 1234");
+        req.setTelefono("099123456");
         
         doNothing().when(tenantAdminService).createTenantSchema(anyString(), anyString(), anyString());
         doNothing().when(tenantAdminService).registerNodoInPublic(anyLong(), anyString(), anyString(), anyString());
@@ -149,7 +149,7 @@ class ConfigResourceTest {
     @Test
     void testActivateMissingTenantId() {
         ConfigResource.ActivationRequest req = new ConfigResource.ActivationRequest();
-        req.token = "token-123";
+        req.setToken("token-123");
         
         Response response = resource.activate(req);
         

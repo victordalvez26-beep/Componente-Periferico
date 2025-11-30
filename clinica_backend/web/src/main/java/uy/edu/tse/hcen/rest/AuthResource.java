@@ -15,11 +15,13 @@ import jakarta.ws.rs.core.Response;
 @Consumes(MediaType.APPLICATION_JSON)
 public class AuthResource {
 
+    private static final String KEY_ERROR = "error";
+
     @Inject
     private ILoginService loginService;
 
-    // public no-arg constructor so RESTEasy/Weld can instantiate and proxy this resource
     public AuthResource() {
+        // public no-arg constructor so RESTEasy/Weld can instantiate and proxy this resource
     }
 
     @POST
@@ -28,7 +30,7 @@ public class AuthResource {
         try {
             if (request == null) {
                 return Response.status(Response.Status.BAD_REQUEST)
-                               .entity(java.util.Map.of("error", "Request body es requerido"))
+                               .entity(java.util.Map.of(KEY_ERROR, "Request body es requerido"))
                                .build();
             }
             
@@ -42,7 +44,7 @@ public class AuthResource {
 
         } catch (SecurityException e) {
             return Response.status(Response.Status.UNAUTHORIZED)
-                           .entity(java.util.Map.of("error", "Credenciales incorrectas"))
+                           .entity(java.util.Map.of(KEY_ERROR, "Credenciales incorrectas"))
                            .build();
         }
     }

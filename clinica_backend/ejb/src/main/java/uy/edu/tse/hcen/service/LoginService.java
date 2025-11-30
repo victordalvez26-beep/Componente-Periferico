@@ -23,95 +23,127 @@ public class LoginService implements ILoginService {
     private SchemaTenantResolver tenantResolver;
 
     private static final Logger LOG = Logger.getLogger(LoginService.class);
+    
+    // Constantes para literales duplicados
+    private static final String ROLE_PROFESIONAL = "PROFESIONAL";
+    private static final String ROLE_ADMINISTRADOR = "ADMINISTRADOR";
+    private static final String ROLE_OTRO = "OTRO";
+    private static final String SCHEMA_PREFIX = "schema_clinica_";
 
     // Public no-arg constructor required for CDI proxyability
     public LoginService() {
+        // Constructor vacío requerido por CDI para crear proxies
     }
 
-    // Lógica ficticia para determinar tenantId a partir del nickname.
-    private String lookupTenantIdByNickname(String nickname) {
-        if (nickname == null) return null;
-        // map the nickname suffix to the tenant identifiers created in the DB (101/102)
-        if (nickname.contains("c1")) return "101";
-        if (nickname.contains("c2")) return "102";
-        return null;
-    }
+
 
     public LoginResponse authenticateAndGenerateToken(String nickname, String rawPassword, String tenantId) throws SecurityException {
-    UsuarioPeriferico user = null;
-    String actualTenantId = null;
-    
-    // Estrategia de búsqueda:
-    // 1. Buscar primero en public (admins globales)
-    // 2. Si no encuentra Y hay tenantId, buscar en schema del tenant (profesionales)
-    
-    LOG.debugf("Login attempt for nickname=%s, tenantId=%s", nickname, tenantId);
-    
-    // 1) Buscar en schema público (admins)
-    tenantResolver.setTenantIdentifier("public");
-    TenantContext.clear();
-    user = userRepository.findByNicknameForLogin(nickname);
-    
-    if (user != null) {
-        System.out.println("=== Usuario encontrado en public.usuarioperiferico (ADMIN)");
-        actualTenantId = user.getTenantId();
-    } else if (tenantId != null && !tenantId.isBlank()) {
-        // 2) Buscar en schema del tenant (profesionales)
-        System.out.println("=== No encontrado en public, buscando en schema_clinica_" + tenantId);
-        String schemaName = "schema_clinica_" + tenantId;
+        LOG.debugf("Login attempt for nickname=%s, tenantId=%s", nickname, tenantId);
         
-        // Usar query nativa para evitar problemas con herencia JOINED
-        user = userRepository.findByNicknameInTenantSchema(nickname, schemaName);
+        // Buscar usuario en public o en tenant
+        UserSearchResult searchResult = buscarUsuario(nickname, tenantId);
+        
+        // Validar credenciales
+        validarCredenciales(searchResult.usuario, rawPassword);
+        
+        // Determinar role para el token
+        String role = determinarRole(searchResult.usuario);
+        
+        // Configurar tenant context para llamadas downstream
+        if (searchResult.tenantId != null) {
+            TenantContext.setCurrentTenant(searchResult.tenantId);
+        }
+        
+        String token = TokenUtils.generateToken(nickname, role, searchResult.tenantId);
+        return new LoginResponse(token, role, searchResult.tenantId);
+    }
+
+    private UserSearchResult buscarUsuario(String nickname, String tenantId) throws SecurityException {
+        // 1) Buscar en schema público (admins)
+        tenantResolver.setTenantIdentifier("public");
+        TenantContext.clear();
+        UsuarioPeriferico user = userRepository.findByNicknameForLogin(nickname);
         
         if (user != null) {
-            System.out.println("=== Usuario encontrado en schema_clinica_" + tenantId + " (PROFESIONAL)");
-            actualTenantId = tenantId;
-            // Setear el tenant en el contexto
-            tenantResolver.setTenantIdentifier(tenantId);
-            TenantContext.setCurrentTenant(tenantId);
+            LOG.debugf("Usuario encontrado en public.usuarioperiferico (ADMIN)");
+            return new UserSearchResult(user, user.getTenantId());
+        }
+        
+        // 2) Buscar en schema del tenant (profesionales)
+        if (tenantId != null && !tenantId.isBlank()) {
+            user = buscarEnSchemaTenant(nickname, tenantId);
+            if (user != null) {
+                LOG.debugf("Usuario encontrado en schema_clinica_%s (PROFESIONAL)", tenantId);
+                configurarTenantContext(tenantId);
+                return new UserSearchResult(user, tenantId);
+            }
+        }
+        
+        LOG.debug("LoginService: User NOT found");
+        throw new SecurityException("Credenciales inválidas.");
+    }
+
+    private UsuarioPeriferico buscarEnSchemaTenant(String nickname, String tenantId) {
+        LOG.debugf("No encontrado en public, buscando en schema_clinica_%s", tenantId);
+        String schemaName = SCHEMA_PREFIX + tenantId;
+        return userRepository.findByNicknameInTenantSchema(nickname, schemaName);
+    }
+
+    private void configurarTenantContext(String tenantId) {
+        tenantResolver.setTenantIdentifier(tenantId);
+        TenantContext.setCurrentTenant(tenantId);
+    }
+
+    private void validarCredenciales(UsuarioPeriferico user, String rawPassword) throws SecurityException {
+        LOG.debugf("LoginService: User found: %s", user.getNickname());
+        LOG.debugf("LoginService: User ID: %d", user.getId());
+        
+        String storedHash = user.getPasswordHash();
+        logPasswordDebugInfo(storedHash, rawPassword);
+        
+        boolean matches = PasswordUtils.verifyPassword(rawPassword, storedHash);
+        LOG.debugf("LoginService: Password matches: %b", matches);
+        
+        if (!matches) {
+            throw new SecurityException("Credenciales inválidas.");
         }
     }
 
-        // DEBUG: show stored hash and result of verification
-        if (user != null) {
-            System.out.println("=== LoginService: User found: " + user.getNickname());
-            System.out.println("=== LoginService: User ID: " + user.getId());
-            String storedHash = user.getPasswordHash();
-            System.out.println("=== LoginService: Stored hash: " + (storedHash != null ? storedHash.substring(0, Math.min(20, storedHash.length())) + "..." : "NULL"));
-            System.out.println("=== LoginService: Hash length: " + (storedHash != null ? storedHash.length() : 0));
-            System.out.println("=== LoginService: Raw password length: " + rawPassword.length());
-            
-            boolean matches = PasswordUtils.verifyPassword(rawPassword, storedHash);
-            System.out.println("=== LoginService: Password matches: " + matches);
-            
-            if (!matches) {
-                throw new SecurityException("Credenciales inválidas.");
-            }
+    private void logPasswordDebugInfo(String storedHash, String rawPassword) {
+        if (storedHash != null) {
+            LOG.debugf("LoginService: Stored hash: %s", 
+                storedHash.substring(0, Math.min(20, storedHash.length())) + "...");
+            LOG.debugf("LoginService: Hash length: %d", storedHash.length());
         } else {
-            System.out.println("=== LoginService: User NOT found");
-            throw new SecurityException("Credenciales inválidas.");
+            LOG.debugf("LoginService: Stored hash: NULL");
         }
+        LOG.debugf("LoginService: Raw password length: %d", rawPassword.length());
+    }
 
-        // Determine role for token. Prefer an explicit stored role when present
-        // (added to public.usuarioperiferico). Fallback to instanceof checks.
-        String role = null;
+    private String determinarRole(UsuarioPeriferico user) {
+        // Preferir role explícito almacenado
         if (user.getRole() != null && !user.getRole().isBlank()) {
-            role = user.getRole();
-        } else if (user instanceof ProfesionalSalud) {
-            role = "PROFESIONAL";
-        } else if (user instanceof AdministradorClinica) {
-            role = "ADMINISTRADOR";
-        } else {
-            role = "OTRO";
+            return user.getRole();
         }
-
-        // Usar el tenant_id que ya determinamos al buscar el usuario
-        // Set the resolved tenant into the TenantContext for downstream calls
-        if (actualTenantId != null) {
-            TenantContext.setCurrentTenant(actualTenantId);
+        
+        // Fallback a instanceof checks
+        if (user instanceof ProfesionalSalud) {
+            return ROLE_PROFESIONAL;
         }
+        if (user instanceof AdministradorClinica) {
+            return ROLE_ADMINISTRADOR;
+        }
+        return ROLE_OTRO;
+    }
 
-        String token = TokenUtils.generateToken(nickname, role, actualTenantId);
-        return new LoginResponse(token, role, actualTenantId);
+    // Clase interna para encapsular resultado de búsqueda
+    private static class UserSearchResult {
+        final UsuarioPeriferico usuario;
+        final String tenantId;
+
+        UserSearchResult(UsuarioPeriferico usuario, String tenantId) {
+            this.usuario = usuario;
+            this.tenantId = tenantId;
+        }
     }
 }

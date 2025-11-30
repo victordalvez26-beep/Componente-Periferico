@@ -30,7 +30,7 @@ public class DatabaseInitializer {
             createMasterTables();
             LOG.info("✅ All master tables initialized successfully");
         } catch (Exception e) {
-            LOG.error("❌ Failed to initialize master tables: " + e.getMessage(), e);
+            LOG.errorf(e, "❌ Failed to initialize master tables: %s", e.getMessage());
         }
     }
 
@@ -94,8 +94,8 @@ public class DatabaseInitializer {
             }
             
         } catch (Exception e) {
-            LOG.error("Error creating public master tables: " + e.getMessage(), e);
-            throw new RuntimeException("Failed to initialize master tables", e);
+            LOG.errorf(e, "Error creating public master tables: %s", e.getMessage());
+            throw new jakarta.ejb.EJBException("Failed to initialize master tables", e);
         }
     }
 }

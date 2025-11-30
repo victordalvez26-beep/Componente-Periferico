@@ -9,6 +9,7 @@ import uy.edu.tse.hcen.repository.ProfesionalSaludRepository;
 import uy.edu.tse.hcen.repository.UsuarioSaludRepository;
 import uy.edu.tse.hcen.repository.DocumentoPdfRepository;
 import uy.edu.tse.hcen.repository.DocumentoClinicoRepository;
+import uy.edu.tse.hcen.model.UsuarioSalud;
 import uy.edu.tse.hcen.multitenancy.TenantContext;
 
 import java.time.LocalDate;
@@ -18,7 +19,6 @@ import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.logging.Logger;
 import java.util.logging.Level;
-import java.util.stream.Collectors;
 
 /**
  * Servicio para calcular estadísticas del tenant actual.
@@ -27,6 +27,17 @@ import java.util.stream.Collectors;
 public class StatsService {
 
     private static final Logger LOGGER = Logger.getLogger(StatsService.class.getName());
+    
+    // Constantes para literales de actividades
+    private static final String KEY_TIPO = "tipo";
+    private static final String KEY_ICONO = "icono";
+    private static final String KEY_TEXTO = "texto";
+    private static final String KEY_FECHA = "fecha";
+    
+    // Constantes para campos de base de datos y HTML
+    private static final String KEY_TENANT_ID = "tenantId";
+    private static final String KEY_FECHA_CREACION = "fechaCreacion";
+    private static final String TAG_STRONG_CLOSE = "</strong>";
 
     @Inject
     private ProfesionalSaludRepository profesionalRepository;
@@ -47,13 +58,13 @@ public class StatsService {
      * @return Map con las estadísticas: profesionales, usuarios, documentos, consultasHoy
      */
     public Map<String, Object> obtenerEstadisticas(String tenantId) {
-        LOGGER.info(String.format("Obteniendo estadísticas para tenant: %s", tenantId));
+        LOGGER.log(Level.INFO, "Obteniendo estadísticas para tenant: {0}", tenantId);
         
-        Long tenantIdLong = null;
+        Long tenantIdLong;
         try {
             tenantIdLong = Long.parseLong(tenantId);
         } catch (NumberFormatException e) {
-            LOGGER.warning(String.format("TenantId inválido: %s", tenantId));
+            LOGGER.log(Level.WARNING, "TenantId inválido: {0}", tenantId);
             return crearEstadisticasVacias();
         }
 
@@ -75,8 +86,8 @@ public class StatsService {
         int consultasHoy = contarDocumentosHoy(tenantIdLong);
         stats.put("consultas", consultasHoy);
         
-        LOGGER.info(String.format("Estadísticas calculadas - Profesionales: %d, Usuarios: %d, Documentos: %d, Consultas Hoy: %d",
-                profesionales, usuarios, documentos, consultasHoy));
+        LOGGER.log(Level.INFO, "Estadísticas calculadas - Profesionales: {0}, Usuarios: {1}, Documentos: {2}, Consultas Hoy: {3}", 
+                new Object[]{profesionales, usuarios, documentos, consultasHoy});
         
         return stats;
     }
@@ -89,13 +100,13 @@ public class StatsService {
      * @return Lista de actividades recientes ordenadas por fecha descendente
      */
     public List<Map<String, Object>> obtenerActividadReciente(String tenantId, int limite) {
-        LOGGER.info(String.format("Obteniendo actividad reciente para tenant: %s (limite: %d)", tenantId, limite));
+        LOGGER.log(Level.INFO, "Obteniendo actividad reciente para tenant: {0} (limite: {1})", new Object[]{tenantId, limite});
         
-        Long tenantIdLong = null;
+        Long tenantIdLong;
         try {
             tenantIdLong = Long.parseLong(tenantId);
         } catch (NumberFormatException e) {
-            LOGGER.warning(String.format("TenantId inválido: %s", tenantId));
+            LOGGER.log(Level.WARNING, "TenantId inválido: {0}", tenantId);
             return new ArrayList<>();
         }
 
@@ -112,12 +123,9 @@ public class StatsService {
         
         // Ordenar por fecha descendente y tomar los más recientes
         actividades.sort((a, b) -> {
-            String fechaA = (String) a.get("fecha");
-            String fechaB = (String) b.get("fecha");
-            if (fechaA == null && fechaB == null) return 0;
-            if (fechaA == null) return 1;
-            if (fechaB == null) return -1;
-            return fechaB.compareTo(fechaA); // Orden descendente lexicográfico funciona para ISO-8601
+            String fechaA = (String) a.get(KEY_FECHA);
+            String fechaB = (String) b.get(KEY_FECHA);
+            return Comparator.<String>nullsLast(Comparator.reverseOrder()).compare(fechaB, fechaA);
         });
         
         // Limitar resultados
@@ -125,71 +133,57 @@ public class StatsService {
             actividades = actividades.subList(0, limite);
         }
         
-        LOGGER.info(String.format("Actividad reciente obtenida: %d actividades", actividades.size()));
+        LOGGER.log(Level.INFO, "Actividad reciente obtenida: {0} actividades", actividades.size());
         return actividades;
     }
 
-    public int contarProfesionales(String tenantId) {
+    private int contarProfesionales(String tenantId) {
         try {
-            // Guardar el tenant actual
-            String tenantAnterior = TenantContext.getCurrentTenant();
-            
-            // Establecer el tenant para esta consulta
-            TenantContext.setCurrentTenant(tenantId);
-            
-            try {
-                // Contar profesionales en el schema del tenant
+            return ejecutarConTenant(tenantId, () -> {
                 List<?> profesionales = profesionalRepository.findAll();
                 int count = profesionales != null ? profesionales.size() : 0;
-                LOGGER.info(String.format("Profesionales encontrados para tenant %s: %d", tenantId, count));
+                LOGGER.log(Level.INFO, "Profesionales encontrados para tenant {0}: {1}", new Object[]{tenantId, count});
                 return count;
-            } finally {
-                // Restaurar el tenant anterior
-                if (tenantAnterior != null) {
-                    TenantContext.setCurrentTenant(tenantAnterior);
-                } else {
-                    TenantContext.clear();
-                }
-            }
+            });
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, String.format("Error al contar profesionales para tenant %s: %s", tenantId, e.getMessage()), e);
+            LOGGER.log(Level.WARNING, e, () -> "Error al contar profesionales para tenant " + tenantId + ": " + e.getMessage());
             return 0;
         }
     }
 
-    public int contarUsuariosSalud(Long tenantId) {
+    private int contarUsuariosSalud(Long tenantId) {
         try {
             List<?> usuarios = usuarioSaludRepository.findByTenant(tenantId);
             int count = usuarios != null ? usuarios.size() : 0;
-            LOGGER.info(String.format("Usuarios de salud encontrados para tenant %d: %d", tenantId, count));
+            LOGGER.log(Level.INFO, "Usuarios de salud encontrados para tenant {0}: {1}", new Object[]{tenantId, count});
             return count;
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, String.format("Error al contar usuarios de salud para tenant %d: %s", tenantId, e.getMessage()), e);
+            LOGGER.log(Level.WARNING, e, () -> "Error al contar usuarios de salud para tenant " + tenantId + ": " + e.getMessage());
             return 0;
         }
     }
 
-    public int contarDocumentosTotales(Long tenantId) {
+    private int contarDocumentosTotales(Long tenantId) {
         try {
             // Contar en documentos_pdf
             long countPdf = documentoPdfRepository.getCollectionPublic()
-                .countDocuments(Filters.eq("tenantId", tenantId));
+                .countDocuments(Filters.eq(KEY_TENANT_ID, tenantId));
             
             // Contar en documentos_clinicos
             long countClinicos = documentoClinicoRepository.getCollection()
-                .countDocuments(Filters.eq("tenantId", tenantId));
+                .countDocuments(Filters.eq(KEY_TENANT_ID, tenantId));
             
             int total = (int) (countPdf + countClinicos);
-            LOGGER.info(String.format("Documentos totales para tenant %d: %d (PDFs: %d, Clínicos: %d)", 
-                    tenantId, total, countPdf, countClinicos));
+            LOGGER.log(Level.INFO, "Documentos totales para tenant {0}: {1} (PDFs: {2}, Clínicos: {3})", 
+                    new Object[]{tenantId, total, countPdf, countClinicos});
             return total;
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, String.format("Error al contar documentos para tenant %d: %s", tenantId, e.getMessage()), e);
+            LOGGER.log(Level.WARNING, e, () -> "Error al contar documentos para tenant " + tenantId + ": " + e.getMessage());
             return 0;
         }
     }
 
-    public int contarDocumentosHoy(Long tenantId) {
+    private int contarDocumentosHoy(Long tenantId) {
         try {
             // Obtener fecha de inicio de hoy (00:00:00)
             LocalDate hoy = LocalDate.now();
@@ -202,223 +196,206 @@ public class StatsService {
             
             // Contar documentos creados hoy en documentos_pdf
             Bson filtroPdf = Filters.and(
-                Filters.eq("tenantId", tenantId),
-                Filters.gte("fechaCreacion", fechaInicio),
-                Filters.lte("fechaCreacion", fechaFin)
+                Filters.eq(KEY_TENANT_ID, tenantId),
+                Filters.gte(KEY_FECHA_CREACION, fechaInicio),
+                Filters.lte(KEY_FECHA_CREACION, fechaFin)
             );
             long countPdf = documentoPdfRepository.getCollectionPublic()
                 .countDocuments(filtroPdf);
             
             // Contar documentos creados hoy en documentos_clinicos
             Bson filtroClinicos = Filters.and(
-                Filters.eq("tenantId", tenantId),
-                Filters.gte("fechaCreacion", fechaInicio),
-                Filters.lte("fechaCreacion", fechaFin)
+                Filters.eq(KEY_TENANT_ID, tenantId),
+                Filters.gte(KEY_FECHA_CREACION, fechaInicio),
+                Filters.lte(KEY_FECHA_CREACION, fechaFin)
             );
             long countClinicos = documentoClinicoRepository.getCollection()
                 .countDocuments(filtroClinicos);
             
             int total = (int) (countPdf + countClinicos);
-            LOGGER.info(String.format("Documentos creados hoy para tenant %d: %d (PDFs: %d, Clínicos: %d)", 
-                    tenantId, total, countPdf, countClinicos));
+            LOGGER.log(Level.INFO, "Documentos creados hoy para tenant {0}: {1} (PDFs: {2}, Clínicos: {3})", 
+                    new Object[]{tenantId, total, countPdf, countClinicos});
             return total;
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, String.format("Error al contar documentos de hoy para tenant %d: %s", tenantId, e.getMessage()), e);
+            LOGGER.log(Level.WARNING, e, () -> "Error al contar documentos de hoy para tenant " + tenantId + ": " + e.getMessage());
             return 0;
         }
     }
 
-    public List<Map<String, Object>> obtenerUltimosDocumentos(Long tenantId, int limite) {
+    private List<Map<String, Object>> obtenerUltimosDocumentos(Long tenantId, int limite) {
         List<Map<String, Object>> actividades = new ArrayList<>();
         try {
             // Obtener últimos documentos de documentos_pdf
             List<Document> documentosPdf = documentoPdfRepository.getCollectionPublic()
-                .find(Filters.eq("tenantId", tenantId))
-                .sort(new Document("fechaCreacion", -1))
+                .find(Filters.eq(KEY_TENANT_ID, tenantId))
+                .sort(new Document(KEY_FECHA_CREACION, -1))
                 .limit(limite)
                 .into(new ArrayList<>());
             
-            for (Document doc : documentosPdf) {
-                Map<String, Object> actividad = new HashMap<>();
-                actividad.put("tipo", "documento");
-                actividad.put("icono", "📄");
-                String profesionalId = doc.getString("profesionalId");
-                // Intentar obtener nombre del profesional, si falla usar el ID o "Profesional"
-                String nombreProfesional = "Profesional";
-                if (profesionalId != null && !profesionalId.isBlank()) {
-                    try {
-                        nombreProfesional = obtenerNombreProfesional(profesionalId, tenantId);
-                    } catch (Exception e) {
-                        LOGGER.warning(String.format("No se pudo obtener nombre del profesional %s: %s", profesionalId, e.getMessage()));
-                        nombreProfesional = profesionalId;
-                    }
-                }
-                actividad.put("texto", String.format("Documento clínico agregado por <strong>%s</strong>", nombreProfesional));
-                actividad.put("fecha", formatearFecha(doc.getDate("fechaCreacion")));
-                actividades.add(actividad);
-            }
+            procesarDocumentos(documentosPdf, actividades, tenantId);
             
             // Obtener últimos documentos de documentos_clinicos
             List<Document> documentosClinicos = documentoClinicoRepository.getCollectionPublic()
-                .find(Filters.eq("tenantId", tenantId))
-                .sort(new Document("fechaCreacion", -1))
+                .find(Filters.eq(KEY_TENANT_ID, tenantId))
+                .sort(new Document(KEY_FECHA_CREACION, -1))
                 .limit(limite)
                 .into(new ArrayList<>());
             
-            for (Document doc : documentosClinicos) {
-                Map<String, Object> actividad = new HashMap<>();
-                actividad.put("tipo", "documento");
-                actividad.put("icono", "📄");
-                String profesionalId = doc.getString("profesionalId");
-                // Intentar obtener nombre del profesional, si falla usar el ID o "Profesional"
-                String nombreProfesional = "Profesional";
-                if (profesionalId != null && !profesionalId.isBlank()) {
-                    try {
-                        nombreProfesional = obtenerNombreProfesional(profesionalId, tenantId);
-                    } catch (Exception e) {
-                        LOGGER.warning(String.format("No se pudo obtener nombre del profesional %s: %s", profesionalId, e.getMessage()));
-                        nombreProfesional = profesionalId;
-                    }
-                }
-                // Usar el campo "autor" si está disponible (más descriptivo)
-                String autor = doc.getString("autor");
-                if (autor != null && !autor.isBlank()) {
-                    nombreProfesional = autor;
-                }
-                actividad.put("texto", String.format("Documento clínico agregado por <strong>%s</strong>", nombreProfesional));
-                actividad.put("fecha", formatearFecha(doc.getDate("fechaCreacion")));
-                actividades.add(actividad);
-            }
+            procesarDocumentos(documentosClinicos, actividades, tenantId);
             
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, String.format("Error al obtener últimos documentos para tenant %d: %s", tenantId, e.getMessage()), e);
+            LOGGER.log(Level.WARNING, e, () -> "Error al obtener últimos documentos para tenant " + tenantId + ": " + e.getMessage());
         }
         return actividades;
     }
 
-    public List<Map<String, Object>> obtenerUltimosUsuarios(Long tenantId, int limite) {
+    private void procesarDocumentos(List<Document> documentos, List<Map<String, Object>> actividades, Long tenantId) {
+        for (Document doc : documentos) {
+            Map<String, Object> actividad = new HashMap<>();
+            actividad.put(KEY_TIPO, "documento");
+            actividad.put(KEY_ICONO, "📄");
+            String profesionalId = doc.getString("profesionalId");
+            String nombreProfesional = obtenerNombreProfesionalSafe(profesionalId, tenantId);
+            
+            // Usar el campo "autor" si está disponible (más descriptivo)
+            String autor = doc.getString("autor");
+            if (autor != null && !autor.isBlank()) {
+                nombreProfesional = autor;
+            }
+            
+            actividad.put(KEY_TEXTO, "Documento clínico agregado por <strong>" + nombreProfesional + TAG_STRONG_CLOSE);
+            actividad.put(KEY_FECHA, formatearFecha(doc.getDate(KEY_FECHA_CREACION)));
+            actividades.add(actividad);
+        }
+    }
+
+    private String obtenerNombreProfesionalSafe(String profesionalId, Long tenantId) {
+        if (profesionalId == null || profesionalId.isBlank()) {
+            return "Profesional";
+        }
+        try {
+            return obtenerNombreProfesional(profesionalId, tenantId);
+        } catch (Exception e) {
+            if (LOGGER.isLoggable(Level.WARNING)) {
+                LOGGER.log(Level.WARNING, () -> "No se pudo obtener nombre del profesional " + profesionalId + ": " + e.getMessage());
+            }
+            return profesionalId;
+        }
+    }
+
+    private List<Map<String, Object>> obtenerUltimosUsuarios(Long tenantId, int limite) {
         List<Map<String, Object>> actividades = new ArrayList<>();
         try {
-            List<uy.edu.tse.hcen.model.UsuarioSalud> usuarios = usuarioSaludRepository.findByTenant(tenantId);
+            List<UsuarioSalud> usuarios = usuarioSaludRepository.findByTenant(tenantId);
             if (usuarios != null && !usuarios.isEmpty()) {
                 // Ordenar por fechaAlta descendente y tomar los primeros
                 usuarios = usuarios.stream()
-                    .sorted((u1, u2) -> {
-                        LocalDateTime fecha1 = u1.getFechaAlta();
-                        LocalDateTime fecha2 = u2.getFechaAlta();
-                        if (fecha1 == null && fecha2 == null) return 0;
-                        if (fecha1 == null) return 1;
-                        if (fecha2 == null) return -1;
-                        return fecha2.compareTo(fecha1);
-                    })
+                    .sorted(Comparator.comparing(UsuarioSalud::getFechaAlta, 
+                            Comparator.nullsLast(Comparator.reverseOrder())))
                     .limit(limite)
-                    .collect(Collectors.toList());
+                    .toList();
                 
-                for (uy.edu.tse.hcen.model.UsuarioSalud usuario : usuarios) {
+                for (UsuarioSalud usuario : usuarios) {
                     String nombre = usuario.getNombre();
                     String apellido = usuario.getApellido();
                     LocalDateTime fechaAlta = usuario.getFechaAlta();
                     
                     Map<String, Object> actividad = new HashMap<>();
-                    actividad.put("tipo", "usuario");
-                    actividad.put("icono", "👤");
+                    actividad.put(KEY_TIPO, "usuario");
+                    actividad.put(KEY_ICONO, "👤");
                     String nombreCompleto = (nombre != null ? nombre : "") + " " + (apellido != null ? apellido : "");
-                    actividad.put("texto", String.format("Nuevo usuario de salud registrado en INUS: <strong>%s</strong>", nombreCompleto.trim()));
+                    actividad.put(KEY_TEXTO, "Nuevo usuario de salud registrado en INUS: <strong>" + nombreCompleto.trim() + TAG_STRONG_CLOSE);
                     if (fechaAlta != null) {
-                        actividad.put("fecha", fechaAlta.atZone(ZoneId.systemDefault()).toInstant().toString());
+                        actividad.put(KEY_FECHA, fechaAlta.atZone(ZoneId.systemDefault()).toInstant().toString());
                     } else {
-                        actividad.put("fecha", new Date().toInstant().toString());
+                        actividad.put(KEY_FECHA, new Date().toInstant().toString());
                     }
                     actividades.add(actividad);
                 }
             }
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, String.format("Error al obtener últimos usuarios para tenant %d: %s", tenantId, e.getMessage()), e);
+            LOGGER.log(Level.WARNING, e, () -> "Error al obtener últimos usuarios para tenant " + tenantId + ": " + e.getMessage());
         }
         return actividades;
     }
 
-    public List<Map<String, Object>> obtenerUltimosProfesionales(String tenantId, int limite) {
+    private List<Map<String, Object>> obtenerUltimosProfesionales(String tenantId, int limite) {
         List<Map<String, Object>> actividades = new ArrayList<>();
         try {
-            // Guardar el tenant actual
-            String tenantAnterior = TenantContext.getCurrentTenant();
-            
-            // Establecer el tenant para esta consulta
-            TenantContext.setCurrentTenant(tenantId);
-            
-            try {
+            ejecutarConTenant(tenantId, () -> {
                 List<uy.edu.tse.hcen.model.ProfesionalSalud> profesionales = profesionalRepository.findAll();
                 if (profesionales != null && !profesionales.isEmpty()) {
-                    // Tomar solo los últimos (invertir la lista si es necesario)
                     int start = Math.max(0, profesionales.size() - limite);
-                    for (int i = start; i < profesionales.size(); i++) {
-                        uy.edu.tse.hcen.model.ProfesionalSalud prof = profesionales.get(i);
-                        String nombre = prof.getNombre();
-                        
-                        Map<String, Object> actividad = new HashMap<>();
-                        actividad.put("tipo", "profesional");
-                        actividad.put("icono", "🩺");
-                        actividad.put("texto", String.format("Nuevo profesional registrado: <strong>%s</strong>", nombre != null ? nombre : "Profesional"));
-                        // No tenemos fecha de creación, usar fecha actual como aproximación
-                        actividad.put("fecha", new Date().toInstant().toString());
-                        actividades.add(actividad);
-                    }
+                    crearActividadesProfesionales(profesionales, start, actividades);
                 }
-            } finally {
-                // Restaurar el tenant anterior
-                if (tenantAnterior != null) {
-                    TenantContext.setCurrentTenant(tenantAnterior);
-                } else {
-                    TenantContext.clear();
-                }
-            }
+                return null;
+            });
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, String.format("Error al obtener últimos profesionales para tenant %s: %s", tenantId, e.getMessage()), e);
+            LOGGER.log(Level.WARNING, e, () -> "Error al obtener últimos profesionales para tenant " + tenantId + ": " + e.getMessage());
         }
         return actividades;
     }
 
-    public String obtenerNombreProfesional(String profesionalId, Long tenantId) {
-        try {
-            // Guardar el tenant actual
-            String tenantAnterior = TenantContext.getCurrentTenant();
+    private void crearActividadesProfesionales(List<uy.edu.tse.hcen.model.ProfesionalSalud> profesionales, 
+                                                int start, List<Map<String, Object>> actividades) {
+        for (int i = start; i < profesionales.size(); i++) {
+            uy.edu.tse.hcen.model.ProfesionalSalud prof = profesionales.get(i);
+            String nombre = prof.getNombre();
             
-            // Establecer el tenant para esta consulta
+            Map<String, Object> actividad = new HashMap<>();
+            actividad.put(KEY_TIPO, "profesional");
+            actividad.put(KEY_ICONO, "🩺");
+            actividad.put(KEY_TEXTO, "Nuevo profesional registrado: <strong>" + (nombre != null ? nombre : "Profesional") + TAG_STRONG_CLOSE);
+            actividad.put(KEY_FECHA, new Date().toInstant().toString());
+            actividades.add(actividad);
+        }
+    }
+
+    private String obtenerNombreProfesional(String profesionalId, Long tenantId) {
+        try {
             String tenantIdStr = tenantId != null ? tenantId.toString() : null;
-            if (tenantIdStr != null) {
-                TenantContext.setCurrentTenant(tenantIdStr);
+            if (tenantIdStr == null) {
+                return profesionalId;
             }
             
-            try {
+            return ejecutarConTenant(tenantIdStr, () -> {
                 var profesionalOpt = profesionalRepository.findByNickname(profesionalId);
                 if (profesionalOpt.isPresent()) {
-                    var profesional = profesionalOpt.get();
-                    String nombre = profesional.getNombre();
+                    String nombre = profesionalOpt.get().getNombre();
                     if (nombre != null && !nombre.isBlank()) {
                         return nombre;
                     }
                 }
-            } finally {
-                // Restaurar el tenant anterior
-                if (tenantAnterior != null) {
-                    TenantContext.setCurrentTenant(tenantAnterior);
-                } else {
-                    TenantContext.clear();
-                }
-            }
+                return profesionalId;
+            });
         } catch (Exception e) {
-            LOGGER.warning(String.format("Error al obtener nombre del profesional %s: %s", profesionalId, e.getMessage()));
+            LOGGER.log(Level.WARNING, "Error al obtener nombre del profesional {0}: {1}", new Object[]{profesionalId, e.getMessage()});
+            return profesionalId;
         }
-        return profesionalId;
+    }
+
+    private <T> T ejecutarConTenant(String tenantId, java.util.function.Supplier<T> operation) {
+        String tenantAnterior = TenantContext.getCurrentTenant();
+        try {
+            TenantContext.setCurrentTenant(tenantId);
+            return operation.get();
+        } finally {
+            if (tenantAnterior != null) {
+                TenantContext.setCurrentTenant(tenantAnterior);
+            } else {
+                TenantContext.clear();
+            }
+        }
     }
 
     private String formatearFecha(Date fecha) {
-        if (fecha == null) return null;
+        if (fecha == null) {
+            return null;
+        }
         return fecha.toInstant().toString();
     }
 
-    public Map<String, Object> crearEstadisticasVacias() {
+    private Map<String, Object> crearEstadisticasVacias() {
         Map<String, Object> stats = new HashMap<>();
         stats.put("profesionales", 0);
         stats.put("usuarios", 0);

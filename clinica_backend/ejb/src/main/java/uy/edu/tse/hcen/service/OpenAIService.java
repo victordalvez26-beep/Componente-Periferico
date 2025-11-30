@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
+/**ok, 
  * Servicio para interactuar con OpenAI a través de OpenRouter API.
  */
 @ApplicationScoped
@@ -27,8 +27,23 @@ public class OpenAIService {
     
     // Token de OpenRouter (debe configurarse como variable de entorno en .env)
     private static final String ENV_OPENROUTER_API_KEY = "OPENROUTER_API_KEY";
-    // NO hardcodear tokens aquí - deben venir de variables de entorno
-    private static final String DEFAULT_TOKEN = null; // Se debe configurar OPENROUTER_API_KEY en .env
+    
+    // Constantes para literales duplicados
+    private static final String KEY_MODEL = "model";
+    private static final String KEY_MESSAGES = "messages";
+    private static final String KEY_CHOICES = "choices";
+    private static final String KEY_MESSAGE = "message";
+    private static final String KEY_CONTENT = "content";
+    private static final String KEY_ROLE = "role";
+    private static final String ROLE_USER = "user";
+    private static final String ERROR_HISTORIA_VACIA = "La historia clínica no puede estar vacía";
+    private static final String ERROR_API_KEY_NO_CONFIGURADA = "OPENROUTER_API_KEY no está configurado. Por favor, configure la variable de entorno OPENROUTER_API_KEY en el archivo .env";
+    private static final String ERROR_RESPUESTA_SIN_CONTENIDO = "Respuesta de OpenAI sin contenido válido";
+    private static final String ERROR_DESCONOCIDO = "Unknown error";
+    private static final String HEADER_AUTHORIZATION = "Authorization";
+    private static final String BEARER_PREFIX = "Bearer ";
+    private static final int HTTP_OK = 200;
+    private static final int TOKEN_PREVIEW_LENGTH = 10;
 
     /**
      * Genera un resumen de la historia clínica usando OpenAI o3.
@@ -37,82 +52,154 @@ public class OpenAIService {
      * @return Resumen generado por la IA
      */
     public String generarResumenHistoriaClinica(String historiaClinica) {
-        if (historiaClinica == null || historiaClinica.isBlank()) {
-            throw new IllegalArgumentException("La historia clínica no puede estar vacía");
-        }
+        validarHistoriaClinica(historiaClinica);
+        String token = obtenerTokenOpenRouter();
+        String url = OPENROUTER_BASE_URL + CHAT_COMPLETIONS_ENDPOINT;
+        String prompt = construirPrompt(historiaClinica);
+        Map<String, Object> requestBody = construirRequestBody(prompt);
 
+        return realizarPeticionOpenAI(url, token, requestBody);
+    }
+    
+    /**
+     * Valida que la historia clínica no esté vacía.
+     */
+    private void validarHistoriaClinica(String historiaClinica) {
+        if (historiaClinica == null || historiaClinica.isBlank()) {
+            throw new IllegalArgumentException(ERROR_HISTORIA_VACIA);
+        }
+    }
+    
+    /**
+     * Obtiene el token de OpenRouter desde variables de entorno o propiedades del sistema.
+     */
+    private String obtenerTokenOpenRouter() {
         String token = System.getProperty(ENV_OPENROUTER_API_KEY,
                 System.getenv().getOrDefault(ENV_OPENROUTER_API_KEY, null));
         
         if (token == null || token.isBlank()) {
-            String errorMsg = "OPENROUTER_API_KEY no está configurado. Por favor, configure la variable de entorno OPENROUTER_API_KEY en el archivo .env";
-            LOG.log(Level.SEVERE, errorMsg);
-            throw new IllegalStateException(errorMsg);
+            LOG.log(Level.SEVERE, ERROR_API_KEY_NO_CONFIGURADA);
+            throw new IllegalStateException(ERROR_API_KEY_NO_CONFIGURADA);
         }
         
-        LOG.log(Level.INFO, "Usando OPENROUTER_API_KEY (primeros 10 caracteres): {0}", 
-                token != null && token.length() > 10 ? token.substring(0, 10) + "..." : "null");
-
-        String url = OPENROUTER_BASE_URL + CHAT_COMPLETIONS_ENDPOINT;
-
-        // Construir el prompt para el resumen
-        String prompt = "Genera un resumen médico profesional y estructurado de la siguiente historia clínica. " +
+        logTokenInfo(token);
+        return token;
+    }
+    
+    /**
+     * Registra información del token (sin exponer el token completo).
+     */
+    private void logTokenInfo(String token) {
+        if (token.length() > TOKEN_PREVIEW_LENGTH) {
+            LOG.log(Level.INFO, "Usando OPENROUTER_API_KEY (primeros {0} caracteres): {1}", 
+                    new Object[]{TOKEN_PREVIEW_LENGTH, token.substring(0, TOKEN_PREVIEW_LENGTH) + "..."});
+        } else {
+            LOG.log(Level.INFO, "OPENROUTER_API_KEY no configurado o muy corto");
+        }
+    }
+    
+    /**
+     * Construye el prompt para el resumen médico.
+     */
+    private String construirPrompt(String historiaClinica) {
+        return "Genera un resumen médico profesional y estructurado de la siguiente historia clínica. " +
                 "Incluye: diagnóstico principal, tratamientos realizados, medicamentos prescritos, " +
                 "evolución del paciente, y recomendaciones importantes. " +
                 "Mantén un lenguaje médico apropiado y sé conciso pero completo.\n\n" +
                 "Historia clínica:\n" + historiaClinica;
-
+    }
+    
+    /**
+     * Construye el cuerpo de la petición HTTP para OpenAI.
+     */
+    private Map<String, Object> construirRequestBody(String prompt) {
         Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", MODEL_NAME);
+        requestBody.put(KEY_MODEL, MODEL_NAME);
         
         List<Map<String, String>> messages = List.of(
-            Map.of("role", "user", "content", prompt)
+            Map.of(KEY_ROLE, ROLE_USER, KEY_CONTENT, prompt)
         );
-        requestBody.put("messages", messages);
-
+        requestBody.put(KEY_MESSAGES, messages);
+        return requestBody;
+    }
+    
+    /**
+     * Realiza la petición HTTP a OpenAI y procesa la respuesta.
+     */
+    private String realizarPeticionOpenAI(String url, String token, Map<String, Object> requestBody) {
         try (Client client = ClientBuilder.newClient();
              Response response = client.target(url)
                     .request(MediaType.APPLICATION_JSON)
-                    .header("Authorization", "Bearer " + token)
+                    .header(HEADER_AUTHORIZATION, BEARER_PREFIX + token)
                     .post(Entity.json(requestBody))) {
 
             int status = response.getStatus();
-            if (status == 200) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> result = response.readEntity(Map.class);
-                
-                @SuppressWarnings({"unchecked", "rawtypes"})
-                List<Map<String, Object>> choices = (List) result.get("choices");
-                if (choices != null && !choices.isEmpty()) {
-                    Map<String, Object> firstChoice = choices.get(0);
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> message = (Map<String, Object>) firstChoice.get("message");
-                    if (message != null) {
-                        Object content = message.get("content");
-                        return content != null ? content.toString() : "No se pudo generar el resumen";
-                    }
-                }
-                throw new RuntimeException("Respuesta de OpenAI sin contenido válido");
+            if (status == HTTP_OK) {
+                return procesarRespuestaExitosa(response);
             } else {
-                String errorMsg = "Unknown error";
-                if (response.hasEntity()) {
-                    try {
-                        String entity = response.readEntity(String.class);
-                        if (entity != null && !entity.trim().isEmpty()) {
-                            errorMsg = entity;
-                        }
-                    } catch (Exception e) {
-                        // Usar mensaje por defecto
-                    }
-                }
-                LOG.log(Level.WARNING, "Error generando resumen: HTTP {0} - {1}. URL: {2}, Token configurado: {3}", 
-                        new Object[]{status, errorMsg, url, token != null && token.length() > 10 ? token.substring(0, 10) + "..." : "null"});
-                throw new RuntimeException("Error al generar resumen: HTTP " + status + " - " + errorMsg);
+                return procesarRespuestaError(response, status, url, token);
             }
         } catch (ProcessingException ex) {
-            LOG.log(Level.SEVERE, "Error de conexión con OpenAI: {0}", ex.getMessage());
-            throw new RuntimeException("Error de conexión con OpenAI: " + ex.getMessage(), ex);
+            String errorMsg = "Error de conexión con OpenAI: " + ex.getMessage();
+            throw new IllegalStateException(errorMsg, ex);
         }
+    }
+    
+    /**
+     * Procesa una respuesta exitosa de OpenAI.
+     */
+    @SuppressWarnings("unchecked")
+    private String procesarRespuestaExitosa(Response response) {
+        Map<String, Object> result = response.readEntity(Map.class);
+        
+        @SuppressWarnings("rawtypes")
+        List<Map<String, Object>> choices = (List) result.get(KEY_CHOICES);
+        if (choices != null && !choices.isEmpty()) {
+            Map<String, Object> firstChoice = choices.get(0);
+            Map<String, Object> message = (Map<String, Object>) firstChoice.get(KEY_MESSAGE);
+            if (message != null) {
+                Object content = message.get(KEY_CONTENT);
+                if (content != null) {
+                    return content.toString();
+                }
+            }
+        }
+        throw new IllegalStateException(ERROR_RESPUESTA_SIN_CONTENIDO);
+    }
+    
+    /**
+     * Procesa una respuesta de error de OpenAI.
+     */
+    private String procesarRespuestaError(Response response, int status, String url, String token) {
+        String errorMsg = extractErrorMessage(response);
+        String tokenPreview = token.length() > TOKEN_PREVIEW_LENGTH 
+                ? token.substring(0, TOKEN_PREVIEW_LENGTH) + "..." 
+                : "null";
+        LOG.log(Level.WARNING, "Error generando resumen: HTTP {0} - {1}. URL: {2}, Token configurado: {3}", 
+                new Object[]{status, errorMsg, url, tokenPreview});
+        throw new IllegalStateException("Error al generar resumen: HTTP " + status + " - " + errorMsg);
+    }
+    
+    /**
+     * Extrae el mensaje de error de la respuesta HTTP.
+     * 
+     * @param response Respuesta HTTP
+     * @return Mensaje de error extraído o "Unknown error" por defecto
+     */
+    private String extractErrorMessage(Response response) {
+        String errorMsg = ERROR_DESCONOCIDO;
+        if (response.hasEntity()) {
+            try {
+                String entity = response.readEntity(String.class);
+                if (entity != null && !entity.trim().isEmpty()) {
+                    errorMsg = entity;
+                }
+            } catch (ProcessingException e) {
+                String logMsg = "No se pudo leer el cuerpo de la respuesta de error: " + e.getMessage();
+                LOG.log(Level.FINE, logMsg, e);
+            }
+        }
+        return errorMsg;
     }
 
 }

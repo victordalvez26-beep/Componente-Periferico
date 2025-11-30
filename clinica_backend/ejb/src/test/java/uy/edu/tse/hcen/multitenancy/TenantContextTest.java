@@ -3,6 +3,8 @@ package uy.edu.tse.hcen.multitenancy;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -18,26 +20,17 @@ class TenantContextTest {
         TenantContext.clear();
     }
 
-    @Test
-    void testSetCurrentTenant() {
-        String tenantId = "tenant-123";
+    @ParameterizedTest
+    @CsvSource(value = {
+        "tenant-123",
+        "NULL",
+        "''",
+        "tenant-123_abc",
+        "123"
+    }, nullValues = "NULL")
+    void testSetCurrentTenantParameterized(String tenantId) {
         TenantContext.setCurrentTenant(tenantId);
-        
         assertEquals(tenantId, TenantContext.getCurrentTenant());
-    }
-
-    @Test
-    void testSetCurrentTenantNull() {
-        TenantContext.setCurrentTenant(null);
-        
-        assertNull(TenantContext.getCurrentTenant());
-    }
-
-    @Test
-    void testSetCurrentTenantEmpty() {
-        TenantContext.setCurrentTenant("");
-        
-        assertEquals("", TenantContext.getCurrentTenant());
     }
 
     @Test
@@ -85,19 +78,7 @@ class TenantContextTest {
         assertEquals("tenant-main", TenantContext.getCurrentTenant());
     }
 
-    @Test
-    void testSpecialCharactersInTenantId() {
-        String tenantId = "tenant-123_abc";
-        TenantContext.setCurrentTenant(tenantId);
-        assertEquals(tenantId, TenantContext.getCurrentTenant());
-    }
 
-    @Test
-    void testNumericTenantId() {
-        String tenantId = "123";
-        TenantContext.setCurrentTenant(tenantId);
-        assertEquals(tenantId, TenantContext.getCurrentTenant());
-    }
 
     @Test
     void testLongTenantId() {

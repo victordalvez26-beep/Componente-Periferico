@@ -109,6 +109,7 @@ class PortalConfiguracionRepositoryTest {
 
         // Assert
         assertFalse(result.isPresent());
+        assertTrue(result.isEmpty());
         verify(em, times(1)).createQuery(eq("SELECT c FROM PortalConfiguracion c"), eq(PortalConfiguracion.class));
         verify(query, times(1)).setMaxResults(1);
         verify(query, times(1)).getSingleResult();

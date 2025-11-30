@@ -3,7 +3,6 @@ package uy.edu.tse.hcen.repository;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import org.bson.Document;
-import org.bson.types.Binary;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +22,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
+@SuppressWarnings("unchecked")
 class DocumentoClinicoRepositoryTest {
 
     @Mock
@@ -78,7 +78,6 @@ class DocumentoClinicoRepositoryTest {
         String documento = "12345678";
         Document expectedDoc = new Document("pacienteDoc", documento);
         
-        when(collection.find(any(Document.class))).thenReturn(mock(com.mongodb.client.FindIterable.class));
         com.mongodb.client.FindIterable<Document> findIterable = mock(com.mongodb.client.FindIterable.class);
         when(collection.find(any(Document.class))).thenReturn(findIterable);
         when(findIterable.first()).thenReturn(expectedDoc);

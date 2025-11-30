@@ -8,15 +8,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
-import org.mockito.MockedStatic;
-import org.mockito.MockedConstruction;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import uy.edu.tse.hcen.exceptions.MongoDBConfigurationException;
 
-import com.mongodb.client.MongoClients;
-import com.mongodb.client.MongoIterable;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -29,13 +24,9 @@ class MongoDBProducerTest {
     @InjectMocks
     private MongoDBProducer producer;
 
-    private String originalMongoUri;
-    private String originalMongoDb;
-
     @BeforeEach
     void setUp() {
-        originalMongoUri = System.getenv("MONGODB_URI");
-        originalMongoDb = System.getenv("MONGODB_DB");
+        // Setup method if needed
     }
 
     @AfterEach
@@ -43,21 +34,7 @@ class MongoDBProducerTest {
         // No podemos restaurar variables de entorno fácilmente
     }
 
-    @Test
-    void testCreateMongoClientWithNullUri() {
-        // Simular que MONGODB_URI no está definida usando reflection
-        try {
-            java.lang.reflect.Field field = MongoDBProducer.class.getDeclaredField("ENV_URI");
-            field.setAccessible(true);
-            field.set(null, null);
-        } catch (Exception e) {
-            // Si no podemos cambiar el campo estático, el test fallará
-        }
 
-        // El campo es estático y final, así que no podemos cambiarlo fácilmente
-        // Este test verifica el comportamiento cuando la URI es null
-        // En un entorno real, esto se probaría configurando la variable de entorno
-    }
 
     @Test
     void testCreateMongoDatabase() {
@@ -72,18 +49,7 @@ class MongoDBProducerTest {
         verify(mockClient).getDatabase(anyString());
     }
 
-    @Test
-    void testCreateMongoDatabaseWithSpecificDbName() {
-        MongoClient mockClient = mock(MongoClient.class);
-        MongoDatabase mockDatabase = mock(MongoDatabase.class);
-        
-        when(mockClient.getDatabase(anyString())).thenReturn(mockDatabase);
 
-        MongoDatabase result = producer.createMongoDatabase(mockClient);
-
-        assertNotNull(result);
-        verify(mockClient).getDatabase(anyString());
-    }
 
     @Test
     void testCloseMongoClient() {

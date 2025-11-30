@@ -21,7 +21,9 @@ import uy.edu.tse.hcen.model.ProfesionalSalud;
 import uy.edu.tse.hcen.model.UsuarioSalud;
 import uy.edu.tse.hcen.util.DocumentoPdfFactory;
 
-import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -222,7 +224,7 @@ class DocumentoServiceTest {
     }
 
     @Test
-    void testObtenerPdfGenerarOnDemand() throws IOException {
+    void testObtenerPdfGenerarOnDemand() {
         String mongoId = new ObjectId().toHexString();
         Long tenantId = 1L;
         Document doc = new Document("contenido", "Contenido del documento");
@@ -252,6 +254,7 @@ class DocumentoServiceTest {
         byte[] result = documentoService.obtenerPdf(mongoId, tenantId);
 
         assertNull(result);
+        verify(documentoRepository, times(1)).buscarPorId(mongoId, tenantId);
     }
 
     @Test
@@ -360,15 +363,16 @@ class DocumentoServiceTest {
 
     @Test
     void testCrearDocumentoCompletoConArchivoWithBlankContenido() {
+        byte[] archivoBytes = "archivo".getBytes();
         assertThrows(IllegalArgumentException.class, () -> {
             documentoService.crearDocumentoCompletoConArchivo(
                     1L, "prof-1", "12345678", "", "EVALUACION", null, null, null,
-                    "archivo".getBytes(), "archivo.pdf", "application/pdf");
+                    archivoBytes, "archivo.pdf", "application/pdf");
         });
     }
 
     @Test
-    void testObtenerPdfWithNullDocument() {
+    void testObtenerPdfWithNullDocumentReturnsNull() {
         String mongoId = new ObjectId().toHexString();
         Long tenantId = 1L;
 
@@ -377,6 +381,7 @@ class DocumentoServiceTest {
         byte[] result = documentoService.obtenerPdf(mongoId, tenantId);
 
         assertNull(result);
+        verify(documentoRepository).buscarPorId(mongoId, tenantId);
     }
 
     @Test
@@ -402,6 +407,179 @@ class DocumentoServiceTest {
         String result = documentoService.obtenerContenido(mongoId, tenantId);
 
         assertNull(result);
+    }
+
+    @Test
+    void testObtenerContenidosPorPaciente() {
+        String ciPaciente = "12345678";
+        Document doc1 = new Document();
+        doc1.put("contenido", "Contenido 1");
+        Document doc2 = new Document();
+        doc2.put("contenido", "Contenido 2");
+        Document doc3 = new Document();
+        doc3.put("contenido", null); // Debe ser filtrado
+        Document doc4 = new Document();
+        doc4.put("contenido", "   "); // Debe ser filtrado (blank)
+        
+        when(documentoRepository.buscarPorCiPaciente(ciPaciente, null))
+                .thenReturn(Arrays.asList(doc1, doc2, doc3, doc4));
+        
+        List<String> contenidos = documentoService.obtenerContenidosPorPaciente(ciPaciente);
+        
+        assertNotNull(contenidos);
+        assertEquals(2, contenidos.size());
+        assertTrue(contenidos.contains("Contenido 1"));
+        assertTrue(contenidos.contains("Contenido 2"));
+    }
+
+    @Test
+    void testObtenerContenidosPorPacienteNull() {
+        List<String> contenidos = documentoService.obtenerContenidosPorPaciente(null);
+        
+        assertNotNull(contenidos);
+        assertTrue(contenidos.isEmpty());
+    }
+
+    @Test
+    void testObtenerContenidosPorPacienteBlank() {
+        List<String> contenidos = documentoService.obtenerContenidosPorPaciente("   ");
+        
+        assertNotNull(contenidos);
+        assertTrue(contenidos.isEmpty());
+    }
+
+    @Test
+    void testObtenerContenidosPorPacienteEmpty() {
+        when(documentoRepository.buscarPorCiPaciente("12345678", null))
+                .thenReturn(Collections.emptyList());
+        
+        List<String> contenidos = documentoService.obtenerContenidosPorPaciente("12345678");
+        
+        assertNotNull(contenidos);
+        assertTrue(contenidos.isEmpty());
+    }
+
+    @Test
+    void testCrearDocumentoCompletoConArchivoHcenUnavailable() throws Exception {
+        Long tenantId = 1L;
+        String profesionalId = "prof-1";
+        String ciPaciente = "12345678";
+        String contenido = "Contenido";
+        byte[] archivoBytes = new byte[]{1, 2, 3};
+
+        UsuarioSalud paciente = new UsuarioSalud();
+        paciente.setCi(ciPaciente);
+        paciente.setTenantId(tenantId);
+
+        when(usuarioSaludRepository.findByCiAndTenant(ciPaciente, tenantId)).thenReturn(paciente);
+        when(profesionalSaludRepository.findByNickname(profesionalId)).thenReturn(Optional.empty());
+        when(documentoRepository.guardarDocumentoCompleto(anyString(), anyString(), isNull(), any(), anyString(), anyString(),
+                eq(ciPaciente), eq(tenantId), anyString(), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(new ObjectId().toHexString());
+        doThrow(new HcenUnavailableException("HCEN no disponible")).when(hcenClient).registrarMetadatos(any(DTMetadatos.class));
+
+        Map<String, Object> result = documentoService.crearDocumentoCompletoConArchivo(
+                tenantId, profesionalId, ciPaciente, contenido, "EVALUACION", null, null, null,
+                archivoBytes, "archivo.pdf", "application/pdf");
+
+        assertNotNull(result);
+        assertTrue((Boolean) result.get("sincronizado")); // Sigue siendo true aunque falle HCEN
+    }
+
+    @Test
+    void testCrearDocumentoCompletoConArchivoWithNullTipoDocumento() throws Exception {
+        Long tenantId = 1L;
+        String profesionalId = "prof-1";
+        String ciPaciente = "12345678";
+        String contenido = "Contenido";
+
+        UsuarioSalud paciente = new UsuarioSalud();
+        paciente.setCi(ciPaciente);
+        paciente.setTenantId(tenantId);
+
+        when(usuarioSaludRepository.findByCiAndTenant(ciPaciente, tenantId)).thenReturn(paciente);
+        when(profesionalSaludRepository.findByNickname(profesionalId)).thenReturn(Optional.empty());
+        when(documentoRepository.guardarDocumentoCompleto(anyString(), anyString(), isNull(), isNull(), isNull(), isNull(),
+                eq(ciPaciente), eq(tenantId), anyString(), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(new ObjectId().toHexString());
+        doNothing().when(hcenClient).registrarMetadatos(any(DTMetadatos.class));
+
+        Map<String, Object> result = documentoService.crearDocumentoCompletoConArchivo(
+                tenantId, profesionalId, ciPaciente, contenido, null, null, null, null,
+                null, null, null);
+
+        assertNotNull(result);
+        assertEquals("EVALUACION", result.get("tipoDocumento")); // Debe usar default
+    }
+
+    @Test
+    void testCrearDocumentoCompletoWithNullAutor() throws Exception {
+        Long tenantId = 1L;
+        String profesionalId = "prof-1";
+        String ciPaciente = "12345678";
+        String contenido = "Contenido";
+
+        UsuarioSalud paciente = new UsuarioSalud();
+        paciente.setCi(ciPaciente);
+        paciente.setTenantId(tenantId);
+
+        ProfesionalSalud profesional = new ProfesionalSalud();
+        profesional.setNickname(profesionalId);
+        profesional.setNombre("Dr. Test");
+
+        when(usuarioSaludRepository.findByCiAndTenant(ciPaciente, tenantId)).thenReturn(paciente);
+        when(profesionalSaludRepository.findByNickname(profesionalId)).thenReturn(Optional.of(profesional));
+        when(documentoRepository.guardarDocumentoCompleto(anyString(), anyString(), isNull(), isNull(), isNull(), isNull(),
+                eq(ciPaciente), eq(tenantId), anyString(), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(new ObjectId().toHexString());
+        doNothing().when(hcenClient).registrarMetadatos(any(DTMetadatos.class));
+
+        Map<String, Object> result = documentoService.crearDocumentoCompleto(
+                tenantId, profesionalId, ciPaciente, contenido, "EVALUACION", null, null, null);
+
+        assertNotNull(result);
+        verify(hcenClient).registrarMetadatos(any(DTMetadatos.class));
+    }
+
+    @Test
+    void testCrearDocumentoCompletoWithBlankTitulo() throws Exception {
+        Long tenantId = 1L;
+        String profesionalId = "prof-1";
+        String ciPaciente = "12345678";
+        String contenido = "Contenido";
+
+        UsuarioSalud paciente = new UsuarioSalud();
+        paciente.setCi(ciPaciente);
+        paciente.setTenantId(tenantId);
+
+        when(usuarioSaludRepository.findByCiAndTenant(ciPaciente, tenantId)).thenReturn(paciente);
+        when(profesionalSaludRepository.findByNickname(profesionalId)).thenReturn(Optional.empty());
+        when(documentoRepository.guardarDocumentoCompleto(anyString(), anyString(), isNull(), isNull(), isNull(), isNull(),
+                eq(ciPaciente), eq(tenantId), anyString(), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(new ObjectId().toHexString());
+        doNothing().when(hcenClient).registrarMetadatos(any(DTMetadatos.class));
+
+        Map<String, Object> result = documentoService.crearDocumentoCompleto(
+                tenantId, profesionalId, ciPaciente, contenido, "EVALUACION", null, "   ", null);
+
+        assertNotNull(result);
+        // Debe usar el tipoDocumento como título cuando el título está en blank
+    }
+
+    @Test
+    void testObtenerPdfWithIllegalArgumentException() {
+        Document doc = new Document();
+        doc.put("contenido", ""); // Sin contenido suficiente (vacío)
+        
+        when(documentoRepository.buscarPorId("doc-123", 1L)).thenReturn(doc);
+        try (var mockedStatic = mockStatic(DocumentoPdfFactory.class)) {
+            mockedStatic.when(() -> DocumentoPdfFactory.generarDesdeDocumento(doc))
+                    .thenThrow(new IllegalArgumentException("El documento no contiene texto para generar el PDF"));
+            
+            byte[] result = documentoService.obtenerPdf("doc-123", 1L);
+            
+            assertNull(result);
+        }
     }
 }
 

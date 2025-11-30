@@ -3,6 +3,8 @@ package uy.edu.tse.hcen.service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -269,49 +271,24 @@ class ProfesionalSaludServiceTest {
         // Password should not be updated if blank
     }
 
-    @Test
-    void testCreateWithNullTenantId() throws Exception {
+    @ParameterizedTest
+    @CsvSource(value = {
+        "NULL, public",
+        "'', public",
+        "invalid, schema_clinica_invalid"
+    }, nullValues = "NULL")
+    void testCreateWithVariousTenantIds(String tenantId, String expectedSchema) throws Exception {
         // Arrange
         when(tenantContext.getRole()).thenReturn("ADMINISTRADOR");
-        when(tenantContext.getTenantId()).thenReturn(null);
-        doNothing().when(persistenceHelper).persistWithManualTransaction(any(ProfesionalSalud.class), eq("public"));
+        when(tenantContext.getTenantId()).thenReturn(tenantId);
+        doNothing().when(persistenceHelper).persistWithManualTransaction(any(ProfesionalSalud.class), eq(expectedSchema));
 
         // Act
         ProfesionalSalud result = profesionalService.create(dto);
 
         // Assert
         assertNotNull(result);
-        verify(persistenceHelper).persistWithManualTransaction(any(ProfesionalSalud.class), eq("public"));
-    }
-
-    @Test
-    void testCreateWithBlankTenantId() throws Exception {
-        // Arrange
-        when(tenantContext.getRole()).thenReturn("ADMINISTRADOR");
-        when(tenantContext.getTenantId()).thenReturn("");
-        doNothing().when(persistenceHelper).persistWithManualTransaction(any(ProfesionalSalud.class), eq("public"));
-
-        // Act
-        ProfesionalSalud result = profesionalService.create(dto);
-
-        // Assert
-        assertNotNull(result);
-        verify(persistenceHelper).persistWithManualTransaction(any(ProfesionalSalud.class), eq("public"));
-    }
-
-    @Test
-    void testCreateWithInvalidTenantIdFormat() throws Exception {
-        // Arrange
-        when(tenantContext.getRole()).thenReturn("ADMINISTRADOR");
-        when(tenantContext.getTenantId()).thenReturn("invalid");
-        doNothing().when(persistenceHelper).persistWithManualTransaction(any(ProfesionalSalud.class), eq("schema_clinica_invalid"));
-
-        // Act
-        ProfesionalSalud result = profesionalService.create(dto);
-
-        // Assert
-        assertNotNull(result);
-        verify(persistenceHelper).persistWithManualTransaction(any(ProfesionalSalud.class), eq("schema_clinica_invalid"));
+        verify(persistenceHelper).persistWithManualTransaction(any(ProfesionalSalud.class), eq(expectedSchema));
     }
 
     @Test

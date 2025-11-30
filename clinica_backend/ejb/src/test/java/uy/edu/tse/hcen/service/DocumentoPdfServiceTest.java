@@ -390,5 +390,256 @@ class DocumentoPdfServiceTest {
         assertNotNull(result);
         assertTrue(result.isEmpty());
     }
+
+    // ========== Tests adicionales para aumentar cobertura de branches ==========
+
+    @Test
+    void testObtenerMetadataPorIdWithoutTenantIdFallback() {
+        String mongoId = new ObjectId().toHexString();
+        Long tenantId = 1L;
+        Document doc = new Document("ciPaciente", "12345678");
+        doc.append("tipoDocumento", "EVALUACION");
+        doc.append("profesionalId", "prof-1");
+        doc.append("tenantId", 2L);
+
+        when(documentoPdfRepository.buscarPorId(mongoId, tenantId)).thenReturn(null);
+        when(documentoClinicoRepository.buscarPorId(mongoId, tenantId)).thenReturn(null);
+        when(documentoPdfRepository.buscarPorId(mongoId, null)).thenReturn(null);
+        when(documentoClinicoRepository.buscarPorId(mongoId, null)).thenReturn(doc);
+
+        Map<String, Object> result = documentoPdfService.obtenerMetadataPorId(mongoId, tenantId);
+
+        assertNotNull(result);
+        assertEquals("12345678", result.get("ciPaciente"));
+        assertEquals(2L, result.get("tenantId")); // Debe usar el tenantId del documento
+    }
+
+    @Test
+    void testObtenerMetadataPorIdWithExceptionInClinicoRepository() {
+        String mongoId = new ObjectId().toHexString();
+        Long tenantId = 1L;
+        Document doc = new Document("ciPaciente", "12345678");
+
+        when(documentoPdfRepository.buscarPorId(mongoId, tenantId)).thenReturn(null);
+        when(documentoClinicoRepository.buscarPorId(mongoId, tenantId)).thenThrow(new RuntimeException("DB error"));
+        when(documentoPdfRepository.buscarPorId(mongoId, null)).thenReturn(doc);
+
+        Map<String, Object> result = documentoPdfService.obtenerMetadataPorId(mongoId, tenantId);
+
+        assertNotNull(result);
+        assertEquals("12345678", result.get("ciPaciente"));
+    }
+
+    @Test
+    void testObtenerMetadataPorIdWithExceptionInFallback() {
+        String mongoId = new ObjectId().toHexString();
+        Long tenantId = 1L;
+
+        when(documentoPdfRepository.buscarPorId(mongoId, tenantId)).thenReturn(null);
+        when(documentoClinicoRepository.buscarPorId(mongoId, tenantId)).thenReturn(null);
+        when(documentoPdfRepository.buscarPorId(mongoId, null)).thenThrow(new RuntimeException("DB error"));
+        when(documentoClinicoRepository.buscarPorId(mongoId, null)).thenReturn(null);
+
+        Map<String, Object> result = documentoPdfService.obtenerMetadataPorId(mongoId, tenantId);
+
+        assertNull(result);
+    }
+
+    @Test
+    void testObtenerPdfPorIdWithPdfFieldInsteadOfPdfBytes() {
+        String mongoId = new ObjectId().toHexString();
+        Long tenantId = 1L;
+        byte[] pdfBytes = "%PDF content".getBytes();
+        Document doc = new Document("pdf", new Binary(pdfBytes)); // Campo "pdf" en lugar de "pdfBytes"
+
+        when(documentoPdfRepository.buscarPorId(mongoId, tenantId)).thenReturn(doc);
+
+        byte[] result = documentoPdfService.obtenerPdfPorId(mongoId, tenantId);
+
+        assertNotNull(result);
+        assertArrayEquals(pdfBytes, result);
+    }
+
+    @Test
+    void testObtenerPdfPorIdWithInvalidPdfHeader() {
+        String mongoId = new ObjectId().toHexString();
+        Long tenantId = 1L;
+        byte[] invalidPdf = "INVALID".getBytes();
+        Document doc = new Document("pdfBytes", new Binary(invalidPdf));
+
+        when(documentoPdfRepository.buscarPorId(mongoId, tenantId)).thenReturn(doc);
+
+        byte[] result = documentoPdfService.obtenerPdfPorId(mongoId, tenantId);
+
+        assertNotNull(result);
+        assertArrayEquals(invalidPdf, result); // Aun así devuelve los bytes aunque no sea válido
+    }
+
+    @Test
+    void testObtenerPdfPorIdWithEmptyPdfBytes() {
+        String mongoId = new ObjectId().toHexString();
+        Long tenantId = 1L;
+        Document doc = new Document("contenido", "Contenido del documento");
+        doc.append("titulo", "Título");
+        doc.append("autor", "Autor");
+        byte[] pdfGenerado = "%PDF generado".getBytes();
+
+        when(documentoPdfRepository.buscarPorId(mongoId, tenantId)).thenReturn(doc);
+        try (var mockedStatic = mockStatic(DocumentoPdfFactory.class)) {
+            mockedStatic.when(() -> DocumentoPdfFactory.generarDesdeDocumento(doc)).thenReturn(pdfGenerado);
+
+            byte[] result = documentoPdfService.obtenerPdfPorId(mongoId, tenantId);
+
+            assertNotNull(result);
+            assertArrayEquals(pdfGenerado, result);
+        }
+    }
+
+    @Test
+    void testObtenerPdfPorIdWithIOExceptionOnGeneration() throws IOException {
+        String mongoId = new ObjectId().toHexString();
+        Long tenantId = 1L;
+        Document doc = new Document("contenido", "Contenido");
+
+        when(documentoPdfRepository.buscarPorId(mongoId, tenantId)).thenReturn(doc);
+        try (var mockedStatic = mockStatic(DocumentoPdfFactory.class)) {
+            mockedStatic.when(() -> DocumentoPdfFactory.generarDesdeDocumento(doc))
+                    .thenThrow(new IOException("Error generando PDF"));
+
+            byte[] result = documentoPdfService.obtenerPdfPorId(mongoId, tenantId);
+
+            assertNull(result);
+        }
+    }
+
+    @Test
+    void testObtenerPdfPorIdWithIllegalArgumentExceptionOnGeneration() {
+        String mongoId = new ObjectId().toHexString();
+        Long tenantId = 1L;
+        Document doc = new Document("contenido", "");
+
+        when(documentoPdfRepository.buscarPorId(mongoId, tenantId)).thenReturn(doc);
+        try (var mockedStatic = mockStatic(DocumentoPdfFactory.class)) {
+            mockedStatic.when(() -> DocumentoPdfFactory.generarDesdeDocumento(doc))
+                    .thenThrow(new IllegalArgumentException("Datos incompletos"));
+
+            byte[] result = documentoPdfService.obtenerPdfPorId(mongoId, tenantId);
+
+            assertNull(result);
+        }
+    }
+
+    @Test
+    void testObtenerPdfPorIdWithoutTenantIdFallback() {
+        String mongoId = new ObjectId().toHexString();
+        Long tenantId = 1L;
+        byte[] pdfBytes = "%PDF content".getBytes();
+        Document doc = new Document("pdfBytes", new Binary(pdfBytes));
+        doc.append("tenantId", 2L);
+
+        when(documentoPdfRepository.buscarPorId(mongoId, tenantId)).thenReturn(null);
+        when(documentoClinicoRepository.buscarPorId(mongoId, tenantId)).thenReturn(null);
+        when(documentoPdfRepository.buscarPorId(mongoId, null)).thenReturn(null);
+        when(documentoClinicoRepository.buscarPorId(mongoId, null)).thenReturn(doc);
+
+        byte[] result = documentoPdfService.obtenerPdfPorId(mongoId, tenantId);
+
+        assertNotNull(result);
+        assertArrayEquals(pdfBytes, result);
+    }
+
+    @Test
+    void testObtenerPdfPorIdWithExceptionInClinicoRepository() {
+        String mongoId = new ObjectId().toHexString();
+        Long tenantId = 1L;
+        byte[] pdfBytes = "%PDF content".getBytes();
+        Document doc = new Document("pdfBytes", new Binary(pdfBytes));
+
+        when(documentoPdfRepository.buscarPorId(mongoId, tenantId)).thenReturn(null);
+        when(documentoClinicoRepository.buscarPorId(mongoId, tenantId)).thenThrow(new RuntimeException("DB error"));
+        when(documentoPdfRepository.buscarPorId(mongoId, null)).thenReturn(doc);
+
+        byte[] result = documentoPdfService.obtenerPdfPorId(mongoId, tenantId);
+
+        assertNotNull(result);
+        assertArrayEquals(pdfBytes, result);
+    }
+
+    @Test
+    void testObtenerPdfPorIdWithNullTenantId() {
+        String mongoId = new ObjectId().toHexString();
+        Long tenantId = null;
+        byte[] pdfBytes = "%PDF content".getBytes();
+        Document doc = new Document("pdfBytes", new Binary(pdfBytes));
+
+        when(documentoPdfRepository.buscarPorId(mongoId, null)).thenReturn(doc);
+
+        byte[] result = documentoPdfService.obtenerPdfPorId(mongoId, tenantId);
+
+        assertNotNull(result);
+        assertArrayEquals(pdfBytes, result);
+    }
+
+    @Test
+    void testObtenerPdfPorIdWithPdfDataLessThan4Bytes() {
+        String mongoId = new ObjectId().toHexString();
+        Long tenantId = 1L;
+        byte[] smallPdf = new byte[]{1, 2, 3}; // Menos de 4 bytes
+        Document doc = new Document("pdfBytes", new Binary(smallPdf));
+
+        when(documentoPdfRepository.buscarPorId(mongoId, tenantId)).thenReturn(doc);
+
+        byte[] result = documentoPdfService.obtenerPdfPorId(mongoId, tenantId);
+
+        assertNotNull(result);
+        assertArrayEquals(smallPdf, result);
+    }
+
+    @Test
+    void testObtenerMetadataPorIdWithNullTenantIdInDocument() {
+        String mongoId = new ObjectId().toHexString();
+        Long tenantId = 1L;
+        Document doc = new Document("ciPaciente", "12345678");
+        doc.append("tipoDocumento", "EVALUACION");
+        doc.append("profesionalId", "prof-1");
+        // Sin tenantId en el documento
+
+        when(documentoPdfRepository.buscarPorId(mongoId, tenantId)).thenReturn(doc);
+
+        Map<String, Object> result = documentoPdfService.obtenerMetadataPorId(mongoId, tenantId);
+
+        assertNotNull(result);
+        assertEquals(tenantId, result.get("tenantId")); // Debe usar el tenantId proporcionado
+    }
+
+    @Test
+    void testObtenerMetadataPorIdWithExceptionInFallbackClinico() {
+        String mongoId = new ObjectId().toHexString();
+        Long tenantId = 1L;
+
+        when(documentoPdfRepository.buscarPorId(mongoId, tenantId)).thenReturn(null);
+        when(documentoClinicoRepository.buscarPorId(mongoId, tenantId)).thenReturn(null);
+        when(documentoPdfRepository.buscarPorId(mongoId, null)).thenReturn(null);
+        when(documentoClinicoRepository.buscarPorId(mongoId, null)).thenThrow(new RuntimeException("DB error"));
+
+        Map<String, Object> result = documentoPdfService.obtenerMetadataPorId(mongoId, tenantId);
+
+        assertNull(result);
+    }
+
+    @Test
+    void testObtenerPdfPorIdWithExceptionInFallbackClinico() {
+        String mongoId = new ObjectId().toHexString();
+        Long tenantId = 1L;
+
+        when(documentoPdfRepository.buscarPorId(mongoId, tenantId)).thenReturn(null);
+        when(documentoClinicoRepository.buscarPorId(mongoId, tenantId)).thenReturn(null);
+        when(documentoPdfRepository.buscarPorId(mongoId, null)).thenReturn(null);
+        when(documentoClinicoRepository.buscarPorId(mongoId, null)).thenThrow(new RuntimeException("DB error"));
+
+        byte[] result = documentoPdfService.obtenerPdfPorId(mongoId, tenantId);
+
+        assertNull(result);
+    }
 }
 

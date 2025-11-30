@@ -1,6 +1,5 @@
 package uy.edu.tse.hcen.service;
 
-import jakarta.annotation.Resource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -178,11 +177,11 @@ class TenantAdminServiceTest {
                 tenantId, tenantSchema, adminEmail, baseUrl);
 
         assertNotNull(result);
-        assertNotNull(result.adminNickname);
-        assertNotNull(result.activationToken);
-        assertNotNull(result.activationUrl);
-        assertNotNull(result.tokenExpiry);
-        assertTrue(result.adminNickname.startsWith("admin_c"));
+        assertNotNull(result.getAdminNickname());
+        assertNotNull(result.getActivationToken());
+        assertNotNull(result.getActivationUrl());
+        assertNotNull(result.getTokenExpiry());
+        assertTrue(result.getAdminNickname().startsWith("admin_c"));
     }
 
     @Test
@@ -590,9 +589,9 @@ class TenantAdminServiceTest {
                 tenantId, tenantSchema, adminEmail, null);
 
         assertNotNull(result);
-        assertNotNull(result.adminNickname);
-        assertNotNull(result.activationToken);
-        assertNotNull(result.activationUrl);
+        assertNotNull(result.getAdminNickname());
+        assertNotNull(result.getActivationToken());
+        assertNotNull(result.getActivationUrl());
     }
 }
 

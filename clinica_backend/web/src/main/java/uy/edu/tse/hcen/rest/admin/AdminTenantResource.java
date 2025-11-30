@@ -21,9 +21,18 @@ public class AdminTenantResource {
     private TenantAdminService tenantAdminService;
 
     public static class TenantCreateRequest {
-        public String tenantId; // numeric suffix used in schema name (e.g., 103)
-        public String nombrePortal;
-        public String colorPrimario;
+        private String tenantId; // numeric suffix used in schema name (e.g., 103)
+        private String nombrePortal;
+        private String colorPrimario;
+
+        public String getTenantId() { return tenantId; }
+        public void setTenantId(String tenantId) { this.tenantId = tenantId; }
+
+        public String getNombrePortal() { return nombrePortal; }
+        public void setNombrePortal(String nombrePortal) { this.nombrePortal = nombrePortal; }
+
+        public String getColorPrimario() { return colorPrimario; }
+        public void setColorPrimario(String colorPrimario) { this.colorPrimario = colorPrimario; }
     }
 
     @POST
@@ -34,18 +43,18 @@ public class AdminTenantResource {
             return Response.status(Response.Status.FORBIDDEN).entity("Access denied").build();
         }
 
-        if (req == null || req.tenantId == null || req.tenantId.isBlank()) {
+        if (req == null || req.getTenantId() == null || req.getTenantId().isBlank()) {
             return Response.status(Response.Status.BAD_REQUEST).entity("tenantId required").build();
         }
 
-        String schema = "schema_clinica_" + req.tenantId;
+        String schema = "schema_clinica_" + req.getTenantId();
         try {
-            tenantAdminService.createTenantSchema(schema, req.colorPrimario, req.nombrePortal);
+            tenantAdminService.createTenantSchema(schema, req.getColorPrimario(), req.getNombrePortal());
         } catch (Exception ex) {
             return Response.serverError().entity(ex.getMessage()).build();
         }
 
-        URI location = UriBuilder.fromPath("/api/admin/tenants/{id}").build(req.tenantId);
+        URI location = UriBuilder.fromPath("/api/admin/tenants/{id}").build(req.getTenantId());
         return Response.created(location).build();
     }
 

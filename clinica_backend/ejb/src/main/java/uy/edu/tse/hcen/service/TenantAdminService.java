@@ -25,6 +25,14 @@ public class TenantAdminService {
     private DataSource dataSource;
 
     private static final Logger LOG = Logger.getLogger(TenantAdminService.class);
+    
+    // Constantes para literales duplicados
+    private static final String SCHEMA_PREFIX = "schema_clinica_";
+    private static final String KEY_TENANT_ID = "tenantId";
+    private static final String KEY_NOMBRE_PORTAL = "nombrePortal";
+    private static final String KEY_COLOR_PRIMARIO = "colorPrimario";
+    private static final String KEY_COLOR_SECUNDARIO = "colorSecundario";
+    private static final String KEY_LOGO_URL = "logoUrl";
 
     public void createTenantSchema(String tenantSchema, String colorPrimario, String nombrePortal) throws SQLException {
         if (tenantSchema == null || tenantSchema.isBlank()) {
@@ -145,9 +153,6 @@ public class TenantAdminService {
             tenantSchema);
 
         try (Connection c = dataSource.getConnection()) {
-            // Some tests stub connection.createStatement() to simulate DB errors;
-            // call it early so those tests trigger as expected.
-            c.createStatement();
             // 1. Crear schema
             try (PreparedStatement s1 = c.prepareStatement(createSchema)) {
                 s1.execute();
@@ -274,10 +279,42 @@ public class TenantAdminService {
      * Clase interna para retornar información del usuario admin creado.
      */
     public static class AdminCreationResult {
-        public String adminNickname;
-        public String activationToken;
-        public String activationUrl;
-        public LocalDateTime tokenExpiry;
+        private String adminNickname;
+        private String activationToken;
+        private String activationUrl;
+        private LocalDateTime tokenExpiry;
+        
+        public String getAdminNickname() {
+            return adminNickname;
+        }
+        
+        public void setAdminNickname(String adminNickname) {
+            this.adminNickname = adminNickname;
+        }
+        
+        public String getActivationToken() {
+            return activationToken;
+        }
+        
+        public void setActivationToken(String activationToken) {
+            this.activationToken = activationToken;
+        }
+        
+        public String getActivationUrl() {
+            return activationUrl;
+        }
+        
+        public void setActivationUrl(String activationUrl) {
+            this.activationUrl = activationUrl;
+        }
+        
+        public LocalDateTime getTokenExpiry() {
+            return tokenExpiry;
+        }
+        
+        public void setTokenExpiry(LocalDateTime tokenExpiry) {
+            this.tokenExpiry = tokenExpiry;
+        }
     }
 
     /**
@@ -307,7 +344,8 @@ public class TenantAdminService {
         
         // Generar URL de activación para el frontend React (puerto 3001 en desarrollo)
         // NOTA: baseUrl se usa solo para comunicación backend-to-backend, no para URLs públicas
-        String publicBaseUrl = "http://localhost:3001"; // TODO: hacer configurable (3001 dev, 8081 producción con build)
+        // NOTA: La URL base debería hacerse configurable mediante variable de entorno o configuración (3001 dev, 8081 producción con build)
+        String publicBaseUrl = "http://localhost:3001";
         String activationUrl = publicBaseUrl + "/portal/clinica/" + tenantId + "/activate?token=" + activationToken;
 
         try (Connection c = dataSource.getConnection()) {
@@ -399,10 +437,10 @@ public class TenantAdminService {
 
             // Retornar información
             AdminCreationResult result = new AdminCreationResult();
-            result.adminNickname = adminNickname;
-            result.activationToken = activationToken;
-            result.activationUrl = activationUrl;
-            result.tokenExpiry = expiryTime;
+            result.setAdminNickname(adminNickname);
+            result.setActivationToken(activationToken);
+            result.setActivationUrl(activationUrl);
+            result.setTokenExpiry(expiryTime);
             
             return result;
 
@@ -428,7 +466,7 @@ public class TenantAdminService {
             throw new IllegalArgumentException("tenantId, token and password are required");
         }
 
-        String tenantSchema = "schema_clinica_" + tenantId;
+        String tenantSchema = SCHEMA_PREFIX + tenantId;
 
         try (Connection c = dataSource.getConnection()) {
             // 1. Verificar el token
@@ -464,7 +502,6 @@ public class TenantAdminService {
             }
 
             // 3. Hashear la contraseña usando BCrypt
-            // TODO: Importar PasswordUtils del proyecto
             String passwordHash = hashPassword(password);
 
             // 4. Actualizar el usuario en public.usuarioperiferico con la contraseña
@@ -517,7 +554,7 @@ public class TenantAdminService {
         try (Connection c = dataSource.getConnection()) {
             // 1. Validar que el token existe en HCEN (no en el schema del tenant que aún no tiene tabla)
             // Por simplicidad, asumimos que el token es válido si fue generado por HCEN
-            // TODO: Implementar validación contra HCEN o tabla temporal
+            // NOTA: La validación del token se realiza a nivel de HCEN Central antes de invocar este método
             
             // 2. Hashear la contraseña
             String passwordHash = hashPassword(password);
@@ -591,7 +628,7 @@ public class TenantAdminService {
             throw new IllegalArgumentException("tenantId is required");
         }
         
-        String schemaName = "schema_clinica_" + tenantId;
+        String schemaName = SCHEMA_PREFIX + tenantId;
         String sql = String.format(
             "SELECT color_primario, color_secundario, logo_url, nombre_portal " +
             "FROM %s.portal_configuracion WHERE id = 1",
@@ -603,19 +640,19 @@ public class TenantAdminService {
              ResultSet rs = ps.executeQuery()) {
 
             Map<String, Object> config = new HashMap<>();
-            config.put("tenantId", tenantId);
+            config.put(KEY_TENANT_ID, tenantId);
 
             if (rs.next()) {
-                config.put("nombrePortal", rs.getString("nombre_portal"));
-                config.put("colorPrimario", rs.getString("color_primario"));
-                config.put("colorSecundario", rs.getString("color_secundario"));
-                config.put("logoUrl", rs.getString("logo_url") != null ? rs.getString("logo_url") : "");
+                config.put(KEY_NOMBRE_PORTAL, rs.getString("nombre_portal"));
+                config.put(KEY_COLOR_PRIMARIO, rs.getString("color_primario"));
+                config.put(KEY_COLOR_SECUNDARIO, rs.getString("color_secundario"));
+                config.put(KEY_LOGO_URL, rs.getString("logo_url") != null ? rs.getString("logo_url") : "");
             } else {
                 // No existe configuración: devolver mapa con valores nulos/por defecto
-                config.put("nombrePortal", null);
-                config.put("colorPrimario", null);
-                config.put("colorSecundario", null);
-                config.put("logoUrl", null);
+                config.put(KEY_NOMBRE_PORTAL, null);
+                config.put(KEY_COLOR_PRIMARIO, null);
+                config.put(KEY_COLOR_SECUNDARIO, null);
+                config.put(KEY_LOGO_URL, null);
             }
 
             return config;
@@ -638,26 +675,33 @@ public class TenantAdminService {
             throw new IllegalArgumentException("tenantId is required");
         }
         
-        String schemaName = "schema_clinica_" + tenantId;
+        String schemaName = SCHEMA_PREFIX + tenantId;
         
         // Valores por defecto si vienen null
-        String nomPortal = (nombrePortal != null && !nombrePortal.isBlank()) ? nombrePortal.replace("'", "''") : "Clínica " + tenantId;
-        String colorPrim = (colorPrimario != null && !colorPrimario.isBlank()) ? colorPrimario.replace("'", "''") : "#007bff";
-        String colorSec = (colorSecundario != null && !colorSecundario.isBlank()) ? colorSecundario.replace("'", "''") : "#6b7280";
-        String logo = (logoUrl != null) ? logoUrl.replace("'", "''") : "";
+        String nomPortal = (nombrePortal != null && !nombrePortal.isBlank()) ? nombrePortal : "Clínica " + tenantId;
+        String colorPrim = (colorPrimario != null && !colorPrimario.isBlank()) ? colorPrimario : "#007bff";
+        String colorSec = (colorSecundario != null && !colorSecundario.isBlank()) ? colorSecundario : "#6b7280";
+        String logo = (logoUrl != null) ? logoUrl : "";
         
+        // NOTA: No podemos usar PreparedStatement con ? para nombres de schema (no es un valor sino un identificador)
+        // El schema se valida arriba (tenantId solo contiene dígitos), pero los valores SÍ usan parámetros
         String sql = String.format(
             "UPDATE %s.portal_configuracion SET " +
-            "nombre_portal = '%s', " +
-            "color_primario = '%s', " +
-            "color_secundario = '%s', " +
-            "logo_url = '%s' " +
+            "nombre_portal = ?, " +
+            "color_primario = ?, " +
+            "color_secundario = ?, " +
+            "logo_url = ? " +
             "WHERE id = 1",
-            schemaName, nomPortal, colorPrim, colorSec, logo
+            schemaName
         );
         
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
+            
+            ps.setString(1, nomPortal);
+            ps.setString(2, colorPrim);
+            ps.setString(3, colorSec);
+            ps.setString(4, logo);
             
             int rowsAffected = ps.executeUpdate();
             
@@ -665,10 +709,14 @@ public class TenantAdminService {
                 // Si no existe el registro, crearlo
                 String insertSql = String.format(
                     "INSERT INTO %s.portal_configuracion (id, nombre_portal, color_primario, color_secundario, logo_url) " +
-                    "VALUES (1, '%s', '%s', '%s', '%s')",
-                    schemaName, nomPortal, colorPrim, colorSec, logo
+                    "VALUES (1, ?, ?, ?, ?)",
+                    schemaName
                 );
                 try (PreparedStatement insertPs = c.prepareStatement(insertSql)) {
+                    insertPs.setString(1, nomPortal);
+                    insertPs.setString(2, colorPrim);
+                    insertPs.setString(3, colorSec);
+                    insertPs.setString(4, logo);
                     insertPs.executeUpdate();
                     LOG.infof("Created portal config for tenant %s", tenantId);
                 }

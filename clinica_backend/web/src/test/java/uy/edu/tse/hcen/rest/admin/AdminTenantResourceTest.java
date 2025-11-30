@@ -46,9 +46,9 @@ class AdminTenantResourceTest {
     @Test
     void testCreateTenantSuccess() throws SQLException {
         AdminTenantResource.TenantCreateRequest req = new AdminTenantResource.TenantCreateRequest();
-        req.tenantId = "123";
-        req.nombrePortal = "Clínica Test";
-        req.colorPrimario = "#007bff";
+        req.setTenantId("123");
+        req.setNombrePortal("Clínica Test");
+        req.setColorPrimario("#007bff");
         
         when(securityContext.isUserInRole("ADMINISTRADOR")).thenReturn(true);
         doNothing().when(tenantAdminService).createTenantSchema(anyString(), anyString(), anyString());
@@ -61,7 +61,7 @@ class AdminTenantResourceTest {
     @Test
     void testCreateTenantNoAuth() {
         AdminTenantResource.TenantCreateRequest req = new AdminTenantResource.TenantCreateRequest();
-        req.tenantId = "123";
+        req.setTenantId("123");
         
         when(securityContext.isUserInRole("ADMINISTRADOR")).thenReturn(false);
         

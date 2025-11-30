@@ -358,6 +358,7 @@ class HcenClientTest {
         }
     }
 
+
     @Test
     void testConsultarMetadatosPacienteWith404() throws HcenUnavailableException {
         String documentoIdPaciente = "12345678";
@@ -376,7 +377,6 @@ class HcenClientTest {
             when(response.getStatus()).thenReturn(404);
 
             List<Map<String, Object>> result = hcenClient.consultarMetadatosPaciente(documentoIdPaciente);
-
             assertNotNull(result);
             assertTrue(result.isEmpty());
         }
@@ -872,7 +872,8 @@ class HcenClientTest {
 
             clientBuilderMock.when(ClientBuilder::newClient).thenReturn(client);
             serviceAuthMock.when(() -> ServiceAuthUtil.generateServiceToken(anyString(), anyString()))
-                    .thenReturn("service-token", null); // Segundo token es null
+                    .thenReturn("service-token")
+                    .thenReturn(null); // Segundo token es null
 
             jakarta.ws.rs.client.WebTarget target = mock(jakarta.ws.rs.client.WebTarget.class);
             when(client.target(anyString())).thenReturn(target);

@@ -43,16 +43,17 @@ public class UsuarioSaludService {
     @Transactional
     public UsuarioSalud crearUsuarioSalud(Long tenantId, UsuarioSalud usuario) {
         
-        LOGGER.info("Creando Usuario de Salud - CI: " + usuario.getCi() + ", Clínica: " + tenantId);
+        LOGGER.infof("Creando Usuario de Salud - CI: %s, Clínica: %d", usuario.getCi(), tenantId);
         
         // DEBUG: Verificar tenant context
         String currentTenant = TenantContext.getCurrentTenant();
-        LOGGER.info("🔍 DEBUG - TenantContext actual: " + currentTenant);
+        LOGGER.infof("🔍 DEBUG - TenantContext actual: %s", currentTenant);
         
         // Asegurar que el tenant context esté seteado (por si acaso)
-        if (currentTenant == null || !currentTenant.equals(String.valueOf(tenantId))) {
-            LOGGER.warn("⚠️ TenantContext no está seteado correctamente, seteándolo a: " + tenantId);
-            TenantContext.setCurrentTenant(String.valueOf(tenantId));
+        String tenantIdStr = String.valueOf(tenantId);
+        if (currentTenant == null || !tenantIdStr.equals(currentTenant)) {
+            LOGGER.warnf("⚠️ TenantContext no está seteado correctamente, seteándolo a: %d", tenantId);
+            TenantContext.setCurrentTenant(tenantIdStr);
         }
         
         // 1. Validar que no exista ya en esta clínica
@@ -70,7 +71,7 @@ public class UsuarioSaludService {
         // 3. Guardar localmente (sin hcenUserId todavía)
         repository.persist(usuario);
         
-        LOGGER.info("Usuario guardado localmente con ID: " + usuario.getId());
+        LOGGER.infof("Usuario guardado localmente con ID: %d", usuario.getId());
         
         // 4. Registrar en HCEN
         try {
@@ -82,12 +83,12 @@ public class UsuarioSaludService {
                 usuario.setHcenUserId(response.getUserId());
                 repository.merge(usuario);
                 
-                LOGGER.info("Usuario sincronizado con HCEN - hcenUserId: " + response.getUserId());
+                LOGGER.infof("Usuario sincronizado con HCEN - hcenUserId: %d", response.getUserId());
             } else {
-                LOGGER.warn("No se pudo obtener hcenUserId del HCEN: " + response.getMensaje());
+                LOGGER.warnf("No se pudo obtener hcenUserId del HCEN: %s", response.getMensaje());
             }
         } catch (Exception e) {
-            LOGGER.error("Error al sincronizar con HCEN: " + e.getMessage(), e);
+            LOGGER.errorf(e, "Error al sincronizar con HCEN: %s", e.getMessage());
             // Continuamos con el usuario guardado localmente aunque falle HCEN
         }
         
@@ -105,7 +106,7 @@ public class UsuarioSaludService {
     @Transactional
     public UsuarioSalud actualizarUsuarioSalud(Long tenantId, Long id, UsuarioSalud datosActualizados) {
         
-        LOGGER.info("Actualizando Usuario de Salud ID: " + id + ", Clínica: " + tenantId);
+        LOGGER.infof("Actualizando Usuario de Salud ID: %d, Clínica: %d", id, tenantId);
         
         // 1. Buscar el usuario existente
         UsuarioSalud existing = repository.findById(id, tenantId);
@@ -133,7 +134,7 @@ public class UsuarioSaludService {
             hcenClient.registrarUsuarioEnHcen(tenantId, existing);
             LOGGER.info("Usuario sincronizado con HCEN");
         } catch (Exception e) {
-            LOGGER.error("Error al sincronizar actualización con HCEN: " + e.getMessage(), e);
+            LOGGER.errorf(e, "Error al sincronizar actualización con HCEN: %s", e.getMessage());
         }
         
         return existing;
@@ -146,7 +147,7 @@ public class UsuarioSaludService {
      * @return Lista de pacientes ordenados por apellido y nombre
      */
     public List<UsuarioSalud> listarUsuariosSalud(Long tenantId) {
-        LOGGER.info("Listando usuarios de salud - Clínica: " + tenantId);
+        LOGGER.infof("Listando usuarios de salud - Clínica: %d", tenantId);
         return repository.findByTenant(tenantId);
     }
     
