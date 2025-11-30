@@ -5,7 +5,7 @@ import SimplePopup from '../components/SimplePopup';
 
 function UsuariosPage() {
   const { tenantId } = useParams();
-  const { config } = useClinicConfig(tenantId);
+  const { config, loading: configLoading } = useClinicConfig(tenantId);
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -72,6 +72,22 @@ function UsuariosPage() {
       setLoading(false);
     }
   };
+
+  // No renderizar hasta que la configuración esté cargada
+  if (configLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        fontSize: '16px',
+        color: '#6b7280'
+      }}>
+        Cargando...
+      </div>
+    );
+  }
 
   return (
     <div>

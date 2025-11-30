@@ -15,7 +15,7 @@ function hexToRgb(hex) {
 function DocumentosPage() {
   const { tenantId } = useParams();
   const navigate = useNavigate();
-  const { config } = useClinicConfig(tenantId);
+  const { config, loading: configLoading } = useClinicConfig(tenantId);
   const [ciPaciente, setCiPaciente] = useState('');
   const [documentos, setDocumentos] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -513,6 +513,22 @@ function DocumentosPage() {
       </div>
     );
   };
+
+  // No renderizar hasta que la configuración esté cargada
+  if (configLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        fontSize: '16px',
+        color: '#6b7280'
+      }}>
+        Cargando...
+      </div>
+    );
+  }
 
   return (
     <div className="documentos-page-container">

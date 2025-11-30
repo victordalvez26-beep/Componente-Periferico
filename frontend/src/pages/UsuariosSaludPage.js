@@ -9,7 +9,7 @@ import './UsuariosSaludPage.css';
  */
 function UsuariosSaludPage() {
   const { tenantId } = useParams();
-  const { config } = useClinicConfig(tenantId);
+  const { config, loading: configLoading } = useClinicConfig(tenantId);
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -230,6 +230,22 @@ function UsuariosSaludPage() {
     }, 5000);
   };
   
+  // No renderizar hasta que la configuración esté cargada
+  if (configLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        fontSize: '16px',
+        color: '#6b7280'
+      }}>
+        Cargando...
+      </div>
+    );
+  }
+
   return (
     <div className="usuarios-salud-page" style={{ width: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
       <div className="page-header">

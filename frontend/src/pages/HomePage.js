@@ -4,7 +4,7 @@ import { useClinicConfig } from '../hooks/useClinicConfig';
 
 function HomePage() {
   const { tenantId } = useParams();
-  const { config } = useClinicConfig(tenantId);
+  const { config, loading: configLoading } = useClinicConfig(tenantId);
   const [stats, setStats] = useState({
     profesionales: 0,
     usuarios: 0,
@@ -147,6 +147,22 @@ function HomePage() {
       bgColor: '#ede9fe'
     }
   ];
+
+  // No renderizar hasta que la configuración esté cargada
+  if (configLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        fontSize: '16px',
+        color: '#6b7280'
+      }}>
+        Cargando...
+      </div>
+    );
+  }
 
   return (
     <div>
