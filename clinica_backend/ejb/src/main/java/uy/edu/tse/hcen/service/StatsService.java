@@ -418,11 +418,6 @@ public class StatsService {
         return fecha.toInstant().toString();
     }
 
-    private String formatearFecha(Date fecha) {
-        if (fecha == null) return null;
-        return fecha.toInstant().toString();
-    }
-
     public Map<String, Object> crearEstadisticasVacias() {
         Map<String, Object> stats = new HashMap<>();
         stats.put("profesionales", 0);
