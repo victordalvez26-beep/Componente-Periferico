@@ -1,0 +1,44 @@
+# Archivos y carpetas a ignorar durante el build en Render
+
+# Node modules (se instalan con npm ci)
+**/node_modules/
+
+# Build artifacts locales
+**/build/
+**/target/
+**/dist/
+
+# Logs
+*.log
+*.log.*
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker local
+docker-compose.yml
+docker-compose.clean.yml
+
+# Scripts de desarrollo local
+start-wildfly.*
+*.bat
+*.ps1
+*.sh
+
+# Documentación local
+*.md
+!README.md
+!DEPLOY-RENDER.md
+
+# Git
+.git/
+.gitignore
+

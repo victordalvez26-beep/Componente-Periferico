@@ -1,0 +1,55 @@
+# Dockerfile multi-stage para Render
+# Stage 1: Compilar el proyecto Maven
+FROM maven:3.9-eclipse-temurin-17 AS build
+
+WORKDIR /build
+
+# Copiar archivos de configuración Maven primero (capa de caché)
+COPY pom.xml ./
+COPY ear/pom.xml ./ear/
+COPY ejb/pom.xml ./ejb/
+COPY web/pom.xml ./web/
+
+# Descargar dependencias (capa de caché)
+RUN mvn dependency:go-offline -B || true
+
+# Copiar código fuente
+COPY . .
+
+# Compilar y generar el EAR
+RUN mvn clean package -DskipTests
+
+# Verificar que el EAR fue generado
+RUN test -f ./ear/target/hcen.ear || (echo "ERROR: hcen.ear no fue generado" && exit 1)
+
+# Stage 2: Construir imagen WildFly con el EAR
+FROM quay.io/wildfly/wildfly:37.0.0.Final-jdk17
+
+USER root
+
+# Crear directorios para módulos y drivers
+RUN mkdir -p /opt/jboss/wildfly/modules/system/layers/base/org/postgresql/main
+
+# Copiar driver PostgreSQL y descriptor de módulo
+COPY drivers/postgresql-42.2.14.jar /opt/jboss/wildfly/modules/system/layers/base/org/postgresql/main/postgresql-42.2.14.jar
+COPY wildfly/module.xml /opt/jboss/wildfly/modules/system/layers/base/org/postgresql/main/module.xml
+
+# Copiar módulos personalizados (JWT, MongoDB, Spring Security)
+COPY wildfly-modules/io/jsonwebtoken /opt/jboss/wildfly/modules/system/layers/base/io/jsonwebtoken
+COPY wildfly-modules/org/mongodb /opt/jboss/wildfly/modules/system/layers/base/org/mongodb
+COPY wildfly-modules/org/springframework /opt/jboss/wildfly/modules/system/layers/base/org/springframework
+
+# Copiar EAR compilado desde el stage de build
+COPY --from=build /build/ear/target/hcen.ear /opt/jboss/wildfly/standalone/deployments/hcen.ear
+
+# Copiar scripts de configuración
+# El entrypoint.render.sh genera el CLI dinámicamente basado en variables de entorno
+COPY wildfly/entrypoint.render.sh /opt/jboss/wildfly/entrypoint.sh
+RUN chmod +x /opt/jboss/wildfly/entrypoint.sh
+
+USER jboss
+
+EXPOSE 8080
+
+ENTRYPOINT ["/opt/jboss/wildfly/entrypoint.sh"]
+
