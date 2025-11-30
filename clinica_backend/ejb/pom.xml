@@ -117,6 +117,13 @@
             <version>3.1.0</version>
             <scope>provided</scope>
         </dependency>
+        <!-- Add Jersey implementation for RuntimeDelegate during tests -->
+        <dependency>
+            <groupId>org.glassfish.jersey.core</groupId>
+            <artifactId>jersey-common</artifactId>
+            <version>3.1.8</version>
+            <scope>test</scope>
+        </dependency>
         <!-- MicroProfile Fault Tolerance API -->
         <dependency>
             <groupId>org.eclipse.microprofile.fault-tolerance</groupId>
@@ -210,6 +217,17 @@
                         <ejbVersion>4.0</ejbVersion>
                     </configuration>
                 </plugin>
+            <!-- Configure Surefire plugin to set system properties for tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <systemPropertyVariables>
+                        <hcen.jwt.secret.base64>dGVzdC1zZWNyZXQta2V5LWZvci1qd3QtdG9rZW4tZ2VuZXJhdGlvbi0xMjM0NTY3ODkwMTIzNDU2Nzg5MA==</hcen.jwt.secret.base64>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

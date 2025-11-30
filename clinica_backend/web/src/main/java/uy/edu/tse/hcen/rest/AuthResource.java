@@ -1,7 +1,7 @@
 package uy.edu.tse.hcen.rest;
 
 import uy.edu.tse.hcen.dto.LoginRequest;
-import uy.edu.tse.hcen.service.LoginService;
+import uy.edu.tse.hcen.service.ILoginService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.POST;
@@ -16,7 +16,7 @@ import jakarta.ws.rs.core.Response;
 public class AuthResource {
 
     @Inject
-    private LoginService loginService;
+    private ILoginService loginService;
 
     // public no-arg constructor so RESTEasy/Weld can instantiate and proxy this resource
     public AuthResource() {
@@ -26,6 +26,12 @@ public class AuthResource {
     @Path("/login")
     public Response login(LoginRequest request) {
         try {
+            if (request == null) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                               .entity(java.util.Map.of("error", "Request body es requerido"))
+                               .build();
+            }
+            
             uy.edu.tse.hcen.dto.LoginResponse response = loginService.authenticateAndGenerateToken(
                 request.getNickname(),
                 request.getPassword(),

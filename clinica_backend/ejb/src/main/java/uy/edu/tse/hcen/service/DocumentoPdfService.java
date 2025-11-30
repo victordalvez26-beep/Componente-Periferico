@@ -161,10 +161,12 @@ public class DocumentoPdfService {
         metadata.setDatosPatronimicos(nombrePaciente + " " + apellidoPaciente);
 
         // 10. Enviar metadata al backend HCEN (RNDC)
+        boolean sincronizado = true;
         try {
             hcenClient.registrarMetadatos(metadata);
             LOG.info(String.format("Metadata enviada exitosamente al backend HCEN para documento: %s", documentoId));
         } catch (HcenUnavailableException ex) {
+            sincronizado = false;
             LOG.warn(String.format("No se pudo sincronizar metadata con HCEN (documento guardado localmente): %s", ex.getMessage()));
             // Continuamos aunque falle la sincronización - el documento ya está guardado
         }

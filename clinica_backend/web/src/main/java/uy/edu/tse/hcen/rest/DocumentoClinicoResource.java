@@ -81,8 +81,10 @@ public class DocumentoClinicoResource {
     @RolesAllowed("PROFESIONAL")
     public Response crearDocumentoCompleto(Map<String, Object> body) {
         try {
+            LOG.info("=== crearDocumentoCompleto INICIO ===");
             // Validar body
             if (body == null) {
+                LOG.info("crearDocumentoCompleto: body es null - retornando 400");
                 return DocumentoResponseBuilder.badRequest(DocumentoConstants.ERROR_REQUEST_BODY_REQUIRED);
             }
 
@@ -92,15 +94,19 @@ public class DocumentoClinicoResource {
                 profesionalId = securityContext.getUserPrincipal().getName();
             }
 
+            LOG.infof("crearDocumentoCompleto: profesionalId=%s, securityContext=%s", profesionalId, securityContext);
             if (profesionalId == null || profesionalId.isBlank()) {
+                LOG.info("crearDocumentoCompleto: profesionalId es null o vacío - retornando 401");
                 return DocumentoResponseBuilder.unauthorized(DocumentoConstants.ERROR_AUTENTICACION_REQUERIDA);
             }
 
             // Obtener tenant actual
             String tenantIdStr = TenantContext.getCurrentTenant();
+            LOG.infof("crearDocumentoCompleto: tenantIdStr=%s", tenantIdStr);
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
+                LOG.info("crearDocumentoCompleto: tenantIdStr es null o vacío - retornando 400");
                 return DocumentoResponseBuilder.badRequest("Tenant no identificado");
-        }
+            }
             Long tenantId = Long.parseLong(tenantIdStr);
 
             // Extraer campos del body
@@ -112,12 +118,15 @@ public class DocumentoClinicoResource {
             String autor = (String) body.get("autor");
 
             // Validaciones
+            LOG.infof("crearDocumentoCompleto: ciPaciente=%s, contenido=%s", ciPaciente, contenido != null ? "presente" : "null");
             if (ciPaciente == null || ciPaciente.isBlank()) {
+                LOG.info("crearDocumentoCompleto: ciPaciente es null o vacío");
                 return DocumentoResponseBuilder.badRequest("ciPaciente es requerido");
             }
             if (contenido == null || contenido.isBlank()) {
+                LOG.info("crearDocumentoCompleto: contenido es null o vacío");
                 return DocumentoResponseBuilder.badRequest(DocumentoConstants.ERROR_CONTENIDO_ES_REQUERIDO);
-        }
+            }
 
             // Crear documento
             Map<String, Object> resultado = documentoService.crearDocumentoCompleto(
@@ -185,7 +194,7 @@ public class DocumentoClinicoResource {
             String tenantIdStr = TenantContext.getCurrentTenant();
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
                 return DocumentoResponseBuilder.badRequest("Tenant no identificado");
-        }
+            }
             Long tenantId = Long.parseLong(tenantIdStr);
 
             // Extraer datos del formulario
@@ -204,7 +213,7 @@ public class DocumentoClinicoResource {
             }
             if (ciPaciente == null || ciPaciente.isBlank()) {
                 return DocumentoResponseBuilder.badRequest("ciPaciente es requerido");
-        }
+            }
         
             // Extraer archivo adjunto (opcional)
             byte[] archivoBytes = null;
@@ -224,7 +233,7 @@ public class DocumentoClinicoResource {
                     int end = contentDisposition.indexOf("\"", start);
                     if (end == -1) end = contentDisposition.length();
                     nombreArchivo = contentDisposition.substring(start, end).replace("\"", "");
-        }
+                }
 
                 tipoArchivo = archivoPart.getHeaders().getFirst("Content-Type");
             }
@@ -277,13 +286,13 @@ public class DocumentoClinicoResource {
             String tenantIdStr = TenantContext.getCurrentTenant();
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
                 return DocumentoResponseBuilder.badRequest("Tenant no identificado");
-        }
+            }
             Long tenantId = Long.parseLong(tenantIdStr);
 
             String contenido = documentoService.obtenerContenido(id, tenantId);
             if (contenido == null) {
-            return DocumentoResponseBuilder.notFound(DocumentoConstants.ERROR_DOCUMENT_NOT_FOUND);
-        }
+                return DocumentoResponseBuilder.notFound(DocumentoConstants.ERROR_DOCUMENT_NOT_FOUND);
+            }
 
             return Response.ok(contenido, MediaType.TEXT_PLAIN).build();
 
@@ -322,13 +331,13 @@ public class DocumentoClinicoResource {
                     LOG.warn("No se encontró tenantId en query parameter ni en contexto. Intentando con tenantId=1");
                     tenantId = 1L;
                     TenantContext.setCurrentTenant("1");
-        }
+                }
             }
 
             byte[] pdfBytes = documentoService.obtenerPdf(id, tenantId);
             if (pdfBytes == null || pdfBytes.length == 0) {
                 return DocumentoResponseBuilder.notFound("PDF no encontrado");
-        }
+            }
         
             return Response.ok(pdfBytes, "application/pdf")
                     .header("Content-Disposition", "inline; filename=\"documento_" + id + ".pdf\"")

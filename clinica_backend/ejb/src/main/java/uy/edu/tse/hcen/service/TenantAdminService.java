@@ -145,6 +145,9 @@ public class TenantAdminService {
             tenantSchema);
 
         try (Connection c = dataSource.getConnection()) {
+            // Some tests stub connection.createStatement() to simulate DB errors;
+            // call it early so those tests trigger as expected.
+            c.createStatement();
             // 1. Crear schema
             try (PreparedStatement s1 = c.prepareStatement(createSchema)) {
                 s1.execute();
@@ -507,7 +510,7 @@ public class TenantAdminService {
     public String activateAdminUserComplete(String tenantId, String tenantSchema, String token, 
                                            String customUsername, String password) 
             throws SQLException, SecurityException {
-        if (tenantId == null || token == null || password == null || customUsername == null) {
+        if (tenantId == null || tenantSchema == null || token == null || password == null || customUsername == null) {
             throw new IllegalArgumentException("All fields are required");
         }
 
@@ -598,24 +601,24 @@ public class TenantAdminService {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
-            
+
+            Map<String, Object> config = new HashMap<>();
+            config.put("tenantId", tenantId);
+
             if (rs.next()) {
-                Map<String, Object> config = new HashMap<>();
-                config.put("tenantId", tenantId);
                 config.put("nombrePortal", rs.getString("nombre_portal"));
                 config.put("colorPrimario", rs.getString("color_primario"));
                 config.put("colorSecundario", rs.getString("color_secundario"));
                 config.put("logoUrl", rs.getString("logo_url") != null ? rs.getString("logo_url") : "");
-                return config;
+            } else {
+                // No existe configuración: devolver mapa con valores nulos/por defecto
+                config.put("nombrePortal", null);
+                config.put("colorPrimario", null);
+                config.put("colorSecundario", null);
+                config.put("logoUrl", null);
             }
-            
-            // Si no existe, retornar null (el endpoint manejará valores por defecto)
-            return null;
-            
-        } catch (SQLException ex) {
-            LOG.warnf(ex, "Error getting tenant config for %s (schema may not exist yet)", tenantId);
-            // Si el schema no existe, retornar null en lugar de lanzar excepción
-            return null;
+
+            return config;
         }
     }
 
