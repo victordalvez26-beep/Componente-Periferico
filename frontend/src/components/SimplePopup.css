@@ -78,6 +78,18 @@
   background-color: #e5e7eb;
 }
 
+.simple-popup-content.simple-popup-info {
+  border-top: 4px solid #3b82f6;
+}
+
+.simple-popup-icon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 32px;
+  padding-bottom: 8px;
+}
+
 .simple-popup-message {
   font-size: 16px;
   color: #1f2937;
@@ -86,6 +98,15 @@
   word-wrap: break-word;
   font-weight: 400;
   letter-spacing: -0.01em;
+  text-align: center;
+}
+
+.simple-popup-message.simple-popup-message-info {
+  padding-top: 16px;
+  font-size: 17px;
+  font-weight: 500;
+  color: #1e40af;
+  line-height: 1.7;
 }
 
 .simple-popup-actions {
