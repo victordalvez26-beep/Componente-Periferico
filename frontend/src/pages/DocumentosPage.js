@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import './DocumentosPage.css';
+import SimplePopup from '../components/SimplePopup';
 
 function DocumentosPage() {
   const { tenantId } = useParams();
@@ -46,6 +47,7 @@ function DocumentosPage() {
   const [resumen, setResumen] = useState(null);
   const [loadingResumen, setLoadingResumen] = useState(false);
   const [errorResumen, setErrorResumen] = useState(null);
+  const [popupMessage, setPopupMessage] = useState(null);
 
   // Función helper para detectar errores de MongoDB/base de datos
   const isDatabaseError = (errorMsg) => {
@@ -122,7 +124,7 @@ function DocumentosPage() {
         const backendUrl = process.env.REACT_APP_HCEN_BACKEND_URL || 'http://localhost:8080';
         downloadUrl = `${backendUrl}/hcen/api/metadatos-documento/${documento.id}/descargar`;
       } else {
-        alert('No se puede descargar: el documento no tiene información de descarga disponible.');
+        setPopupMessage('No se puede descargar: el documento no tiene información de descarga disponible.');
         return;
       }
 
@@ -154,21 +156,21 @@ function DocumentosPage() {
         document.body.removeChild(a);
       } else if (response.status === 403) {
         const errorText = await response.text();
-        alert(`No tiene permiso para acceder a este documento. Use el botón "Solicitar Acceso" para solicitar acceso.`);
+        setPopupMessage(`No tiene permiso para acceder a este documento. Use el botón "Solicitar Acceso" para solicitar acceso.`);
       } else if (response.status === 404) {
-        alert(`No se encontró el documento (404). Puede que el documento ya no esté disponible o que la URL sea incorrecta. URL intentada: ${downloadUrl}`);
+        setPopupMessage(`No se encontró el documento (404). Puede que el documento ya no esté disponible o que la URL sea incorrecta. URL intentada: ${downloadUrl}`);
       } else {
         const errorText = await response.text().catch(() => 'Error desconocido');
         const errorMsg = handleDatabaseError(errorText, 'Error al descargar el documento');
-        alert(`Error al descargar el documento (${response.status}): ${errorMsg}`);
+        setPopupMessage(`Error al descargar el documento (${response.status}): ${errorMsg}`);
       }
     } catch (err) {
       const errMsg = err.message || String(err);
       console.error('Error al descargar:', err);
       if (errMsg.includes('Failed to fetch') || errMsg.includes('CORS')) {
-        alert(`Error de conexión: No se pudo conectar al servidor para descargar el documento. Verifique su conexión y que el servidor esté disponible. Error: ${errMsg}`);
+        setPopupMessage(`Error de conexión: No se pudo conectar al servidor para descargar el documento. Verifique su conexión y que el servidor esté disponible. Error: ${errMsg}`);
       } else {
-        alert(`Error al descargar el documento: ${handleDatabaseError(errMsg)}`);
+        setPopupMessage(`Error al descargar el documento: ${handleDatabaseError(errMsg)}`);
       }
     }
   };
@@ -185,42 +187,69 @@ function DocumentosPage() {
     setError(null);
 
     try {
-      // Usar el backend del componente periférico (que hará proxy al backend HCEN Central)
-      const backendBase = process.env.REACT_APP_BACKEND_URL || '';
-      const body = {
-        pacienteCI: solicitarAccesoForm.ciPaciente.trim(),
-        // No enviar documentoId ni tipoDocumento - es para TODOS los documentos del paciente
-        motivo: solicitarAccesoForm.motivo || `Solicitud de acceso a todos los documentos del paciente ${solicitarAccesoForm.ciPaciente.trim()}`
-      };
-
       const token = localStorage.getItem('token');
-      const response = await fetch(`${backendBase}/hcen-web/api/documentos/solicitar-acceso`, {
-        method: 'POST',
-        credentials: 'include',
+      const backendBase = process.env.REACT_APP_BACKEND_URL || '';
+      
+      // Primero verificar si ya tiene acceso consultando los documentos del paciente
+      // Si puede obtener documentos, significa que ya tiene acceso
+      const checkAccessResponse = await fetch(`/hcen-web/api/documentos-pdf/paciente/${solicitarAccesoForm.ciPaciente.trim()}`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
+          'Authorization': `Bearer ${token}`
+        }
       });
 
-      if (response.ok) {
-        alert('Solicitud de acceso enviada exitosamente. El paciente podrá aprobarla desde su perfil en HCEN Central.');
+      // Si la respuesta es OK y tiene documentos, o si es 200 aunque esté vacío pero no es 403, significa que tiene acceso
+      if (checkAccessResponse.ok || checkAccessResponse.status === 200) {
+        const documentos = await checkAccessResponse.json().catch(() => []);
+        // Si puede acceder (no es 403), significa que ya tiene permiso
+        setPopupMessage('Ya tiene acceso a los documentos de este paciente. No es necesario solicitar acceso nuevamente.');
         setShowSolicitarAccesoModal(false);
         setSolicitarAccesoForm({ ciPaciente: '', motivo: '' });
         setError(null);
-      } else {
-        const errorText = await response.text().catch(() => 'Error desconocido');
-        let errorMsg = 'Error desconocido';
-        try {
-          const errorData = JSON.parse(errorText);
-          errorMsg = errorData.error || errorData.detalle || errorText;
-        } catch {
-          errorMsg = errorText.includes('404') || errorText.includes('Not Found') 
-            ? 'El servicio de solicitud de acceso no está disponible en este momento. Contacte al administrador.'
-            : errorText;
+        setLoading(false);
+        return;
+      }
+
+      // Si es 403, significa que NO tiene acceso, proceder con la solicitud
+      if (checkAccessResponse.status === 403) {
+        // No tiene acceso, proceder con la solicitud
+        const body = {
+          pacienteCI: solicitarAccesoForm.ciPaciente.trim(),
+          // No enviar documentoId ni tipoDocumento - es para TODOS los documentos del paciente
+          motivo: solicitarAccesoForm.motivo || `Solicitud de acceso a todos los documentos del paciente ${solicitarAccesoForm.ciPaciente.trim()}`
+        };
+
+        const response = await fetch(`${backendBase}/hcen-web/api/documentos/solicitar-acceso`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+
+        if (response.ok) {
+          setPopupMessage('Solicitud de acceso enviada exitosamente. El paciente podrá aprobarla desde su perfil en HCEN Central.');
+          setShowSolicitarAccesoModal(false);
+          setSolicitarAccesoForm({ ciPaciente: '', motivo: '' });
+          setError(null);
+        } else {
+          const errorText = await response.text().catch(() => 'Error desconocido');
+          let errorMsg = 'Error desconocido';
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMsg = errorData.error || errorData.detalle || errorText;
+          } catch {
+            errorMsg = errorText.includes('404') || errorText.includes('Not Found') 
+              ? 'El servicio de solicitud de acceso no está disponible en este momento. Contacte al administrador.'
+              : errorText;
+          }
+          setError(`Error al enviar solicitud: ${handleDatabaseError(errorMsg)}`);
         }
-        setError(`Error al enviar solicitud: ${handleDatabaseError(errorMsg)}`);
+      } else {
+        // Otro error al verificar acceso
+        setError('Error al verificar el acceso. Intente nuevamente.');
       }
     } catch (err) {
       const errMsg = err.message || String(err);
@@ -263,7 +292,7 @@ function DocumentosPage() {
 
       if (response.ok) {
         const data = await response.json();
-        alert('Documento subido exitosamente');
+        setPopupMessage('Documento subido exitosamente');
         setShowUploadModal(false);
         setUploadForm({
           archivo: null,
@@ -330,7 +359,7 @@ function DocumentosPage() {
 
       if (response.ok) {
         const data = await response.json();
-        alert('Documento creado exitosamente. El contenido se ha convertido automáticamente a PDF.');
+        setPopupMessage('Documento creado exitosamente. El contenido se ha convertido automáticamente a PDF.');
         setShowCreateModal(false);
         setCreateError(null);
         setCreateForm({
@@ -418,6 +447,11 @@ function DocumentosPage() {
     } catch {
       return dateString;
     }
+  };
+
+  const formatTipoDocumento = (tipoDocumento) => {
+    if (!tipoDocumento) return 'N/A';
+    return tipoDocumento.replace(/_/g, ' ');
   };
 
   const renderCreateError = () => {
@@ -580,7 +614,7 @@ function DocumentosPage() {
                 <div style={styles.documentoIcon}>📄</div>
                 <div style={styles.documentoInfo}>
                   <div style={styles.documentoHeader}>
-                    <span style={styles.documentoTipo}>{doc.tipoDocumento || 'CONSULTA_MEDICA'}</span>
+                    <span style={styles.documentoTipo}>{formatTipoDocumento(doc.tipoDocumento || 'CONSULTA_MEDICA')}</span>
                     <span style={styles.documentoFecha}>
                       {formatDate(doc.fechaCreacion)}
                     </span>
@@ -983,6 +1017,12 @@ function DocumentosPage() {
           </div>
         </div>
       )}
+
+      {/* Popup simple para mensajes */}
+      <SimplePopup
+        message={popupMessage}
+        onClose={() => setPopupMessage(null)}
+      />
     </div>
   );
 }

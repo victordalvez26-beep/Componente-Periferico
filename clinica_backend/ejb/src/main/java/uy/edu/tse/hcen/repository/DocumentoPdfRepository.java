@@ -7,6 +7,8 @@ import org.bson.types.Binary;
 import org.bson.types.ObjectId;
 import jakarta.inject.Inject;
 import jakarta.enterprise.context.ApplicationScoped;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 
 /**
  * Repositorio para almacenar documentos PDF en MongoDB.
@@ -64,7 +66,10 @@ public class DocumentoPdfRepository {
         documento.append("pdfBytes", new Binary(pdfBytes));
         documento.append("ciPaciente", ciPaciente);
         documento.append("tenantId", tenantId);
-        documento.append("fechaCreacion", new java.util.Date());
+        // Usar zona horaria de Uruguay para guardar la fecha
+        ZoneId uruguayZone = ZoneId.of("America/Montevideo");
+        ZonedDateTime fechaCreacionUruguay = ZonedDateTime.now(uruguayZone);
+        documento.append("fechaCreacion", java.util.Date.from(fechaCreacionUruguay.toInstant()));
         documento.append("contentType", "application/pdf");
         
         // Metadata adicional

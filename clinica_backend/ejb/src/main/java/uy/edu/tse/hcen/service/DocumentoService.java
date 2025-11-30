@@ -15,6 +15,7 @@ import org.bson.types.Binary;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -147,8 +148,10 @@ public class DocumentoService {
         metadata.setTenantId(String.valueOf(tenantId));
         metadata.setFormato("application/pdf");
         metadata.setTipoDocumento(tipoDocumento != null ? tipoDocumento : "EVALUACION");
-        metadata.setFechaCreacion(LocalDateTime.now());
-        metadata.setFechaRegistro(LocalDateTime.now());
+        // Usar zona horaria de Uruguay explícitamente
+        ZoneId uruguayZone = ZoneId.of("America/Montevideo");
+        metadata.setFechaCreacion(LocalDateTime.now(uruguayZone));
+        metadata.setFechaRegistro(LocalDateTime.now(uruguayZone));
         metadata.setUrlAcceso(urlAcceso);
         metadata.setAutor(autorFinal);
         metadata.setTitulo(tituloFinal);
@@ -177,7 +180,7 @@ public class DocumentoService {
         resultado.put("ciPaciente", ciPaciente);
         resultado.put("urlAcceso", urlAcceso);
         resultado.put("tipoDocumento", tipoDocumento != null ? tipoDocumento : "EVALUACION");
-        resultado.put("fechaCreacion", LocalDateTime.now().toString());
+        resultado.put("fechaCreacion", LocalDateTime.now(uruguayZone).toString());
         resultado.put("sincronizado", true);
 
         return resultado;
@@ -279,8 +282,10 @@ public class DocumentoService {
         metadata.setTenantId(String.valueOf(tenantId));
         metadata.setFormato("application/pdf");
         metadata.setTipoDocumento(tipoDocumento != null ? tipoDocumento : "EVALUACION");
-        metadata.setFechaCreacion(LocalDateTime.now());
-        metadata.setFechaRegistro(LocalDateTime.now());
+        // Usar zona horaria de Uruguay explícitamente
+        ZoneId uruguayZone = ZoneId.of("America/Montevideo");
+        metadata.setFechaCreacion(LocalDateTime.now(uruguayZone));
+        metadata.setFechaRegistro(LocalDateTime.now(uruguayZone));
         metadata.setUrlAcceso(urlAcceso);
         metadata.setAutor(autorFinal);
         metadata.setTitulo(tituloFinal);
@@ -307,7 +312,7 @@ public class DocumentoService {
         resultado.put("ciPaciente", ciPaciente);
         resultado.put("urlAcceso", urlAcceso);
         resultado.put("tipoDocumento", tipoDocumento != null ? tipoDocumento : "EVALUACION");
-        resultado.put("fechaCreacion", LocalDateTime.now().toString());
+        resultado.put("fechaCreacion", LocalDateTime.now(uruguayZone).toString());
         resultado.put("sincronizado", true);
         resultado.put("tieneArchivoAdjunto", archivoAdjuntoBytes != null && archivoAdjuntoBytes.length > 0);
 

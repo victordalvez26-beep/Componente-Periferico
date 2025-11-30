@@ -373,7 +373,24 @@ public class DocumentoClinicoResource {
             docInfo.put("descripcion", doc.getString("descripcion"));
             docInfo.put("titulo", doc.getString("titulo"));
             docInfo.put("autor", doc.getString("autor"));
-            docInfo.put("fechaCreacion", doc.getDate("fechaCreacion"));
+            // Convertir fecha: MongoDB guarda en UTC, pero debemos mostrarla en hora de Uruguay
+            // La fecha guardada representa el instante correcto, pero al serializarse a JSON se interpreta como UTC
+            // Para corregir esto, ajustamos el instante para que cuando se interprete como UTC, 
+            // represente la misma hora local que queremos mostrar en Uruguay
+            java.util.Date fechaUtc = doc.getDate("fechaCreacion");
+            if (fechaUtc != null) {
+                java.time.ZoneId uruguayZone = java.time.ZoneId.of("America/Montevideo");
+                java.time.Instant instant = fechaUtc.toInstant();
+                // Convertir a hora de Uruguay para obtener la hora local correcta
+                java.time.ZonedDateTime fechaUruguay = instant.atZone(uruguayZone);
+                // Ajustar: restar el offset de Uruguay para que cuando se interprete como UTC, muestre la hora correcta
+                // Esto es necesario porque JSON serializa Date como UTC, pero queremos que muestre la hora de Uruguay
+                int offsetSegundos = uruguayZone.getRules().getOffset(instant).getTotalSeconds();
+                java.time.Instant instanteAjustado = instant.minusSeconds(offsetSegundos);
+                docInfo.put("fechaCreacion", java.util.Date.from(instanteAjustado));
+            } else {
+                docInfo.put("fechaCreacion", null);
+            }
 
             // Verificar si tiene PDF
             Binary pdfBinary = doc.get("pdfBytes", Binary.class);

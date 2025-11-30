@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import SimplePopup from '../components/SimplePopup';
 
 function UsuariosPage() {
   const { tenantId } = useParams();
@@ -15,6 +16,7 @@ function UsuariosPage() {
     telefono: '',
     direccion: ''
   });
+  const [popupMessage, setPopupMessage] = useState(null);
 
   useEffect(() => {
     loadUsuarios();
@@ -55,15 +57,15 @@ function UsuariosPage() {
       });
 
       if (res.ok) {
-        alert('Usuario registrado exitosamente en INUS');
+        setPopupMessage('Usuario registrado exitosamente en INUS');
         setShowForm(false);
         setFormData({ci: '', nombre: '', apellido: '', email: '', fechaNacimiento: '', telefono: '', direccion: ''});
         loadUsuarios();
       } else {
-        alert('Error al registrar usuario');
+        setPopupMessage('Error al registrar usuario');
       }
     } catch (err) {
-      alert('Error de conexión');
+      setPopupMessage('Error de conexión');
     } finally {
       setLoading(false);
     }
@@ -222,6 +224,12 @@ function UsuariosPage() {
           </table>
         )}
       </div>
+
+      {/* Popup simple para mensajes */}
+      <SimplePopup
+        message={popupMessage}
+        onClose={() => setPopupMessage(null)}
+      />
     </div>
   );
 }
