@@ -9,6 +9,8 @@ import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -341,7 +343,7 @@ class DocumentoClinicoResourceTest {
     }
 
     @Test
-    void testObtenerContenidoWithException() throws Exception {
+    void testObtenerContenidoWithException() {
         String id = "doc-123";
         TenantContext.setCurrentTenant("101");
         
@@ -375,7 +377,7 @@ class DocumentoClinicoResourceTest {
     }
 
     @Test
-    void testObtenerPdfWithException() throws Exception {
+    void testObtenerPdfWithException() {
         String id = "doc-123";
         Long tenantIdParam = 101L;
         TenantContext.setCurrentTenant("101");
@@ -389,7 +391,7 @@ class DocumentoClinicoResourceTest {
     }
 
     @Test
-    void testObtenerDocumentoWithException() throws Exception {
+    void testObtenerDocumentoWithException() {
         String id = "doc-123";
         TenantContext.setCurrentTenant("101");
         
@@ -412,7 +414,7 @@ class DocumentoClinicoResourceTest {
     }
 
     @Test
-    void testCrearDocumentoCompletoWithException() throws Exception {
+    void testCrearDocumentoCompletoWithException() {
         Map<String, Object> body = new HashMap<>();
         body.put("ciPaciente", "12345678");
         body.put("contenido", "Contenido del documento");
@@ -431,7 +433,7 @@ class DocumentoClinicoResourceTest {
     }
 
     @Test
-    void testCrearDocumentoCompletoWithIllegalArgumentException() throws Exception {
+    void testCrearDocumentoCompletoWithIllegalArgumentException() {
         Map<String, Object> body = new HashMap<>();
         body.put("ciPaciente", "12345678");
         body.put("contenido", "Contenido del documento");
@@ -449,11 +451,25 @@ class DocumentoClinicoResourceTest {
         assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
     }
 
-    @Test
-    void testCrearDocumentoCompletoWithBlankCiPaciente() {
+    @ParameterizedTest
+    @CsvSource({
+        "BLANK_CI, Contenido",
+        "12345678, BLANK_CONTENT",
+        "12345678, NULL_CONTENT"
+    })
+    void testCrearDocumentoCompletoWithInvalidFields(String ciPaciente, String contenido) {
         Map<String, Object> body = new HashMap<>();
-        body.put("ciPaciente", "");
-        body.put("contenido", "Contenido");
+        
+        if ("BLANK_CI".equals(ciPaciente)) {
+            body.put("ciPaciente", "");
+            body.put("contenido", contenido);
+        } else if ("BLANK_CONTENT".equals(contenido)) {
+            body.put("ciPaciente", ciPaciente);
+            body.put("contenido", "");
+        } else if ("NULL_CONTENT".equals(contenido)) {
+            body.put("ciPaciente", ciPaciente);
+            body.put("contenido", null);
+        }
         
         when(securityContext.getUserPrincipal()).thenReturn(principal);
         when(principal.getName()).thenReturn("prof-1");
@@ -533,7 +549,7 @@ class DocumentoClinicoResourceTest {
     }
 
     @Test
-    void testObtenerPdfWithEmptyPdfBytes() throws Exception {
+    void testObtenerPdfWithEmptyPdfBytes() {
         String id = "doc-123";
         TenantContext.setCurrentTenant("101");
         
@@ -545,7 +561,7 @@ class DocumentoClinicoResourceTest {
     }
 
     @Test
-    void testObtenerPdfWithNullPdfBytes() throws Exception {
+    void testObtenerPdfWithNullPdfBytes() {
         String id = "doc-123";
         TenantContext.setCurrentTenant("101");
         
@@ -556,35 +572,6 @@ class DocumentoClinicoResourceTest {
         assertEquals(Response.Status.NOT_FOUND.getStatusCode(), response.getStatus());
     }
 
-    @Test
-    void testCrearDocumentoCompletoWithBlankContenido() {
-        Map<String, Object> body = new HashMap<>();
-        body.put("ciPaciente", "12345678");
-        body.put("contenido", "");
-        
-        when(securityContext.getUserPrincipal()).thenReturn(principal);
-        when(principal.getName()).thenReturn("prof-1");
-        TenantContext.setCurrentTenant("101");
-        
-        Response response = resource.crearDocumentoCompleto(body);
-        
-        assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
-    }
-
-    @Test
-    void testCrearDocumentoCompletoWithNullContenido() {
-        Map<String, Object> body = new HashMap<>();
-        body.put("ciPaciente", "12345678");
-        body.put("contenido", null);
-        
-        when(securityContext.getUserPrincipal()).thenReturn(principal);
-        when(principal.getName()).thenReturn("prof-1");
-        TenantContext.setCurrentTenant("101");
-        
-        Response response = resource.crearDocumentoCompleto(body);
-        
-        assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
-    }
 
     @Test
     void testCrearDocumentoCompletoWithBlankProfesionalId() {
@@ -602,15 +589,19 @@ class DocumentoClinicoResourceTest {
     }
 
     @Test
-    void testCrearDocumentoCompletoConArchivoWithException() throws Exception {
+    void testCrearDocumentoCompletoConArchivoWithException() {
         MultipartFormDataInput input = mock(MultipartFormDataInput.class);
         Map<String, List<InputPart>> formDataMap = new HashMap<>();
         
         InputPart contenidoPart = mock(InputPart.class);
         InputPart ciPart = mock(InputPart.class);
         
-        when(contenidoPart.getBodyAsString()).thenReturn("Contenido");
-        when(ciPart.getBodyAsString()).thenReturn("12345678");
+        try {
+            when(contenidoPart.getBodyAsString()).thenReturn("Contenido");
+            when(ciPart.getBodyAsString()).thenReturn("12345678");
+        } catch (java.io.IOException e) {
+            fail("IOException no esperada: " + e.getMessage());
+        }
         
         formDataMap.put("contenido", Arrays.asList(contenidoPart));
         formDataMap.put("ciPaciente", Arrays.asList(ciPart));
@@ -630,15 +621,19 @@ class DocumentoClinicoResourceTest {
     }
 
     @Test
-    void testCrearDocumentoCompletoConArchivoWithIllegalArgumentException() throws Exception {
+    void testCrearDocumentoCompletoConArchivoWithIllegalArgumentException() {
         MultipartFormDataInput input = mock(MultipartFormDataInput.class);
         Map<String, List<InputPart>> formDataMap = new HashMap<>();
         
         InputPart contenidoPart = mock(InputPart.class);
         InputPart ciPart = mock(InputPart.class);
         
-        when(contenidoPart.getBodyAsString()).thenReturn("Contenido");
-        when(ciPart.getBodyAsString()).thenReturn("12345678");
+        try {
+            when(contenidoPart.getBodyAsString()).thenReturn("Contenido");
+            when(ciPart.getBodyAsString()).thenReturn("12345678");
+        } catch (java.io.IOException e) {
+            fail("IOException no esperada: " + e.getMessage());
+        }
         
         formDataMap.put("contenido", Arrays.asList(contenidoPart));
         formDataMap.put("ciPaciente", Arrays.asList(ciPart));
@@ -658,7 +653,7 @@ class DocumentoClinicoResourceTest {
     }
 
     @Test
-    void testObtenerDocumentoWithArchivoAdjunto() throws Exception {
+    void testObtenerDocumentoWithArchivoAdjunto() {
         String id = "doc-123";
         TenantContext.setCurrentTenant("101");
         
@@ -684,7 +679,7 @@ class DocumentoClinicoResourceTest {
     }
 
     @Test
-    void testObtenerDocumentoWithPdfBytes() throws Exception {
+    void testObtenerDocumentoWithPdfBytes() {
         String id = "doc-123";
         TenantContext.setCurrentTenant("101");
         
@@ -708,7 +703,7 @@ class DocumentoClinicoResourceTest {
     }
 
     @Test
-    void testObtenerDocumentoWithEmptyPdfBytes() throws Exception {
+    void testObtenerDocumentoWithEmptyPdfBytes() {
         String id = "doc-123";
         TenantContext.setCurrentTenant("101");
         
@@ -728,7 +723,7 @@ class DocumentoClinicoResourceTest {
     }
 
     @Test
-    void testObtenerDocumentoWithEmptyArchivoAdjunto() throws Exception {
+    void testObtenerDocumentoWithEmptyArchivoAdjunto() {
         String id = "doc-123";
         TenantContext.setCurrentTenant("101");
         
@@ -1037,8 +1032,12 @@ class DocumentoClinicoResourceTest {
         InputPart ciPart = mock(InputPart.class);
         InputPart archivoPart = mock(InputPart.class);
         
-        when(contenidoPart.getBodyAsString()).thenReturn("Contenido");
-        when(ciPart.getBodyAsString()).thenReturn("12345678");
+        try {
+            when(contenidoPart.getBodyAsString()).thenReturn("Contenido");
+            when(ciPart.getBodyAsString()).thenReturn("12345678");
+        } catch (java.io.IOException e) {
+            fail("IOException no esperada: " + e.getMessage());
+        }
         
         InputStream archivoStream = new java.io.ByteArrayInputStream("archivo content".getBytes());
         when(archivoPart.getBody(InputStream.class, null)).thenReturn(archivoStream);
