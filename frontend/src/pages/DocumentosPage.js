@@ -190,28 +190,175 @@ function DocumentosPage() {
       const token = localStorage.getItem('token');
       const backendBase = process.env.REACT_APP_BACKEND_URL || '';
       
-      // Primero verificar si ya tiene acceso consultando los documentos del paciente
-      // Si puede obtener documentos, significa que ya tiene acceso
+      // Primero verificar si el profesional actual ya tiene políticas de acceso para este paciente
+      // Para esto, necesitamos obtener el profesionalId del token y consultar sus políticas
+      // El token contiene el userUid que puede ser el nickname del profesional
+      
+      // Decodificar el token JWT para obtener el profesionalId (userUid/nickname)
+      let profesionalId = null;
+      try {
+        const tokenParts = token.split('.');
+        if (tokenParts.length === 3) {
+          const payload = JSON.parse(atob(tokenParts[1]));
+          profesionalId = payload.sub || payload.userId || payload.nickname || payload.username;
+          console.log('🔵 [FRONTEND] ProfesionalId extraído del token:', profesionalId);
+        }
+      } catch (e) {
+        console.warn('No se pudo decodificar el token para obtener profesionalId:', e);
+      }
+      
+      if (!profesionalId) {
+        console.error('❌ [FRONTEND] No se pudo obtener profesionalId del token');
+        setError('No se pudo identificar al profesional. Por favor, inicie sesión nuevamente.');
+        setLoading(false);
+        return;
+      }
+      
+      // Si tenemos el profesionalId, verificar si ya tiene políticas o solicitudes de acceso para este paciente
+      if (profesionalId) {
+        const ciPacienteBuscado = solicitarAccesoForm.ciPaciente.trim();
+        let tieneAcceso = false;
+        
+        // 1. Verificar políticas de acceso
+        try {
+          // Usar directamente el servicio de políticas (el proxy está devolviendo 404)
+          const politicasUrl = `/hcen-politicas-service/api/politicas/profesional/${encodeURIComponent(profesionalId)}`;
+          console.log('🔵 [FRONTEND] Llamando directamente a servicio de políticas:', politicasUrl);
+          
+          let politicasResponse = await fetch(politicasUrl, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          console.log('🔵 [FRONTEND] Respuesta de políticas:', politicasResponse.status, politicasResponse.statusText);
+          
+          if (politicasResponse.ok) {
+            const politicas = await politicasResponse.json().catch(() => []);
+            console.log('🔵 [FRONTEND] Políticas recibidas:', Array.isArray(politicas) ? politicas.length : 'no es array', politicas);
+            
+            // Verificar si hay políticas activas para este paciente específico
+            tieneAcceso = Array.isArray(politicas) && politicas.some(politica => {
+              const codDocumPaciente = politica.codDocumPaciente || politica.pacienteCI || politica.codDocum;
+              const esPacienteCorrecto = codDocumPaciente && codDocumPaciente.toString().trim() === ciPacienteBuscado;
+              const esActiva = politica.activa !== false; // Política activa
+              const esProfesionalCorrecto = (politica.profesionalAutorizado === profesionalId || 
+                                            politica.profesionalAutorizado === '*' ||
+                                            !politica.profesionalAutorizado);
+              
+              const tieneAccesoParaEstePaciente = esPacienteCorrecto && esActiva && esProfesionalCorrecto;
+              if (tieneAccesoParaEstePaciente) {
+                console.log('✅ [FRONTEND] Política encontrada para paciente:', ciPacienteBuscado, 'profesional:', profesionalId, politica);
+              }
+              return tieneAccesoParaEstePaciente;
+            });
+            console.log('🔵 [FRONTEND] Tiene acceso por políticas:', tieneAcceso);
+          } else if (politicasResponse.status === 404) {
+            // No hay políticas para este profesional, continuar con verificación de solicitudes
+            console.log('⚠️ [FRONTEND] No se encontraron políticas para el profesional:', profesionalId);
+          } else {
+            console.warn('⚠️ [FRONTEND] Error al obtener políticas:', politicasResponse.status, politicasResponse.statusText);
+          }
+        } catch (e) {
+          console.warn('Error al verificar políticas de acceso:', e);
+        }
+        
+        // 2. Si no tiene políticas o el endpoint devolvió 404, verificar solicitudes existentes (pendientes o aprobadas)
+        if (!tieneAcceso) {
+          try {
+            // El servicio de políticas está en /hcen-politicas-service/api
+            // Intentar primero con el path completo
+            let solicitudesResponse = await fetch(`/hcen-politicas-service/api/solicitudes/profesional/${encodeURIComponent(profesionalId)}`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            // Si falla, intentar sin el /api (puede estar en el contexto)
+            if (!solicitudesResponse.ok && solicitudesResponse.status === 404) {
+              solicitudesResponse = await fetch(`/hcen-politicas-service/solicitudes/profesional/${encodeURIComponent(profesionalId)}`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                }
+              });
+            }
+            
+            if (solicitudesResponse.ok) {
+              const solicitudes = await solicitudesResponse.json().catch(() => []);
+              console.log('🔵 [FRONTEND] Solicitudes recibidas:', Array.isArray(solicitudes) ? solicitudes.length : 'no es array', solicitudes);
+              
+              // Verificar si hay solicitudes (pendientes o aprobadas) para este paciente
+              const tieneSolicitudParaPaciente = Array.isArray(solicitudes) && solicitudes.some(solicitud => {
+                const codDocumPaciente = solicitud.codDocumPaciente || solicitud.pacienteCI;
+                const esPacienteCorrecto = codDocumPaciente && codDocumPaciente.toString().trim() === ciPacienteBuscado;
+                const esSolicitanteCorrecto = (solicitud.solicitanteId === profesionalId);
+                const esPendienteOAprobada = (solicitud.estado === 'PENDIENTE' || solicitud.estado === 'APROBADA');
+                
+                const tieneSolicitud = esPacienteCorrecto && esSolicitanteCorrecto && esPendienteOAprobada;
+                if (tieneSolicitud) {
+                  console.log('✅ [FRONTEND] Solicitud encontrada para paciente:', ciPacienteBuscado, 'profesional:', profesionalId, solicitud);
+                }
+                return tieneSolicitud;
+              });
+              
+              if (tieneSolicitudParaPaciente) {
+                tieneAcceso = true;
+                console.log('✅ [FRONTEND] Tiene acceso por solicitud existente');
+              }
+            } else {
+              console.warn('⚠️ [FRONTEND] Error al obtener solicitudes:', solicitudesResponse.status, solicitudesResponse.statusText);
+            }
+          } catch (e) {
+            console.warn('Error al verificar solicitudes de acceso:', e);
+            // Continuar con la verificación de documentos si falla
+          }
+        }
+        
+        // 3. Si tiene acceso (política o solicitud aprobada), mostrar mensaje y no permitir nueva solicitud
+        if (tieneAcceso) {
+          console.log('🛑 [FRONTEND] BLOQUEANDO solicitud - ya tiene acceso');
+          setPopupMessage('Ya tiene acceso a los documentos de este paciente. No es necesario solicitar acceso nuevamente.');
+          setShowSolicitarAccesoModal(false);
+          setSolicitarAccesoForm({ ciPaciente: '', motivo: '' });
+          setError(null);
+          setLoading(false);
+          return;
+        } else {
+          console.log('✅ [FRONTEND] No tiene acceso, continuando con verificación de documentos');
+        }
+      }
+
+      // Si no se pudo verificar por políticas o no hay políticas, verificar por documentos
       const checkAccessResponse = await fetch(`/hcen-web/api/documentos-pdf/paciente/${solicitarAccesoForm.ciPaciente.trim()}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
 
-      // Si la respuesta es OK y tiene documentos, o si es 200 aunque esté vacío pero no es 403, significa que tiene acceso
-      if (checkAccessResponse.ok || checkAccessResponse.status === 200) {
+      // Si la respuesta es OK (200), verificar que realmente tenga acceso
+      if (checkAccessResponse.ok && checkAccessResponse.status === 200) {
         const documentos = await checkAccessResponse.json().catch(() => []);
-        // Si puede acceder (no es 403), significa que ya tiene permiso
-        setPopupMessage('Ya tiene acceso a los documentos de este paciente. No es necesario solicitar acceso nuevamente.');
-        setShowSolicitarAccesoModal(false);
-        setSolicitarAccesoForm({ ciPaciente: '', motivo: '' });
-        setError(null);
-        setLoading(false);
-        return;
+        
+        // Verificar si hay documentos con acceso permitido para este profesional
+        // Si hay al menos un documento con accesoPermitido: true, significa que ya tiene acceso
+        const tieneAcceso = Array.isArray(documentos) && documentos.length > 0 && 
+                           documentos.some(doc => doc.accesoPermitido === true);
+        
+        if (tieneAcceso) {
+          // El profesional actual SÍ tiene acceso a al menos un documento
+          setPopupMessage('Ya tiene acceso a los documentos de este paciente. No es necesario solicitar acceso nuevamente.');
+          setShowSolicitarAccesoModal(false);
+          setSolicitarAccesoForm({ ciPaciente: '', motivo: '' });
+          setError(null);
+          setLoading(false);
+          return;
+        }
+        // Si no hay documentos con acceso permitido (array vacío o todos con accesoPermitido: false),
+        // continuar con la solicitud (no es un error, simplemente no tiene acceso)
       }
 
-      // Si es 403, significa que NO tiene acceso, proceder con la solicitud
-      if (checkAccessResponse.status === 403) {
+      // Si es 403 o 200 sin acceso, significa que NO tiene acceso, proceder con la solicitud
+      if (checkAccessResponse.status === 403 || (checkAccessResponse.ok && checkAccessResponse.status === 200)) {
         // No tiene acceso, proceder con la solicitud
         const body = {
           pacienteCI: solicitarAccesoForm.ciPaciente.trim(),
@@ -228,6 +375,52 @@ function DocumentosPage() {
           },
           body: JSON.stringify(body)
         });
+        
+        // Si el backend devuelve 409 (CONFLICT), significa que ya existe una política activa
+        if (response.status === 409) {
+          try {
+            const errorData = await response.json();
+            console.log('🛑 [FRONTEND] Respuesta 409 recibida:', errorData);
+            
+            // Extraer solo el mensaje del JSON, asegurándose de que sea un string
+            let mensaje = 'Ya tiene acceso a los documentos de este paciente. No es necesario solicitar acceso nuevamente.';
+            
+            if (errorData && typeof errorData === 'object') {
+              // Si mensaje es un string que contiene JSON, parsearlo
+              if (errorData.mensaje && typeof errorData.mensaje === 'string') {
+                try {
+                  // Intentar parsear el string como JSON (puede ser un JSON serializado)
+                  const parsedMensaje = JSON.parse(errorData.mensaje);
+                  if (parsedMensaje && typeof parsedMensaje === 'object') {
+                    // Si el JSON parseado tiene un campo mensaje o error, usarlo
+                    mensaje = parsedMensaje.mensaje || parsedMensaje.error || errorData.mensaje;
+                  } else {
+                    mensaje = errorData.mensaje;
+                  }
+                } catch (parseError) {
+                  // Si no es JSON, usar el string directamente
+                  mensaje = errorData.mensaje;
+                }
+              } else if (errorData.error && typeof errorData.error === 'string') {
+                mensaje = errorData.error;
+              }
+            } else if (typeof errorData === 'string') {
+              mensaje = errorData;
+            }
+            
+            console.log('🛑 [FRONTEND] Mensaje extraído:', mensaje);
+            setPopupMessage(String(mensaje)); // Asegurar que sea string
+          } catch (e) {
+            console.warn('⚠️ [FRONTEND] Error al parsear respuesta 409:', e);
+            // Si no se puede parsear el JSON, usar mensaje por defecto
+            setPopupMessage('Ya tiene acceso a los documentos de este paciente. No es necesario solicitar acceso nuevamente.');
+          }
+          setShowSolicitarAccesoModal(false);
+          setSolicitarAccesoForm({ ciPaciente: '', motivo: '' });
+          setError(null);
+          setLoading(false);
+          return;
+        }
 
         if (response.ok) {
           setPopupMessage('Solicitud de acceso enviada exitosamente. El paciente podrá aprobarla desde su perfil en HCEN Central.');
@@ -248,7 +441,7 @@ function DocumentosPage() {
           setError(`Error al enviar solicitud: ${handleDatabaseError(errorMsg)}`);
         }
       } else {
-        // Otro error al verificar acceso
+        // Solo mostrar error si hay un error real (no 200, no 403)
         setError('Error al verificar el acceso. Intente nuevamente.');
       }
     } catch (err) {
