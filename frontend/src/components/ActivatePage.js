@@ -101,8 +101,15 @@ function ActivatePage() {
     try {
       // Usar variable de entorno o URL por defecto
       const backendBase = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8081';
+      const activateUrl = `${backendBase}/hcen-web/api/config/activate`;
+      
+      // 🔍 LOG: URL que se está usando
+      console.log('🔍 [ACTIVATE PAGE] Backend URL:', backendBase);
+      console.log('🔍 [ACTIVATE PAGE] Full activate URL:', activateUrl);
+      console.log('🔍 [ACTIVATE PAGE] REACT_APP_BACKEND_URL env:', process.env.REACT_APP_BACKEND_URL);
+      
       // Llamada al backend periférico con TODOS los datos de la clínica
-      const response = await fetch(`${backendBase}/hcen-web/api/config/activate`, {
+      const response = await fetch(activateUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

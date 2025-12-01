@@ -292,7 +292,9 @@ public class ConfigResource {
     @POST
     @Path("/activate")
     public Response activate(ActivationRequest req) {
-        LOG.infof("Received complete registration request for tenant: %s", req.tenantId);
+        LOG.infof("🔍 [ACTIVATE ENDPOINT] Received complete registration request for tenant: %s", req.tenantId);
+        LOG.infof("🔍 [ACTIVATE ENDPOINT] Request data - RUT: %s, Departamento: %s, Localidad: %s, Direccion: %s, Username: %s", 
+                  req.rut, req.departamento, req.localidad, req.direccion, req.username);
         
         try {
             // Validar datos requeridos básicos
