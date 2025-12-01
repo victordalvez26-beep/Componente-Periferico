@@ -163,17 +163,18 @@ public class HcenClient {
         
         // Reintentar con nuevo token
         String newToken = getServiceToken();
-        if (newToken != null) {
-            Builder retryBuilder = client.target(centralUrl)
-                    .request(MediaType.APPLICATION_JSON)
-                    .header(HEADER_AUTHORIZATION, BEARER_PREFIX + newToken);
-            try (Response retryResponse = retryBuilder.post(Entity.json(payload))) {
-                int retryStatus = retryResponse.getStatus();
-                if (retryStatus != 200 && retryStatus != 201 && retryStatus != 202) {
-                    String errorMsg = retryResponse.hasEntity() ? retryResponse.readEntity(String.class) : ERROR_UNKNOWN;
-                    throw new HcenUnavailableException(
-                        String.format(ERROR_MSG_REGISTRAR_METADATOS, retryStatus, errorMsg));
-                }
+        if (newToken == null) {
+            throw new HcenUnavailableException("No se pudo obtener un nuevo token de servicio");
+        }
+        Builder retryBuilder = client.target(centralUrl)
+                .request(MediaType.APPLICATION_JSON)
+                .header(HEADER_AUTHORIZATION, BEARER_PREFIX + newToken);
+        try (Response retryResponse = retryBuilder.post(Entity.json(payload))) {
+            int retryStatus = retryResponse.getStatus();
+            if (retryStatus != 200 && retryStatus != 201 && retryStatus != 202) {
+                String errorMsg = retryResponse.hasEntity() ? retryResponse.readEntity(String.class) : ERROR_UNKNOWN;
+                throw new HcenUnavailableException(
+                    String.format(ERROR_MSG_REGISTRAR_METADATOS, retryStatus, errorMsg));
             }
         }
     }
@@ -299,6 +300,13 @@ public class HcenClient {
                         new Object[]{metadatos.size(), ciPaciente});
             }
             return metadatos;
+        } else if (status == 404) {
+            // 404 significa que no hay metadatos para ese paciente, no un error del servicio
+            if (LOG.isLoggable(java.util.logging.Level.INFO)) {
+                LOG.log(java.util.logging.Level.INFO, 
+                        "No se encontraron metadatos para CI: {0} (404)", ciPaciente);
+            }
+            return new java.util.ArrayList<>();
         } else {
             String errorMsg = response.hasEntity() ? response.readEntity(String.class) : ERROR_UNKNOWN;
             throw new HcenUnavailableException(

@@ -56,13 +56,13 @@ public class UsuarioSaludResource {
                 .build();
                 
         } catch (IllegalArgumentException e) {
-            LOGGER.warn("Error de validación: " + e.getMessage());
+            LOGGER.warnf("Error de validación: %s", e.getMessage());
             return Response.status(Response.Status.BAD_REQUEST)
                 .entity(new ErrorResponse(e.getMessage()))
                 .build();
                 
         } catch (Exception e) {
-            LOGGER.error("Error al crear usuario de salud: " + e.getMessage(), e);
+            LOGGER.errorf(e, "Error al crear usuario de salud: %s", e.getMessage());
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                 .entity(new ErrorResponse("Error interno al crear paciente: " + e.getMessage()))
                 .build();
@@ -180,6 +180,7 @@ public class UsuarioSaludResource {
         usuario.setCi(dto.getCi());
         usuario.setNombre(dto.getNombre());
         usuario.setApellido(dto.getApellido());
+        // fechaNacimiento puede ser null si no se proporciona - se maneja automáticamente por el deserializador
         usuario.setFechaNacimiento(dto.getFechaNacimiento());
         usuario.setDireccion(dto.getDireccion());
         usuario.setTelefono(dto.getTelefono());

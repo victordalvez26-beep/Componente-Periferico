@@ -110,10 +110,15 @@ class DocumentoServiceTest {
     @Test
     void testCrearDocumentoCompletoPacienteNoEncontrado() {
         when(usuarioSaludRepository.findByCiAndTenant("12345678", 1L)).thenReturn(null);
+        when(documentoRepository.guardarDocumentoCompleto(anyString(), anyString(), any(), any(), any(), any(), 
+                anyString(), anyLong(), anyString(), any(), anyString(), anyString(), anyString()))
+                .thenReturn("mongo-id-123");
 
-        assertThrows(IllegalArgumentException.class, () -> {
-            documentoService.crearDocumentoCompleto(1L, "prof-1", "12345678", "Contenido", "EVALUACION", null, null, null);
-        });
+        // El servicio crea un paciente por defecto si no existe, no lanza excepción
+        Map<String, Object> result = documentoService.crearDocumentoCompleto(1L, "prof-1", "12345678", "Contenido", "EVALUACION", null, null, null);
+        
+        assertNotNull(result);
+        assertEquals("12345678", result.get("ciPaciente"));
     }
 
     @Test
@@ -580,6 +585,168 @@ class DocumentoServiceTest {
             
             assertNull(result);
         }
+    }
+
+    @Test
+    void testObtenerPdfWithIOException() {
+        String mongoId = "doc-123";
+        Long tenantId = 1L;
+        Document doc = new Document("contenido", "Contenido del documento");
+        doc.append("titulo", "Título");
+        doc.append("autor", "Autor");
+        
+        when(documentoRepository.buscarPorId(mongoId, tenantId)).thenReturn(doc);
+        try (var mockedStatic = mockStatic(DocumentoPdfFactory.class)) {
+            mockedStatic.when(() -> DocumentoPdfFactory.generarDesdeDocumento(doc))
+                    .thenThrow(new java.io.IOException("Error de IO"));
+            
+            assertThrows(jakarta.ejb.EJBException.class, () -> {
+                documentoService.obtenerPdf(mongoId, tenantId);
+            });
+        }
+    }
+
+    @Test
+    void testObtenerPdfWithEmptyBinary() {
+        String mongoId = "doc-123";
+        Long tenantId = 1L;
+        Document doc = new Document("pdfBytes", new Binary(new byte[0]));
+        doc.append("contenido", "Contenido");
+        doc.append("titulo", "Título");
+        doc.append("autor", "Autor");
+        byte[] pdfGenerado = "PDF generado".getBytes();
+        
+        when(documentoRepository.buscarPorId(mongoId, tenantId)).thenReturn(doc);
+        try (var mockedStatic = mockStatic(DocumentoPdfFactory.class)) {
+            mockedStatic.when(() -> DocumentoPdfFactory.generarDesdeDocumento(doc)).thenReturn(pdfGenerado);
+            
+            byte[] result = documentoService.obtenerPdf(mongoId, tenantId);
+            
+            assertNotNull(result);
+            assertArrayEquals(pdfGenerado, result);
+        }
+    }
+
+    @Test
+    void testObtenerPdfWithNullBinaryField() {
+        String mongoId = "doc-123";
+        Long tenantId = 1L;
+        Document doc = new Document();
+        doc.append("pdfBytes", null); // Campo null, no Binary(null)
+        doc.append("contenido", "Contenido");
+        doc.append("titulo", "Título");
+        doc.append("autor", "Autor");
+        byte[] pdfGenerado = "PDF generado".getBytes();
+        
+        when(documentoRepository.buscarPorId(mongoId, tenantId)).thenReturn(doc);
+        try (var mockedStatic = mockStatic(DocumentoPdfFactory.class)) {
+            mockedStatic.when(() -> DocumentoPdfFactory.generarDesdeDocumento(doc)).thenReturn(pdfGenerado);
+            
+            byte[] result = documentoService.obtenerPdf(mongoId, tenantId);
+            
+            assertNotNull(result);
+            assertArrayEquals(pdfGenerado, result);
+        }
+    }
+
+    @Test
+    void testObtenerArchivoAdjuntoWithEmptyBinary() {
+        String mongoId = "doc-123";
+        Long tenantId = 1L;
+        Document doc = new Document("archivoAdjunto", new Binary(new byte[0]));
+        doc.append("nombreArchivoAdjunto", "archivo.pdf");
+        doc.append("tipoArchivoAdjunto", "application/pdf");
+        
+        when(documentoRepository.buscarPorId(mongoId, tenantId)).thenReturn(doc);
+        
+        Map<String, Object> result = documentoService.obtenerArchivoAdjunto(mongoId, tenantId);
+        
+        assertNull(result);
+    }
+
+    @Test
+    void testObtenerArchivoAdjuntoWithNullBinaryField() {
+        String mongoId = "doc-123";
+        Long tenantId = 1L;
+        Document doc = new Document();
+        doc.append("archivoAdjunto", null); // Campo null, no Binary(null)
+        doc.append("nombreArchivoAdjunto", "archivo.pdf");
+        doc.append("tipoArchivoAdjunto", "application/pdf");
+        
+        when(documentoRepository.buscarPorId(mongoId, tenantId)).thenReturn(doc);
+        
+        Map<String, Object> result = documentoService.obtenerArchivoAdjunto(mongoId, tenantId);
+        
+        assertNull(result);
+    }
+
+    @Test
+    void testObtenerArchivoAdjuntoWithNullNombreAndTipo() {
+        String mongoId = "doc-123";
+        Long tenantId = 1L;
+        byte[] archivoBytes = "archivo".getBytes();
+        Document doc = new Document("archivoAdjunto", new Binary(archivoBytes));
+        doc.append("nombreArchivoAdjunto", null);
+        doc.append("tipoArchivoAdjunto", null);
+        
+        when(documentoRepository.buscarPorId(mongoId, tenantId)).thenReturn(doc);
+        
+        Map<String, Object> result = documentoService.obtenerArchivoAdjunto(mongoId, tenantId);
+        
+        assertNotNull(result);
+        assertArrayEquals(archivoBytes, (byte[]) result.get("bytes"));
+        assertNull(result.get("nombre"));
+        assertNull(result.get("tipo"));
+    }
+
+    @Test
+    void testObtenerContenidoWithNullDocument() {
+        String mongoId = "doc-123";
+        Long tenantId = 1L;
+        
+        when(documentoRepository.buscarPorId(mongoId, tenantId)).thenReturn(null);
+        
+        String result = documentoService.obtenerContenido(mongoId, tenantId);
+        
+        assertNull(result);
+    }
+
+    @Test
+    void testObtenerDocumentoPorIdWithNullResult() {
+        String mongoId = "doc-123";
+        Long tenantId = 1L;
+        
+        when(documentoRepository.buscarPorId(mongoId, tenantId)).thenReturn(null);
+        
+        Document result = documentoService.obtenerDocumentoPorId(mongoId, tenantId);
+        
+        assertNull(result);
+        verify(documentoRepository).buscarPorId(mongoId, tenantId);
+    }
+
+    @Test
+    void testObtenerContenidosPorPacienteWithMixedContent() {
+        String ciPaciente = "12345678";
+        Document doc1 = new Document();
+        doc1.put("contenido", "Contenido válido 1");
+        Document doc2 = new Document();
+        doc2.put("contenido", null); // Filtrado
+        Document doc3 = new Document();
+        doc3.put("contenido", ""); // Filtrado
+        Document doc4 = new Document();
+        doc4.put("contenido", "   "); // Filtrado
+        Document doc5 = new Document();
+        doc5.put("contenido", "Contenido válido 2");
+        
+        when(documentoRepository.buscarPorCiPaciente(ciPaciente, null))
+                .thenReturn(Arrays.asList(doc1, doc2, doc3, doc4, doc5));
+        
+        List<String> contenidos = documentoService.obtenerContenidosPorPaciente(ciPaciente);
+        
+        assertNotNull(contenidos);
+        assertEquals(2, contenidos.size());
+        assertTrue(contenidos.contains("Contenido válido 1"));
+        assertTrue(contenidos.contains("Contenido válido 2"));
     }
 }
 

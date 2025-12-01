@@ -506,15 +506,11 @@ class StatsServiceTest {
         List<Map<String, Object>> actividades = statsService.obtenerActividadReciente(tenantId, limite);
 
         assertNotNull(actividades);
-        // Verificar que se ordenaron correctamente (fecha3 > fecha2 > fecha1)
-        // Las fechas vienen como String desde el servicio
-        if (actividades.size() >= 3) {
-            String fechaAct1 = (String) actividades.get(0).get("fecha");
-            String fechaAct2 = (String) actividades.get(1).get("fecha");
-            if (fechaAct1 != null && fechaAct2 != null) {
-                // Comparar strings de fecha (deben estar en formato ordenable)
-                assertTrue(fechaAct1.compareTo(fechaAct2) >= 0 || fechaAct2.compareTo(fechaAct1) <= 0);
-            }
+        // Verificar que hay actividades retornadas
+        assertTrue(actividades.size() > 0, "Debe haber actividades retornadas");
+        // Verificar que todas las actividades tienen fecha
+        for (Map<String, Object> actividad : actividades) {
+            assertNotNull(actividad.get("fecha"), "Cada actividad debe tener una fecha");
         }
     }
 
@@ -1086,15 +1082,11 @@ class StatsServiceTest {
         List<Map<String, Object>> actividades = statsService.obtenerActividadReciente(tenantId, limite);
 
         assertNotNull(actividades);
-        // Verificar que se ordenaron correctamente (más reciente primero)
-        // Las fechas vienen como String desde el servicio
-        if (actividades.size() >= 2) {
-            String fecha1 = (String) actividades.get(0).get("fecha");
-            String fecha2 = (String) actividades.get(1).get("fecha");
-            if (fecha1 != null && fecha2 != null) {
-                // Comparar strings de fecha (deben estar en formato ordenable)
-                assertTrue(fecha1.compareTo(fecha2) >= 0 || fecha2.compareTo(fecha1) <= 0);
-            }
+        // Verificar que hay actividades retornadas
+        assertTrue(actividades.size() > 0, "Debe haber actividades retornadas");
+        // Verificar que todas las actividades tienen fecha
+        for (Map<String, Object> actividad : actividades) {
+            assertNotNull(actividad.get("fecha"), "Cada actividad debe tener una fecha");
         }
     }
 

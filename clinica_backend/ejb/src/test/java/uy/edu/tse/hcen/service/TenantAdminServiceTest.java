@@ -350,7 +350,7 @@ class TenantAdminServiceTest {
         String colorPrimario = "#007bff";
         String nombrePortal = "Clínica Test";
 
-        when(connection.createStatement()).thenThrow(new SQLException("DB error"));
+        when(dataSource.getConnection()).thenThrow(new SQLException("DB error"));
 
         assertThrows(SQLException.class, () -> {
             tenantAdminService.createTenantSchema(tenantSchema, colorPrimario, nombrePortal);

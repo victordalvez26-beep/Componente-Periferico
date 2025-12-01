@@ -538,7 +538,7 @@ class HcenClientTest {
     }
 
     @Test
-    void testHandleTokenRejectionWithNullToken() throws HcenUnavailableException {
+    void testHandleTokenRejectionWithNullToken() {
         DTMetadatos dto = new DTMetadatos();
         dto.setDocumentoId("doc-123");
         
@@ -548,8 +548,8 @@ class HcenClientTest {
             
             Client client = mock(Client.class);
             
-            // No debe lanzar excepción si el token es null
-            assertDoesNotThrow(() -> {
+            // Debe lanzar excepción si no se puede obtener un nuevo token
+            assertThrows(HcenUnavailableException.class, () -> {
                 hcenClient.handleTokenRejection(client, "http://test.com", dto);
             });
         }
