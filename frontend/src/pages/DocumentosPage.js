@@ -488,6 +488,26 @@ function DocumentosPage() {
     }
   };
 
+  const verificarPacienteExiste = async (ciPaciente) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/hcen-web/api/clinica/${tenantId}/usuarios-salud`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const usuarios = await response.json();
+        return Array.isArray(usuarios) && usuarios.some(usuario => usuario.ci === ciPaciente);
+      }
+      return false;
+    } catch (err) {
+      // Si hay error al verificar, permitir continuar y dejar que el backend valide
+      return true;
+    }
+  };
+
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
 
@@ -498,8 +518,17 @@ function DocumentosPage() {
 
     setLoading(true);
     setError(null);
+    setCreateError(null);
 
     try {
+      // Verificar que el paciente existe antes de crear el documento
+      const pacienteExiste = await verificarPacienteExiste(createForm.ciPaciente.trim());
+      if (!pacienteExiste) {
+        setCreateError(`Paciente no encontrado en esta clínica: ${createForm.ciPaciente.trim()}. Por favor, registre al paciente antes de crear documentos.`);
+        setLoading(false);
+        return;
+      }
+
       const token = localStorage.getItem('token');
       const body = {
         ciPaciente: createForm.ciPaciente,
