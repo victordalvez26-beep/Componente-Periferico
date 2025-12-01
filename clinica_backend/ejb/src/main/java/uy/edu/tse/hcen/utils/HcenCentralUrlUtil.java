@@ -16,6 +16,13 @@ public class HcenCentralUrlUtil {
     private static final Logger LOG = Logger.getLogger(HcenCentralUrlUtil.class.getName());
     
     /**
+     * Constructor privado para evitar instanciación de esta clase utilitaria.
+     */
+    private HcenCentralUrlUtil() {
+        throw new UnsupportedOperationException("Esta es una clase utilitaria y no debe ser instanciada");
+    }
+    
+    /**
      * Nombre de la variable de entorno para la URL base del HCEN Central.
      */
     private static final String ENV_HCEN_CENTRAL_BASE_URL = "HCEN_CENTRAL_BASE_URL";
@@ -26,6 +33,37 @@ public class HcenCentralUrlUtil {
     private static final String DEFAULT_HCEN_CENTRAL_BASE_URL = "http://hcen-backend:8080/hcen";
     
     /**
+     * Remueve el trailing slash de una URL si existe.
+     * 
+     * @param url URL a procesar
+     * @return URL sin trailing slash
+     */
+    private static String removerTrailingSlash(String url) {
+        if (url != null && url.endsWith("/")) {
+            return url.substring(0, url.length() - 1);
+        }
+        return url;
+    }
+    
+    /**
+     * Normaliza y valida una URL desde variable de entorno o propiedad del sistema.
+     * 
+     * @param urlValue Valor de la URL a procesar
+     * @param sourceOrigen Origen de la URL (para logging)
+     * @return URL normalizada o null si está vacía
+     */
+    private static String normalizarUrl(String urlValue, String sourceOrigen) {
+        if (urlValue != null && !urlValue.trim().isEmpty()) {
+            String url = removerTrailingSlash(urlValue.trim());
+            if (LOG.isLoggable(java.util.logging.Level.INFO)) {
+                LOG.info(String.format("Usando HCEN_CENTRAL_BASE_URL desde %s: %s", sourceOrigen, url));
+            }
+            return url;
+        }
+        return null;
+    }
+    
+    /**
      * Obtiene la URL base del backend HCEN Central.
      * 
      * @return URL base del HCEN Central (sin trailing slash)
@@ -33,30 +71,22 @@ public class HcenCentralUrlUtil {
     public static String getBaseUrl() {
         // Primero verificar variable de entorno
         String envUrl = System.getenv(ENV_HCEN_CENTRAL_BASE_URL);
-        if (envUrl != null && !envUrl.trim().isEmpty()) {
-            String url = envUrl.trim();
-            // Remover trailing slash si existe
-            if (url.endsWith("/")) {
-                url = url.substring(0, url.length() - 1);
-            }
-            LOG.info("Usando HCEN_CENTRAL_BASE_URL desde variable de entorno: " + url);
+        String url = normalizarUrl(envUrl, "variable de entorno");
+        if (url != null) {
             return url;
         }
         
         // Segundo verificar propiedad del sistema
         String propUrl = System.getProperty(ENV_HCEN_CENTRAL_BASE_URL);
-        if (propUrl != null && !propUrl.trim().isEmpty()) {
-            String url = propUrl.trim();
-            // Remover trailing slash si existe
-            if (url.endsWith("/")) {
-                url = url.substring(0, url.length() - 1);
-            }
-            LOG.info("Usando HCEN_CENTRAL_BASE_URL desde propiedad del sistema: " + url);
+        url = normalizarUrl(propUrl, "propiedad del sistema");
+        if (url != null) {
             return url;
         }
         
         // Usar valor por defecto
-        LOG.fine("Usando URL por defecto del HCEN Central: " + DEFAULT_HCEN_CENTRAL_BASE_URL);
+        if (LOG.isLoggable(java.util.logging.Level.FINE)) {
+            LOG.fine(String.format("Usando URL por defecto del HCEN Central: %s", DEFAULT_HCEN_CENTRAL_BASE_URL));
+        }
         return DEFAULT_HCEN_CENTRAL_BASE_URL;
     }
     
@@ -71,6 +101,23 @@ public class HcenCentralUrlUtil {
     }
     
     /**
+     * Normaliza un path asegurando que empiece con /.
+     * 
+     * @param path Path a normalizar
+     * @return Path normalizado o cadena vacía si es null
+     */
+    private static String normalizarPath(String path) {
+        if (path == null || path.isEmpty()) {
+            return "";
+        }
+        // Asegurar que el path empiece con /
+        if (!path.startsWith("/")) {
+            return "/" + path;
+        }
+        return path;
+    }
+    
+    /**
      * Construye una URL completa agregando un path al base URL.
      * 
      * @param path Path a agregar (debe empezar con /)
@@ -78,14 +125,11 @@ public class HcenCentralUrlUtil {
      */
     public static String buildUrl(String path) {
         String baseUrl = getBaseUrl();
-        if (path == null || path.isEmpty()) {
+        String normalizedPath = normalizarPath(path);
+        if (normalizedPath.isEmpty()) {
             return baseUrl;
         }
-        // Asegurar que el path empiece con /
-        if (!path.startsWith("/")) {
-            path = "/" + path;
-        }
-        return baseUrl + path;
+        return baseUrl + normalizedPath;
     }
     
     /**
@@ -96,14 +140,11 @@ public class HcenCentralUrlUtil {
      */
     public static String buildApiUrl(String path) {
         String apiBaseUrl = getApiBaseUrl();
-        if (path == null || path.isEmpty()) {
+        String normalizedPath = normalizarPath(path);
+        if (normalizedPath.isEmpty()) {
             return apiBaseUrl;
         }
-        // Asegurar que el path empiece con /
-        if (!path.startsWith("/")) {
-            path = "/" + path;
-        }
-        return apiBaseUrl + path;
+        return apiBaseUrl + normalizedPath;
     }
 }
 

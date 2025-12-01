@@ -33,10 +33,10 @@ public class PortalConfiguracionResource {
         
         // Mapeo Entidad a DTO para la respuesta
         ConfiguracionPortalDTO dto = new ConfiguracionPortalDTO();
-        dto.colorPrimario = config.getColorPrimario();
-        dto.colorSecundario = config.getColorSecundario();
-        dto.logoUrl = config.getLogoUrl();
-        dto.nombrePortal = config.getNombrePortal();
+        dto.setColorPrimario(config.getColorPrimario());
+        dto.setColorSecundario(config.getColorSecundario());
+        dto.setLogoUrl(config.getLogoUrl());
+        dto.setNombrePortal(config.getNombrePortal());
         
         return dto;
     }

@@ -48,8 +48,10 @@ public final class DocumentoPdfFactory {
         }
 
         String ciPaciente = documento.getString("ciPaciente");
-        LOGGER.fine(String.format("Generando PDF on-demand. Título: %s, Autor: %s, Paciente: %s",
-                titulo, autor, ciPaciente));
+        if (LOGGER.isLoggable(java.util.logging.Level.FINE)) {
+            LOGGER.fine(String.format("Generando PDF on-demand. Título: %s, Autor: %s, Paciente: %s",
+                    titulo, autor, ciPaciente));
+        }
 
         return PdfGenerator.textoAPdf(contenido, titulo, autor, ciPaciente);
     }

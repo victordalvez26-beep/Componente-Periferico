@@ -30,9 +30,7 @@ public class SchemaMultiTenantProvider implements MultiTenantConnectionProvider<
         // If resource injection did not occur yet (Hibernate instantiates this class),
         // perform a one-time JNDI lookup and cache the DataSource reference.
         initializeDataSourceIfNeeded();
-        Connection c = dataSource.getConnection();
-        
-        return c;
+        return dataSource.getConnection();
     }
 
     private synchronized void initializeDataSourceIfNeeded() throws SQLException {
@@ -51,6 +49,18 @@ public class SchemaMultiTenantProvider implements MultiTenantConnectionProvider<
         connection.close();
     }
 
+    private void establecerSearchPath(Connection connection, String schemaName) throws SQLException {
+        try (java.sql.Statement stmt = connection.createStatement()) {
+            // Establecer search_path al esquema del tenant, con public como fallback
+            String sql = "SET search_path TO " + schemaName + ", public";
+            LOG.debugf("Setting search_path to: %s", schemaName);
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            LOG.warnf("Error setting search_path to %s: %s", schemaName, e.getMessage());
+            // Continuar con la conexión aunque falle el set (puede que el esquema no exista)
+        }
+    }
+
     @Override
     public Connection getConnection(Object tenantIdentifierObj) throws SQLException {
         // Use the TenantContext (populated by application/login/filter) to build
@@ -64,21 +74,16 @@ public class SchemaMultiTenantProvider implements MultiTenantConnectionProvider<
                 String schemaName = tenantIdentifierObj.toString();
                 // Tratar cadenas vacías o blanks como ausencia de tenant (comportamiento esperado por tests)
                 if (!schemaName.isBlank() && !schemaName.equals("public")) {
-                    try (java.sql.Statement stmt = connection.createStatement()) {
-                        // Establecer search_path al esquema del tenant, con public como fallback
-                        String sql = "SET search_path TO " + schemaName + ", public";
-                        LOG.debugf("Setting search_path to: %s", schemaName);
-                        stmt.execute(sql);
-                    } catch (SQLException e) {
-                        LOG.warnf("Error setting search_path to %s: %s", schemaName, e.getMessage());
-                        // Continuar con la conexión aunque falle el set (puede que el esquema no exista)
-                    }
+                    establecerSearchPath(connection, schemaName);
                 }
             }
             
             return connection;
         } catch (final SQLException e) {
-            throw new HibernateException("Error trying to obtain connection", e);
+            String errorMsg = "Error trying to obtain connection for tenant: " + 
+                (tenantIdentifierObj != null ? tenantIdentifierObj.toString() : "null");
+            LOG.errorf(errorMsg, e);
+            throw new HibernateException(errorMsg, e);
         }
     }
 
