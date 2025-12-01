@@ -98,7 +98,6 @@ function ProfesionalesPage() {
     } catch (err) {
       const errMsg = err.message || String(err);
       showMessage('error', handleDatabaseError(errMsg, 'Error de conexión al cargar profesionales'));
-      console.error('Error:', err);
     } finally {
       setLoading(false);
     }
@@ -141,7 +140,6 @@ function ProfesionalesPage() {
     } catch (err) {
       const errMsg = err.message || String(err);
       showMessage('error', handleDatabaseError(errMsg, 'Error de conexión al guardar'));
-      console.error('Error:', err);
     } finally {
       setLoading(false);
     }
@@ -182,7 +180,6 @@ function ProfesionalesPage() {
     } catch (err) {
       const errMsg = err.message || String(err);
       showMessage('error', handleDatabaseError(errMsg, 'Error de conexión al eliminar'));
-      console.error('Error:', err);
     }
   };
 

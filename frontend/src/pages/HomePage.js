@@ -234,14 +234,15 @@ function HomePage() {
           ) : actividades.length === 0 ? (
             <div style={styles.emptyText}>No hay actividad reciente</div>
           ) : (
-            actividades.map((actividad, index) => (
-              <div key={index} style={styles.activityItem}>
+            actividades.map((actividad) => (
+              <div key={`actividad-${actividad.fecha}-${actividad.texto?.substring(0, 20)}`} style={styles.activityItem}>
                 <div style={styles.activityIcon}>•</div>
                 <div>
                   <div 
                     style={styles.activityText}
-                    dangerouslySetInnerHTML={{ __html: actividad.texto }}
-                  />
+                  >
+                    {actividad.texto}
+                  </div>
                   <div style={styles.activityTime}>
                     {formatRelativeTime(actividad.fecha)}
                   </div>
