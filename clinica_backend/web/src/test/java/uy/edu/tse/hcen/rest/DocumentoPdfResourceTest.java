@@ -20,7 +20,6 @@ import uy.edu.tse.hcen.multitenancy.TenantContext;
 import uy.edu.tse.hcen.repository.ProfesionalSaludRepository;
 import uy.edu.tse.hcen.service.DocumentoPdfService;
 import uy.edu.tse.hcen.service.HcenClient;
-import uy.edu.tse.hcen.service.ProfesionalSaludService;
 
 import java.io.InputStream;
 import java.security.Principal;
@@ -36,9 +35,6 @@ class DocumentoPdfResourceTest {
 
     @Mock
     private DocumentoPdfService documentoPdfService;
-
-    @Mock
-    private ProfesionalSaludService profesionalSaludService;
 
     @Mock
     private PoliticasAccesoClient politicasAccesoClient;
@@ -65,13 +61,9 @@ class DocumentoPdfResourceTest {
         TenantContext.setCurrentTenant("101");
         
         try {
-            java.lang.reflect.Field field = DocumentoPdfResource.class.getDeclaredField("documentoPdfService");
+            java.lang.reflect.Field             field = DocumentoPdfResource.class.getDeclaredField("documentoPdfService");
             field.setAccessible(true);
             field.set(resource, documentoPdfService);
-            
-            field = DocumentoPdfResource.class.getDeclaredField("profesionalSaludService");
-            field.setAccessible(true);
-            field.set(resource, profesionalSaludService);
             
             field = DocumentoPdfResource.class.getDeclaredField("politicasAccesoClient");
             field.setAccessible(true);
