@@ -2,6 +2,7 @@ package uy.edu.tse.hcen.service;
 
 import uy.edu.tse.hcen.dto.DTMetadatos;
 import uy.edu.tse.hcen.utils.ServiceAuthUtil;
+import uy.edu.tse.hcen.utils.HcenCentralUrlUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.ws.rs.ProcessingException;
 import uy.edu.tse.hcen.exceptions.HcenUnavailableException;
@@ -26,14 +27,8 @@ public class HcenClient {
 
     private static final Logger LOG = Logger.getLogger(HcenClient.class.getName());
 
-        // The HCEN central endpoint can be overridden via the HCEN_CENTRAL_URL environment variable
-        // URL correcta: /api (ApplicationPath) + /metadatos-documento (Path del recurso)
-        // Usar nombre del servicio Docker para comunicación entre contenedores
-        private static final String DEFAULT_CENTRAL_URL = "http://hcen-backend:8080/api/metadatos-documento";
-    
-    // URL para obtener token de servicio
-    // Usar nombre del servicio Docker para comunicación entre contenedores
-    private static final String DEFAULT_SERVICE_AUTH_URL = "http://hcen-backend:8080/api/service-auth/token";
+        // Constantes para endpoints específicos (se construyen desde la URL base)
+        // La URL base se obtiene de HcenCentralUrlUtil que lee HCEN_CENTRAL_BASE_URL
     
     // Cache del token de servicio (para evitar obtener uno nuevo en cada llamada)
     private String cachedServiceToken = null;
@@ -44,7 +39,6 @@ public class HcenClient {
     private static final String SERVICE_NAME = "Componente Periférico HCEN";
     
     // Constantes para evitar duplicación de literales
-    private static final String ENV_HCEN_CENTRAL_URL = "HCEN_CENTRAL_URL";
     private static final String HEADER_AUTHORIZATION = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String ERROR_UNKNOWN = "Unknown error";
@@ -56,7 +50,7 @@ public class HcenClient {
      * 
      * @return Token JWT de servicio o null si no se pudo obtener
      */
-    public String getServiceToken() {
+    private String getServiceToken() {
         // Verificar si el token cacheado sigue siendo válido (con margen de 5 minutos)
         long now = System.currentTimeMillis();
         if (cachedServiceToken != null && tokenExpiryTime > now + (5 * 60 * 1000)) {
@@ -64,6 +58,7 @@ public class HcenClient {
         }
         
         // Generar token localmente (más eficiente que llamar al endpoint)
+        // TODO: esto debería usar el secret compartido
         try {
             cachedServiceToken = ServiceAuthUtil.generateServiceToken(SERVICE_ID, SERVICE_NAME);
             // Tokens de servicio duran 24 horas
@@ -71,7 +66,7 @@ public class HcenClient {
             LOG.fine("Token de servicio generado localmente");
             return cachedServiceToken;
         } catch (Exception e) {
-            LOG.log(java.util.logging.Level.WARNING, "Error generando token de servicio localmente, intentando obtener desde endpoint: {0}", e.getMessage());
+            LOG.warning(String.format("Error generando token de servicio localmente, intentando obtener desde endpoint: %s", e.getMessage()));
             
             // Fallback: intentar obtener desde endpoint (requiere serviceSecret configurado)
             String serviceSecret = System.getenv("HCEN_SERVICE_SECRET");
@@ -84,8 +79,7 @@ public class HcenClient {
                 return null; // Sin autenticación si no hay secret
             }
             
-            String authUrl = System.getProperty("HCEN_SERVICE_AUTH_URL",
-                    System.getenv().getOrDefault("HCEN_SERVICE_AUTH_URL", DEFAULT_SERVICE_AUTH_URL));
+            String authUrl = HcenCentralUrlUtil.buildApiUrl("/service-auth/token");
             
             // Usar try-with-resources para cerrar recursos automáticamente
             try (Client client = ClientBuilder.newClient()) {
@@ -107,25 +101,22 @@ public class HcenClient {
                         LOG.info("Token de servicio obtenido desde endpoint");
                         return cachedServiceToken;
                     } else {
-                        LOG.log(java.util.logging.Level.WARNING, "Error obteniendo token de servicio: HTTP {0}", response.getStatus());
+                        LOG.warning(String.format("Error obteniendo token de servicio: HTTP %d", response.getStatus()));
                         return null;
                     }
                 }
             } catch (ProcessingException ex) {
-                LOG.log(java.util.logging.Level.WARNING, "Error obteniendo token de servicio desde endpoint: {0}", ex.getMessage());
+                LOG.warning(String.format("Error obteniendo token de servicio desde endpoint: %s", ex.getMessage()));
                 return null;
             }
         }
     }
 
     public void registrarMetadatos(DTMetadatos dto) throws HcenUnavailableException {
-        String centralUrl = System.getProperty(ENV_HCEN_CENTRAL_URL,
-                System.getenv().getOrDefault(ENV_HCEN_CENTRAL_URL, DEFAULT_CENTRAL_URL));
+        String centralUrl = HcenCentralUrlUtil.buildApiUrl("/metadatos-documento");
 
-        if (LOG.isLoggable(java.util.logging.Level.INFO)) {
-            LOG.log(java.util.logging.Level.INFO, "HcenClient.registrarMetadatos - URL: {0}, CI: {1}", 
-                    new Object[]{centralUrl, dto != null ? dto.getDocumentoIdPaciente() : "null"});
-        }
+        LOG.info(String.format("HcenClient.registrarMetadatos - URL: %s, CI: %s", 
+                centralUrl, dto != null ? dto.getDocumentoIdPaciente() : "null"));
 
         // Obtener token de servicio
         String serviceToken = getServiceToken();
@@ -156,25 +147,24 @@ public class HcenClient {
         }
     }
     
-    public void handleTokenRejection(Client client, String centralUrl, Object payload) throws HcenUnavailableException {
+    private void handleTokenRejection(Client client, String centralUrl, Object payload) throws HcenUnavailableException {
         LOG.warning("Token de servicio rechazado, limpiando cache");
         cachedServiceToken = null;
         tokenExpiryTime = 0;
         
         // Reintentar con nuevo token
         String newToken = getServiceToken();
-        if (newToken == null) {
-            throw new HcenUnavailableException("No se pudo obtener un nuevo token de servicio");
-        }
-        Builder retryBuilder = client.target(centralUrl)
-                .request(MediaType.APPLICATION_JSON)
-                .header(HEADER_AUTHORIZATION, BEARER_PREFIX + newToken);
-        try (Response retryResponse = retryBuilder.post(Entity.json(payload))) {
-            int retryStatus = retryResponse.getStatus();
-            if (retryStatus != 200 && retryStatus != 201 && retryStatus != 202) {
-                String errorMsg = retryResponse.hasEntity() ? retryResponse.readEntity(String.class) : ERROR_UNKNOWN;
-                throw new HcenUnavailableException(
-                    String.format(ERROR_MSG_REGISTRAR_METADATOS, retryStatus, errorMsg));
+        if (newToken != null) {
+            Builder retryBuilder = client.target(centralUrl)
+                    .request(MediaType.APPLICATION_JSON)
+                    .header(HEADER_AUTHORIZATION, BEARER_PREFIX + newToken);
+            try (Response retryResponse = retryBuilder.post(Entity.json(payload))) {
+                int retryStatus = retryResponse.getStatus();
+                if (retryStatus != 200 && retryStatus != 201 && retryStatus != 202) {
+                    String errorMsg = retryResponse.hasEntity() ? retryResponse.readEntity(String.class) : ERROR_UNKNOWN;
+                    throw new HcenUnavailableException(
+                        String.format(ERROR_MSG_REGISTRAR_METADATOS, retryStatus, errorMsg));
+                }
             }
         }
     }
@@ -183,8 +173,7 @@ public class HcenClient {
      * Envía el payload completo (incluyendo datosPatronimicos) al central.
      */
     public void registrarMetadatosCompleto(Map<String, Object> payload) throws HcenUnavailableException {
-        String centralUrl = System.getProperty(ENV_HCEN_CENTRAL_URL,
-                System.getenv().getOrDefault(ENV_HCEN_CENTRAL_URL, DEFAULT_CENTRAL_URL));
+        String centralUrl = HcenCentralUrlUtil.buildApiUrl("/metadatos-documento");
 
         // Obtener token de servicio
         String serviceToken = getServiceToken();
@@ -229,88 +218,65 @@ public class HcenClient {
     public java.util.List<Map<String, Object>> obtenerMetadatosDocumentosPorCI(
             String ciPaciente, String profesionalId, String tenantId, String especialidad, String nombreProfesional) 
             throws HcenUnavailableException {
-        String metadatosUrl = construirUrlMetadatos(ciPaciente, profesionalId, tenantId, especialidad, nombreProfesional);
+        // Construir URL del endpoint de metadatos por CI
+        String metadatosUrl = HcenCentralUrlUtil.buildApiUrl("/metadatos-documento/paciente/" + ciPaciente);
         
-        logConsultaMetadatos(metadatosUrl, ciPaciente, profesionalId, tenantId, especialidad, nombreProfesional);
-        
-        String serviceToken = getServiceToken();
-        
-        return realizarPeticionMetadatos(metadatosUrl, serviceToken, ciPaciente);
-    }
-    
-    private String construirUrlMetadatos(String ciPaciente, String profesionalId, String tenantId, 
-                                         String especialidad, String nombreProfesional) {
-        String baseUrl = System.getProperty(ENV_HCEN_CENTRAL_URL,
-                System.getenv().getOrDefault(ENV_HCEN_CENTRAL_URL, "http://hcen-backend:8080/api"));
-        String metadatosUrl = baseUrl.replace("/metadatos-documento", "") + "/metadatos-documento/paciente/" + ciPaciente;
-        
+        // Agregar query parameters si están disponibles
         if (profesionalId != null && !profesionalId.isBlank()) {
             metadatosUrl += "?profesionalId=" + java.net.URLEncoder.encode(profesionalId, java.nio.charset.StandardCharsets.UTF_8);
-            metadatosUrl = agregarQueryParam(metadatosUrl, "tenantId", tenantId);
-            metadatosUrl = agregarQueryParam(metadatosUrl, "especialidad", especialidad);
-            metadatosUrl = agregarQueryParam(metadatosUrl, "nombreProfesional", nombreProfesional);
+            if (tenantId != null && !tenantId.isBlank()) {
+                metadatosUrl += "&tenantId=" + java.net.URLEncoder.encode(tenantId, java.nio.charset.StandardCharsets.UTF_8);
+            }
+            if (especialidad != null && !especialidad.isBlank()) {
+                metadatosUrl += "&especialidad=" + java.net.URLEncoder.encode(especialidad, java.nio.charset.StandardCharsets.UTF_8);
+            }
+            if (nombreProfesional != null && !nombreProfesional.isBlank()) {
+                metadatosUrl += "&nombreProfesional=" + java.net.URLEncoder.encode(nombreProfesional, java.nio.charset.StandardCharsets.UTF_8);
+            }
         }
-        return metadatosUrl;
-    }
-    
-    private String agregarQueryParam(String url, String paramName, String paramValue) {
-        if (paramValue != null && !paramValue.isBlank()) {
-            return url + "&" + paramName + "=" + java.net.URLEncoder.encode(paramValue, java.nio.charset.StandardCharsets.UTF_8);
-        }
-        return url;
-    }
-    
-    private void logConsultaMetadatos(String metadatosUrl, String ciPaciente, String profesionalId, 
-                                      String tenantId, String especialidad, String nombreProfesional) {
-        if (LOG.isLoggable(java.util.logging.Level.INFO)) {
-            LOG.log(java.util.logging.Level.INFO, 
-                    "Consultando metadatos desde HCEN - URL: {0}, CI: {1}, Profesional: {2}, Tenant: {3}, Especialidad: {4}, Nombre: {5}", 
-                    new Object[]{metadatosUrl, ciPaciente, profesionalId, tenantId, especialidad, nombreProfesional});
-        }
-    }
-    
-    private java.util.List<Map<String, Object>> realizarPeticionMetadatos(String metadatosUrl, 
-                                                                           String serviceToken, String ciPaciente) 
-            throws HcenUnavailableException {
+        
+        LOG.info(String.format("Consultando metadatos desde HCEN - URL: %s, CI: %s, Profesional: %s, Tenant: %s, Especialidad: %s, Nombre: %s", 
+                metadatosUrl, ciPaciente, profesionalId, tenantId, especialidad, nombreProfesional));
+        
+        // Obtener token de servicio
+        String serviceToken = getServiceToken();
+        
         try (Client client = ClientBuilder.newClient()) {
             Builder requestBuilder = client.target(metadatosUrl)
                     .request(MediaType.APPLICATION_JSON);
             
+            // Agregar token de servicio si está disponible
             if (serviceToken != null) {
                 requestBuilder.header(HEADER_AUTHORIZATION, BEARER_PREFIX + serviceToken);
             }
             
             try (Response response = requestBuilder.get()) {
-                return procesarRespuestaMetadatos(response, ciPaciente);
+                int status = response.getStatus();
+                if (status == 200) {
+                    @SuppressWarnings("unchecked")
+                    java.util.List<Map<String, Object>> metadatos = response.readEntity(java.util.List.class);
+                    LOG.info(String.format("Obtenidos %d metadatos (ya filtrados por políticas) desde HCEN para CI: %s", 
+                            metadatos.size(), ciPaciente));
+                    return metadatos;
+                } else if (status == 404) {
+                    // 404 puede significar que no hay documentos, no necesariamente un error
+                    LOG.warning(String.format("Metadatos no encontrados (404) para paciente %s - retornando lista vacía", ciPaciente));
+                    return new ArrayList<>(); // Retornar lista vacía en lugar de lanzar excepción
+                } else {
+                    String errorMsg = ERROR_UNKNOWN;
+                    try {
+                        if (response.hasEntity()) {
+                            errorMsg = response.readEntity(String.class);
+                        }
+                    } catch (Exception e) {
+                        LOG.log(java.util.logging.Level.WARNING, "No se pudo leer el cuerpo del error", e);
+                    }
+                    throw new HcenUnavailableException(
+                        String.format("Error al obtener metadatos: HTTP %d - %s", status, errorMsg));
+                }
             }
         } catch (ProcessingException ex) {
             throw new HcenUnavailableException("HCEN no disponible", ex);
-        }
-    }
-    
-    private java.util.List<Map<String, Object>> procesarRespuestaMetadatos(Response response, String ciPaciente) 
-            throws HcenUnavailableException {
-        int status = response.getStatus();
-        if (status == 200) {
-            @SuppressWarnings("unchecked")
-            java.util.List<Map<String, Object>> metadatos = response.readEntity(java.util.List.class);
-            if (LOG.isLoggable(java.util.logging.Level.INFO)) {
-                LOG.log(java.util.logging.Level.INFO, 
-                        "Obtenidos {0} metadatos (ya filtrados por políticas) desde HCEN para CI: {1}", 
-                        new Object[]{metadatos.size(), ciPaciente});
-            }
-            return metadatos;
-        } else if (status == 404) {
-            // 404 significa que no hay metadatos para ese paciente, no un error del servicio
-            if (LOG.isLoggable(java.util.logging.Level.INFO)) {
-                LOG.log(java.util.logging.Level.INFO, 
-                        "No se encontraron metadatos para CI: {0} (404)", ciPaciente);
-            }
-            return new java.util.ArrayList<>();
-        } else {
-            String errorMsg = response.hasEntity() ? response.readEntity(String.class) : ERROR_UNKNOWN;
-            throw new HcenUnavailableException(
-                "Error al obtener metadatos: HTTP " + status + " - " + errorMsg);
         }
     }
     
@@ -324,13 +290,8 @@ public class HcenClient {
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> consultarMetadatosPaciente(String documentoIdPaciente) 
             throws HcenUnavailableException {
-        // URL base de HCEN central para endpoints de paciente
-        // El endpoint es /api/paciente/{id}/metadatos
-        String baseUrl = System.getProperty("HCEN_CENTRAL_BASE_URL",
-                System.getenv().getOrDefault("HCEN_CENTRAL_BASE_URL", "http://127.0.0.1:8080/api"));
-        
         // Construir URL del endpoint de paciente
-        String pacienteUrl = baseUrl + "/paciente/" + documentoIdPaciente + "/metadatos";
+        String pacienteUrl = HcenCentralUrlUtil.buildApiUrl("/paciente/" + documentoIdPaciente + "/metadatos");
 
         // Usar try-with-resources para cerrar recursos automáticamente
         try (Client client = ClientBuilder.newClient();
@@ -345,7 +306,7 @@ public class HcenClient {
                 return new ArrayList<>(); // Lista vacía si no hay documentos
             } else {
                 throw new HcenUnavailableException(
-                    "Error al consultar metadatos: HTTP " + status);
+                    String.format("Error al consultar metadatos: HTTP %d", status));
             }
 
         } catch (ProcessingException ex) {
@@ -373,79 +334,62 @@ public class HcenClient {
         
         // Registrar de forma asíncrona para no bloquear la respuesta
         try {
-            String registroUrl = obtenerUrlRegistro();
-            Map<String, Object> payload = construirPayloadAcceso(profesionalId, nombreProfesional, especialidad, tenantId, codDocumPaciente, documentoId, tipoDocumento, exito);
+            // El servicio de políticas está en el mismo servidor que el HCEN central
+            // Construir URL usando la base del HCEN central
+            String baseUrl = HcenCentralUrlUtil.getBaseUrl();
+            String registroUrl = baseUrl + "/hcen-politicas-service/api/registros";
             
-            logRegistroAcceso(profesionalId, nombreProfesional, codDocumPaciente, tenantId, documentoId, exito);
+            // Construir payload para registrar acceso
+            Map<String, Object> payload = new java.util.HashMap<>();
+            payload.put("profesionalId", profesionalId);
+            payload.put("codDocumPaciente", codDocumPaciente);
+            payload.put("clinicaId", tenantId);
             
-            enviarRegistroAcceso(registroUrl, payload);
+            if (nombreProfesional != null && !nombreProfesional.isBlank()) {
+                payload.put("nombreProfesional", nombreProfesional);
+            }
+            if (especialidad != null && !especialidad.isBlank()) {
+                payload.put("especialidad", especialidad);
+            }
+            if (documentoId != null && !documentoId.isBlank()) {
+                payload.put("documentoId", documentoId);
+            }
+            if (tipoDocumento != null && !tipoDocumento.isBlank()) {
+                payload.put("tipoDocumento", tipoDocumento);
+            } else {
+                payload.put("tipoDocumento", "DESCARGA"); // Descarga de documento si no hay tipo específico
+            }
+            
+            payload.put("exito", exito);
+            if (!exito) {
+                payload.put("motivoRechazo", "No se pudo acceder al documento");
+            }
+            payload.put("referencia", documentoId != null ? "Descarga de documento" : "Acceso a documento");
+            
+            LOG.info(String.format("Registrando acceso - Profesional: %s (%s), Paciente: %s, Clínica: %s, Documento: %s, Éxito: %s", 
+                    profesionalId, nombreProfesional, codDocumPaciente, tenantId, documentoId, exito));
+            
+            // Llamar al servicio de políticas de forma asíncrona
+            Client client = ClientBuilder.newClient();
+            try {
+                Response response = client.target(registroUrl)
+                        .request(MediaType.APPLICATION_JSON)
+                        .post(Entity.entity(payload, MediaType.APPLICATION_JSON));
+                
+                int status = response.getStatus();
+                if (status == 201 || status == 200) {
+                    LOG.info(String.format("✅ Acceso registrado exitosamente - Status: %d", status));
+                } else {
+                    String errorBody = response.hasEntity() ? response.readEntity(String.class) : "Sin detalles";
+                    LOG.warning(String.format("⚠️ Error al registrar acceso - Status: %d, Response: %s", status, errorBody));
+                }
+            } finally {
+                client.close();
+            }
             
         } catch (Exception e) {
             // No propagar excepciones para no afectar la operación principal
             LOG.warning("Error al registrar acceso (no crítico): " + e.getMessage());
-        }
-    }
-
-    private String obtenerUrlRegistro() {
-        String politicasUrl = System.getenv("POLITICAS_SERVICE_URL");
-        if (politicasUrl == null || politicasUrl.isEmpty()) {
-            politicasUrl = "http://hcen-backend:8080/hcen-politicas-service/api";
-        }
-        return politicasUrl + "/registros";
-    }
-
-    private Map<String, Object> construirPayloadAcceso(String profesionalId, String nombreProfesional, String especialidad,
-            String tenantId, String codDocumPaciente, String documentoId, String tipoDocumento, boolean exito) {
-        Map<String, Object> payload = new java.util.HashMap<>();
-        payload.put("profesionalId", profesionalId);
-        payload.put("codDocumPaciente", codDocumPaciente);
-        payload.put("clinicaId", tenantId);
-        
-        if (nombreProfesional != null && !nombreProfesional.isBlank()) {
-            payload.put("nombreProfesional", nombreProfesional);
-        }
-        if (especialidad != null && !especialidad.isBlank()) {
-            payload.put("especialidad", especialidad);
-        }
-        if (documentoId != null && !documentoId.isBlank()) {
-            payload.put("documentoId", documentoId);
-        }
-        if (tipoDocumento != null && !tipoDocumento.isBlank()) {
-            payload.put("tipoDocumento", tipoDocumento);
-        } else {
-            payload.put("tipoDocumento", "DESCARGA");
-        }
-        
-        payload.put("exito", exito);
-        if (!exito) {
-            payload.put("motivoRechazo", "No se pudo acceder al documento");
-        }
-        payload.put("referencia", documentoId != null ? "Descarga de documento" : "Acceso a documento");
-        return payload;
-    }
-
-    private void logRegistroAcceso(String profesionalId, String nombreProfesional, String codDocumPaciente, String tenantId, String documentoId, boolean exito) {
-        if (LOG.isLoggable(java.util.logging.Level.INFO)) {
-            LOG.log(java.util.logging.Level.INFO, 
-                    "Registrando acceso - Profesional: {0} ({1}), Paciente: {2}, Clínica: {3}, Documento: {4}, Éxito: {5}", 
-                    new Object[]{profesionalId, nombreProfesional, codDocumPaciente, tenantId, documentoId, exito});
-        }
-    }
-
-    private void enviarRegistroAcceso(String registroUrl, Map<String, Object> payload) {
-        try (Client client = ClientBuilder.newClient()) {
-            Response response = client.target(registroUrl)
-                    .request(MediaType.APPLICATION_JSON)
-                    .post(Entity.entity(payload, MediaType.APPLICATION_JSON));
-            
-            int status = response.getStatus();
-            if (status == 201 || status == 200) {
-                LOG.log(java.util.logging.Level.INFO, "\u2705 Acceso registrado exitosamente - Status: {0}", status);
-            } else {
-                String errorBody = response.hasEntity() ? response.readEntity(String.class) : "Sin detalles";
-                LOG.log(java.util.logging.Level.WARNING, "\u26a0\ufe0f Error al registrar acceso - Status: {0}, Response: {1}", 
-                        new Object[]{status, errorBody});
-            }
         }
     }
 }
