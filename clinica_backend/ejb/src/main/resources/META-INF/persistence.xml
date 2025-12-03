@@ -32,10 +32,10 @@
          <property name="hibernate.multi_tenant_connection_provider" value="uy.edu.tse.hcen.multitenancy.SchemaMultiTenantProvider"/>
 
    <!-- StatementInspector was used during debugging; schema is applied in-service now -->
-         <!-- Dialect and schema generation: in a schema-per-tenant setup we generally avoid automatic DDL.
-              Set database.action to 'none' and manage schema creation externally per tenant. -->
+         <!-- Dialect and schema generation: usar 'update' para que Hibernate agregue columnas automáticamente -->
          <property name="hibernate.dialect" value="org.hibernate.dialect.PostgresPlusDialect"/>
-         <property name="jakarta.persistence.schema-generation.database.action" value="none" />
+         <property name="jakarta.persistence.schema-generation.database.action" value="update" />
+         <property name="hibernate.hbm2ddl.auto" value="update" />
 
         <!-- Other hibernate properties -->
         <property name="hibernate.show_sql" value="true" />
