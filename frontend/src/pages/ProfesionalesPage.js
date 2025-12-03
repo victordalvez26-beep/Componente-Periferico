@@ -16,7 +16,7 @@ function ProfesionalesPage() {
     nombre: '',
     email: '',
     especialidad: '',
-    documento: '',
+    ci: '',
     telefono: ''
   });
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -154,7 +154,7 @@ function ProfesionalesPage() {
       nombre: prof.nombre || '',
       email: prof.email || '',
       especialidad: prof.especialidad || '',
-      documento: prof.documento || '',
+      ci: prof.ci || '',
       telefono: prof.telefono || ''
     });
     setEditingId(prof.id);
@@ -193,7 +193,7 @@ function ProfesionalesPage() {
       nombre: '',
       email: '',
       especialidad: '',
-      documento: '',
+      ci: '',
       telefono: ''
     });
     setEditingId(null);
@@ -324,13 +324,13 @@ function ProfesionalesPage() {
               </div>
 
               <div style={styles.formGroup}>
-                <label style={styles.label}>Documento</label>
+                <label style={styles.label}>Documento (CI)</label>
                 <input
                   type="text"
-                  value={formData.documento}
-                  onChange={(e) => setFormData({...formData, documento: e.target.value})}
+                  value={formData.ci}
+                  onChange={(e) => setFormData({...formData, ci: e.target.value})}
                   style={styles.input}
-                  placeholder="CI o Pasaporte"
+                  placeholder="12345678"
                 />
               </div>
 
@@ -416,7 +416,7 @@ function ProfesionalesPage() {
                       <span style={styles.badge}>{prof.especialidad || 'N/A'}</span>
                     </td>
                     <td style={styles.td}>{prof.email || 'N/A'}</td>
-                    <td style={styles.td}>{prof.documento || 'N/A'}</td>
+                    <td style={styles.td}>{prof.ci || 'N/A'}</td>
                     <td style={styles.td}>
                       <button
                         onClick={() => handleEdit(prof)}
