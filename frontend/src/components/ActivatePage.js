@@ -103,10 +103,12 @@ function ActivatePage() {
       const backendBase = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8081';
       const activateUrl = `${backendBase}/hcen-web/api/config/activate`;
       
-      // 🔍 LOG: URL que se está usando
+      // 🔍 LOG: URL que se está usando - Debug para verificar doble /api
       console.log('🔍 [ACTIVATE PAGE] Backend URL:', backendBase);
       console.log('🔍 [ACTIVATE PAGE] Full activate URL:', activateUrl);
       console.log('🔍 [ACTIVATE PAGE] REACT_APP_BACKEND_URL env:', process.env.REACT_APP_BACKEND_URL);
+      console.log('🔍 [ACTIVATE PAGE] window.APP_CONFIG:', window.APP_CONFIG);
+      console.log('🔍 [ACTIVATE PAGE] window.location.origin:', window.location.origin);
       
       // Llamada al backend periférico con TODOS los datos de la clínica
       const response = await fetch(activateUrl, {
