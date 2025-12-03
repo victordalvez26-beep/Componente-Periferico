@@ -18,6 +18,8 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import uy.edu.tse.hcen.multitenancy.TenantContext;
 import uy.edu.tse.hcen.service.DocumentoService;
+import uy.edu.tse.hcen.service.OpenAIService;
+import uy.edu.tse.hcen.client.PoliticasAccesoClient;
 
 import java.io.InputStream;
 import java.security.Principal;
@@ -33,6 +35,12 @@ class DocumentoClinicoResourceTest {
 
     @Mock
     private DocumentoService documentoService;
+
+    @Mock
+    private uy.edu.tse.hcen.service.OpenAIService openAIService;
+
+    @Mock
+    private uy.edu.tse.hcen.client.PoliticasAccesoClient politicasAccesoClient;
 
     @Mock
     private SecurityContext securityContext;
@@ -61,6 +69,14 @@ class DocumentoClinicoResourceTest {
             field = DocumentoClinicoResource.class.getDeclaredField("httpHeaders");
             field.setAccessible(true);
             field.set(resource, httpHeaders);
+            
+            field = DocumentoClinicoResource.class.getDeclaredField("openAIService");
+            field.setAccessible(true);
+            field.set(resource, openAIService);
+            
+            field = DocumentoClinicoResource.class.getDeclaredField("politicasAccesoClient");
+            field.setAccessible(true);
+            field.set(resource, politicasAccesoClient);
         } catch (Exception e) {
             throw new RuntimeException("Error setting up mocks: " + e.getMessage(), e);
         }
@@ -78,7 +94,7 @@ class DocumentoClinicoResourceTest {
         TenantContext.setCurrentTenant("101");
         
         Map<String, Object> resultado = new HashMap<>();
-        resultado.put("mongoId", "doc-123");
+        resultado.put("mongoId", "507f1f77bcf86cd799439011");
         try {
             when(documentoService.crearDocumentoCompleto(anyLong(), anyString(), anyString(), anyString(), 
                     anyString(), anyString(), anyString(), anyString())).thenReturn(resultado);
@@ -88,7 +104,8 @@ class DocumentoClinicoResourceTest {
         
         Response response = resource.crearDocumentoCompleto(body);
         
-        assertEquals(Response.Status.CREATED.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.CREATED.getStatusCode(), response.getStatus(), 
+                "Expected 201 but got " + response.getStatus() + ". Entity: " + response.getEntity());
         try {
             verify(documentoService).crearDocumentoCompleto(eq(101L), eq("prof-1"), eq("12345678"), 
                     eq("Contenido del documento"), eq("EVALUACION"), isNull(), isNull(), isNull());
@@ -170,13 +187,15 @@ class DocumentoClinicoResourceTest {
         try {
             when(contenidoPart.getBodyAsString()).thenReturn("Contenido");
             when(ciPart.getBodyAsString()).thenReturn("12345678");
-            InputStream mockStream = mock(InputStream.class);
-            when(mockStream.readAllBytes()).thenReturn("test".getBytes());
+            InputStream mockStream = new java.io.ByteArrayInputStream("test content".getBytes());
             when(archivoPart.getBody(InputStream.class, null)).thenReturn(mockStream);
         } catch (java.io.IOException e) {
             throw new RuntimeException(e);
         }
-        when(archivoPart.getHeaders()).thenReturn(new jakarta.ws.rs.core.MultivaluedHashMap<>());
+        jakarta.ws.rs.core.MultivaluedMap<String, String> headers = new jakarta.ws.rs.core.MultivaluedHashMap<>();
+        headers.add("Content-Disposition", "form-data; name=\"archivo\"; filename=\"test.pdf\"");
+        headers.add("Content-Type", "application/pdf");
+        when(archivoPart.getHeaders()).thenReturn(headers);
         
         formDataMap.put("contenido", Arrays.asList(contenidoPart));
         formDataMap.put("ciPaciente", Arrays.asList(ciPart));
@@ -188,7 +207,7 @@ class DocumentoClinicoResourceTest {
         TenantContext.setCurrentTenant("101");
         
         Map<String, Object> resultado = new HashMap<>();
-        resultado.put("mongoId", "doc-123");
+        resultado.put("mongoId", "507f1f77bcf86cd799439011");
         try {
             when(documentoService.crearDocumentoCompletoConArchivo(anyLong(), anyString(), anyString(), 
                     anyString(), anyString(), anyString(), anyString(), anyString(), any(), anyString(), anyString()))
@@ -199,7 +218,8 @@ class DocumentoClinicoResourceTest {
         
         Response response = resource.crearDocumentoCompletoConArchivo(input);
         
-        assertEquals(Response.Status.CREATED.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.CREATED.getStatusCode(), response.getStatus(), 
+                "Expected 201 but got " + response.getStatus() + ". Entity: " + response.getEntity());
     }
 
     @Test
@@ -423,13 +443,18 @@ class DocumentoClinicoResourceTest {
         when(principal.getName()).thenReturn("prof-1");
         TenantContext.setCurrentTenant("101");
         
-        when(documentoService.crearDocumentoCompleto(anyLong(), anyString(), anyString(), anyString(), 
-                anyString(), anyString(), anyString(), anyString()))
-            .thenThrow(new RuntimeException("Service error"));
+        try {
+            when(documentoService.crearDocumentoCompleto(anyLong(), anyString(), anyString(), anyString(), 
+                    anyString(), anyString(), anyString(), anyString()))
+                .thenThrow(new RuntimeException("Service error"));
+        } catch (Exception e) {
+            fail("Exception no esperada al configurar mock: " + e.getMessage());
+        }
         
         Response response = resource.crearDocumentoCompleto(body);
         
-        assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus(),
+                "Expected 500 but got " + response.getStatus() + ". Entity: " + response.getEntity());
     }
 
     @Test
@@ -611,9 +636,13 @@ class DocumentoClinicoResourceTest {
         when(principal.getName()).thenReturn("prof-1");
         TenantContext.setCurrentTenant("101");
         
-        when(documentoService.crearDocumentoCompletoConArchivo(anyLong(), anyString(), anyString(), 
-                anyString(), anyString(), anyString(), anyString(), anyString(), any(), anyString(), anyString()))
-                .thenThrow(new RuntimeException("Service error"));
+        try {
+            when(documentoService.crearDocumentoCompletoConArchivo(anyLong(), anyString(), anyString(), 
+                    anyString(), anyString(), anyString(), anyString(), anyString(), any(), anyString(), anyString()))
+                    .thenThrow(new RuntimeException("Service error"));
+        } catch (Exception e) {
+            fail("Exception no esperada al configurar mock: " + e.getMessage());
+        }
         
         Response response = resource.crearDocumentoCompletoConArchivo(input);
         
@@ -1057,14 +1086,143 @@ class DocumentoClinicoResourceTest {
         TenantContext.setCurrentTenant("101");
         
         Map<String, Object> resultado = new HashMap<>();
-        resultado.put("mongoId", "doc-123");
+        resultado.put("mongoId", "507f1f77bcf86cd799439011");
         when(documentoService.crearDocumentoCompletoConArchivo(anyLong(), anyString(), anyString(), 
                 anyString(), anyString(), anyString(), anyString(), anyString(), any(), anyString(), anyString()))
                 .thenReturn(resultado);
         
         Response response = resource.crearDocumentoCompletoConArchivo(input);
         
-        assertEquals(Response.Status.CREATED.getStatusCode(), response.getStatus());
+        assertEquals(Response.Status.CREATED.getStatusCode(), response.getStatus(),
+                "Expected 201 but got " + response.getStatus() + ". Entity: " + response.getEntity());
+    }
+
+    @Test
+    void testGenerarResumenHistoriaClinicaSuccess() {
+        when(securityContext.getUserPrincipal()).thenReturn(principal);
+        when(principal.getName()).thenReturn("prof-1");
+        TenantContext.setCurrentTenant("101");
+        
+        List<String> contenidos = Arrays.asList("Contenido documento 1", "Contenido documento 2");
+        when(documentoService.obtenerContenidosPorPaciente("12345678")).thenReturn(contenidos);
+        when(politicasAccesoClient.verificarPermiso("prof-1", "12345678", null, "101")).thenReturn(true);
+        when(openAIService.generarResumenHistoriaClinica(anyString())).thenReturn("Resumen generado por IA");
+        
+        Response response = resource.generarResumenHistoriaClinica("12345678");
+        
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+        assertNotNull(response.getEntity());
+    }
+
+    @Test
+    void testGenerarResumenHistoriaClinicaWithOpenAIFallback() {
+        when(securityContext.getUserPrincipal()).thenReturn(principal);
+        when(principal.getName()).thenReturn("prof-1");
+        TenantContext.setCurrentTenant("101");
+        
+        List<String> contenidos = Arrays.asList("Contenido documento 1", "Contenido documento 2");
+        when(documentoService.obtenerContenidosPorPaciente("12345678")).thenReturn(contenidos);
+        when(politicasAccesoClient.verificarPermiso("prof-1", "12345678", null, "101")).thenReturn(true);
+        when(openAIService.generarResumenHistoriaClinica(anyString())).thenThrow(new RuntimeException("OpenAI error"));
+        
+        Response response = resource.generarResumenHistoriaClinica("12345678");
+        
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+        assertNotNull(response.getEntity());
+    }
+
+    @Test
+    void testGenerarResumenHistoriaClinicaWithNoPermiso() {
+        when(securityContext.getUserPrincipal()).thenReturn(principal);
+        when(principal.getName()).thenReturn("prof-1");
+        TenantContext.setCurrentTenant("101");
+        
+        when(politicasAccesoClient.verificarPermiso("prof-1", "12345678", null, "101")).thenReturn(false);
+        
+        Response response = resource.generarResumenHistoriaClinica("12345678");
+        
+        assertEquals(Response.Status.FORBIDDEN.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    void testGenerarResumenHistoriaClinicaWithNoDocumentos() {
+        when(securityContext.getUserPrincipal()).thenReturn(principal);
+        when(principal.getName()).thenReturn("prof-1");
+        TenantContext.setCurrentTenant("101");
+        
+        when(documentoService.obtenerContenidosPorPaciente("12345678")).thenReturn(Collections.emptyList());
+        when(politicasAccesoClient.verificarPermiso("prof-1", "12345678", null, "101")).thenReturn(true);
+        
+        Response response = resource.generarResumenHistoriaClinica("12345678");
+        
+        assertEquals(Response.Status.NOT_FOUND.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    void testGenerarResumenHistoriaClinicaWithNullDocumentoId() {
+        Response response = resource.generarResumenHistoriaClinica(null);
+        
+        assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    void testGenerarResumenHistoriaClinicaWithEmptyDocumentoId() {
+        Response response = resource.generarResumenHistoriaClinica("");
+        
+        assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    void testGenerarResumenHistoriaClinicaWithNoAuth() {
+        when(securityContext.getUserPrincipal()).thenReturn(null);
+        TenantContext.setCurrentTenant("101");
+        
+        Response response = resource.generarResumenHistoriaClinica("12345678");
+        
+        assertEquals(Response.Status.UNAUTHORIZED.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    void testGenerarResumenHistoriaClinicaWithNoTenant() {
+        when(securityContext.getUserPrincipal()).thenReturn(principal);
+        when(principal.getName()).thenReturn("prof-1");
+        TenantContext.clear();
+        
+        Response response = resource.generarResumenHistoriaClinica("12345678");
+        
+        assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    void testGenerarResumenHistoriaClinicaWithPoliticasException() {
+        when(securityContext.getUserPrincipal()).thenReturn(principal);
+        when(principal.getName()).thenReturn("prof-1");
+        TenantContext.setCurrentTenant("101");
+        
+        List<String> contenidos = Arrays.asList("Contenido documento 1");
+        when(documentoService.obtenerContenidosPorPaciente("12345678")).thenReturn(contenidos);
+        when(politicasAccesoClient.verificarPermiso("prof-1", "12345678", null, "101"))
+            .thenThrow(new RuntimeException("Politicas error"));
+        when(openAIService.generarResumenHistoriaClinica(anyString())).thenReturn("Resumen");
+        
+        Response response = resource.generarResumenHistoriaClinica("12345678");
+        
+        // Debe permitir por defecto si falla la verificación
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+    }
+
+    @Test
+    void testGenerarResumenHistoriaClinicaWithException() {
+        when(securityContext.getUserPrincipal()).thenReturn(principal);
+        when(principal.getName()).thenReturn("prof-1");
+        TenantContext.setCurrentTenant("101");
+        
+        when(documentoService.obtenerContenidosPorPaciente("12345678")).thenThrow(new RuntimeException("Service error"));
+        when(politicasAccesoClient.verificarPermiso("prof-1", "12345678", null, "101")).thenReturn(true);
+        
+        Response response = resource.generarResumenHistoriaClinica("12345678");
+        
+        assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
     }
 
 }

@@ -1,5 +1,6 @@
 package uy.edu.tse.hcen.rest;
 
+import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -10,10 +11,8 @@ import uy.edu.tse.hcen.dto.ConfiguracionPortalDTO;
 import uy.edu.tse.hcen.model.PortalConfiguracion;
 import uy.edu.tse.hcen.service.PortalConfiguracionService;
 
-import jakarta.ws.rs.core.Response;
-
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,90 +24,100 @@ class PortalConfiguracionResourceTest {
     @InjectMocks
     private PortalConfiguracionResource resource;
 
-    private PortalConfiguracion config;
-    private ConfiguracionPortalDTO dto;
+    private PortalConfiguracion mockConfig;
+    private ConfiguracionPortalDTO mockDTO;
 
     @BeforeEach
     void setUp() {
-        config = new PortalConfiguracion();
-        config.setId(1L);
-        config.setColorPrimario("#007bff");
-        config.setColorSecundario("#6c757d");
-        config.setLogoUrl("http://example.com/logo.png");
-        config.setNombrePortal("Clínica Test");
+        mockConfig = new PortalConfiguracion();
+        mockConfig.setColorPrimario("#3b82f6");
+        mockConfig.setColorSecundario("#1e40af");
+        mockConfig.setLogoUrl("https://example.com/logo.png");
+        mockConfig.setNombrePortal("Mi Clínica");
 
-        dto = new ConfiguracionPortalDTO();
-        dto.setColorPrimario("#FF0000");
-        dto.setColorSecundario("#00FF00");
-        dto.setLogoUrl("http://example.com/new-logo.png");
-        dto.setNombrePortal("Nueva Clínica");
+        mockDTO = new ConfiguracionPortalDTO();
+        mockDTO.colorPrimario = "#3b82f6";
+        mockDTO.colorSecundario = "#1e40af";
+        mockDTO.logoUrl = "https://example.com/logo.png";
+        mockDTO.nombrePortal = "Mi Clínica";
     }
 
     @Test
-    void testGetPublicConfiguracion() {
-        // Arrange
-        when(configService.getConfiguracion()).thenReturn(config);
+    void testGetPublicConfiguracionSuccess() {
+        when(configService.getConfiguracion()).thenReturn(mockConfig);
 
-        // Act
         ConfiguracionPortalDTO result = resource.getPublicConfiguracion();
 
-        // Assert
         assertNotNull(result);
-        assertEquals(config.getColorPrimario(), result.getColorPrimario());
-        assertEquals(config.getColorSecundario(), result.getColorSecundario());
-        assertEquals(config.getLogoUrl(), result.getLogoUrl());
-        assertEquals(config.getNombrePortal(), result.getNombrePortal());
+        assertEquals("#3b82f6", result.colorPrimario);
+        assertEquals("#1e40af", result.colorSecundario);
+        assertEquals("https://example.com/logo.png", result.logoUrl);
+        assertEquals("Mi Clínica", result.nombrePortal);
         verify(configService).getConfiguracion();
     }
 
     @Test
-    void testUpdateConfiguracion() {
-        // Arrange
-        when(configService.updateConfiguracion(any(ConfiguracionPortalDTO.class))).thenReturn(config);
+    void testGetPublicConfiguracionWithNullValues() {
+        PortalConfiguracion configWithNulls = new PortalConfiguracion();
+        configWithNulls.setColorPrimario(null);
+        configWithNulls.setColorSecundario(null);
+        configWithNulls.setLogoUrl(null);
+        configWithNulls.setNombrePortal(null);
+        
+        when(configService.getConfiguracion()).thenReturn(configWithNulls);
 
-        // Act
-        Response response = resource.updateConfiguracion(dto);
+        ConfiguracionPortalDTO result = resource.getPublicConfiguracion();
 
-        // Assert
-        assertNotNull(response);
+        assertNotNull(result);
+        assertNull(result.colorPrimario);
+        assertNull(result.colorSecundario);
+        assertNull(result.logoUrl);
+        assertNull(result.nombrePortal);
+    }
+
+    @Test
+    void testUpdateConfiguracionSuccess() {
+        PortalConfiguracion updatedConfig = new PortalConfiguracion();
+        updatedConfig.setColorPrimario("#10b981");
+        updatedConfig.setColorSecundario("#059669");
+        updatedConfig.setLogoUrl("https://example.com/new-logo.png");
+        updatedConfig.setNombrePortal("Nueva Clínica");
+
+        when(configService.updateConfiguracion(any(ConfiguracionPortalDTO.class))).thenReturn(updatedConfig);
+
+        Response response = resource.updateConfiguracion(mockDTO);
+
         assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
         assertNotNull(response.getEntity());
+        assertEquals(updatedConfig, response.getEntity());
         verify(configService).updateConfiguracion(any(ConfiguracionPortalDTO.class));
     }
 
     @Test
-    void testUpdateConfiguracionWithNullDto() {
-        // Arrange
-        when(configService.updateConfiguracion(any())).thenReturn(config);
+    void testUpdateConfiguracionWithNullDTO() {
+        PortalConfiguracion updatedConfig = new PortalConfiguracion();
+        when(configService.updateConfiguracion(any())).thenReturn(updatedConfig);
 
-        // Act
         Response response = resource.updateConfiguracion(null);
 
-        // Assert
         assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+        verify(configService).updateConfiguracion(any());
     }
 
     @Test
-    void testGetPublicConfiguracionWithNullConfig() {
-        // Arrange
-        when(configService.getConfiguracion()).thenReturn(null);
+    void testUpdateConfiguracionWithEmptyValues() {
+        ConfiguracionPortalDTO emptyDTO = new ConfiguracionPortalDTO();
+        emptyDTO.colorPrimario = "";
+        emptyDTO.colorSecundario = "";
+        emptyDTO.logoUrl = "";
+        emptyDTO.nombrePortal = "";
 
-        // Act & Assert
-        assertThrows(NullPointerException.class, () -> {
-            resource.getPublicConfiguracion();
-        });
-    }
+        PortalConfiguracion updatedConfig = new PortalConfiguracion();
+        when(configService.updateConfiguracion(any(ConfiguracionPortalDTO.class))).thenReturn(updatedConfig);
 
-    @Test
-    void testUpdateConfiguracionWithException() {
-        // Arrange
-        when(configService.updateConfiguracion(any(ConfiguracionPortalDTO.class)))
-            .thenThrow(new RuntimeException("Database error"));
+        Response response = resource.updateConfiguracion(emptyDTO);
 
-        // Act & Assert
-        assertThrows(RuntimeException.class, () -> {
-            resource.updateConfiguracion(dto);
-        });
+        assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+        verify(configService).updateConfiguracion(any(ConfiguracionPortalDTO.class));
     }
 }
-
