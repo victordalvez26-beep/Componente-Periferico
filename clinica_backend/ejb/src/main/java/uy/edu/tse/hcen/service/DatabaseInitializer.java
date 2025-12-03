@@ -63,7 +63,9 @@ public class DatabaseInitializer {
                 "  password_hash VARCHAR(255), " +
                 "  dtype VARCHAR(31) NOT NULL, " +
                 "  tenant_id VARCHAR(255), " +
-                "  role VARCHAR(50)" +
+                "  role VARCHAR(50), " +
+                "  ci VARCHAR(20), " +
+                "  telefono VARCHAR(50)" +
                 ")";
             
             // 4. Tabla de administradores de clínica
