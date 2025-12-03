@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import SimplePopup from './SimplePopup';
 
-function ClinicAdmin(){
+// helper to build a stable key for a document
+function docKey(d, idx) {
+  return d.referencia || d.codDocumPaciente || d.metadataId || d.filename || d.uriDocumento || idx;
+}
+
+function ClinicAdmin() {
   const [session, setSession] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [payload, setPayload] = useState('{ "clinic": "Mi Clinica", "address": "Av. Siempreviva 123" }');
   // Use environment override if provided; otherwise use relative path so CRA proxy (package.json -> proxy)
   // or production reverse proxy can route correctly. This avoids hardcoded port 8080.
   const backendBase = process.env.REACT_APP_BACKEND_URL || '/nodo-periferico';
@@ -13,10 +16,6 @@ function ClinicAdmin(){
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('admin');
 
-  // nodo status
-  const [nodoId, setNodoId] = useState('1');
-  const [nodoInfo, setNodoInfo] = useState(null);
-  const [nodoLoading, setNodoLoading] = useState(false);
   // integration status
   const [integration, setIntegration] = useState({ integrated: false, matchedNodo: null, lastCheck: null });
   const [integrationLoading, setIntegrationLoading] = useState(false);
@@ -26,114 +25,125 @@ function ClinicAdmin(){
   const [patientDocs, setPatientDocs] = useState([]);
   const [docPermissions, setDocPermissions] = useState({});
   // multitenant: clinic id configured in this instance
-  const [clinicId, setClinicId] = useState(localStorage.getItem('clinicId') || 'clinic-1');
+  const [clinicId] = useState(localStorage.getItem('clinicId') || 'clinic-1');
   const [popupMessage, setPopupMessage] = useState(null);
 
-  useEffect(()=>{ checkSession(); },[]);
-
-  // fetch integration status on load
-  // Fetch integration status on mount and whenever clinicId changes
-  useEffect(()=>{ fetchIntegrationStatus(); }, [clinicId]);
-
-  async function fetchIntegrationStatus(){
+  const fetchIntegrationStatus = useCallback(async () => {
     setIntegrationLoading(true);
-    try{
+    try {
       // cache-busting param to ensure browser/dev-server proxies don't return stale results
       const clinic = encodeURIComponent(localStorage.getItem('clinicId') || 'clinic-1');
       const ts = Date.now();
       const res = await fetch(`${backendBase}/api/integration/status?clinicId=${clinic}&_=${ts}`, { credentials: 'include', cache: 'no-store' });
-      if(res.ok){
+      if (res.ok) {
         const j = await res.json();
         setIntegration(j);
       }
-    }catch(e){ console.error('Error fetching integration status', e); }
+    } catch (e) { console.error('Error fetching integration status', e); }
     setIntegrationLoading(false);
-  }
+  }, [backendBase]);
 
-  async function checkSession(){
-    try{
+  const checkSession = useCallback(async () => {
+    try {
       const res = await fetch(`${backendBase}/api/auth/session`, { credentials: 'include' });
-      if(res.ok){
+      if (res.ok) {
         const json = await res.json();
         setSession(json);
       } else {
         setSession(null);
       }
-    }catch(e){ console.error(e); setSession(null); }
-  }
+    } catch (e) { console.error(e); setSession(null); }
+  }, [backendBase]);
 
-  // if logged in as PROFESSIONAL, load patients
-  useEffect(()=>{
-    if(session && session.authenticated && Array.isArray(session.roles) && session.roles.includes('PROFESIONAL')){
-      loadPatients();
-    }
-  }, [session]);
+  useEffect(() => { checkSession(); }, [checkSession]);
+
+  // fetch integration status on load
+  // Fetch integration status on mount and whenever clinicId changes
+  useEffect(() => { fetchIntegrationStatus(); }, [clinicId, fetchIntegrationStatus]);
+
 
   // search term for patients
   const [patientQuery, setPatientQuery] = useState('');
 
-  async function loadPatients(q){
-    try{
+  const loadPatients = useCallback(async (q) => {
+    try {
       // The backend exposes /api/profesional/pacientes/{username}?clinicId=...
-      const username = session ? (session.username || 'prof1') : 'prof1';
+      const username = session?.username || 'prof1';
       const clinic = encodeURIComponent(localStorage.getItem('clinicId') || 'clinic-1');
       const qparam = q ? `&q=${encodeURIComponent(q)}` : '';
       const res = await fetch(`${backendBase}/api/profesional/pacientes/${encodeURIComponent(username)}?clinicId=${clinic}${qparam}`, { credentials: 'include' });
-      if(res.ok){
+      if (res.ok) {
         const j = await res.json();
         setPatients(Array.isArray(j) ? j : []);
       }
-    }catch(e){ console.error('Error loading patients', e); }
-  }
+    } catch (e) { console.error('Error loading patients', e); }
+  }, [backendBase, session]);
 
-  async function selectPatient(p){
+  // if logged in as PROFESSIONAL, load patients
+  useEffect(() => {
+    if (session && session.authenticated && Array.isArray(session.roles) && session.roles.includes('PROFESIONAL')) {
+      loadPatients();
+    }
+  }, [session, loadPatients]);
+
+  async function selectPatient(p) {
     setSelectedPatient(p);
     setPatientDocs([]);
     setDocPermissions({});
-    try{
+    try {
       // call backend proxy that will call RNDC and politicas
-      const profId = session ? session.username : null;
+      const profId = session?.username || null;
       const res = await fetch(`${backendBase}/api/profesional/paciente/${encodeURIComponent(p.ci)}/documentos?profesionalId=${encodeURIComponent(profId)}`, { credentials: 'include' });
-      if(res.ok){
+      if (res.ok) {
         const j = await res.json();
         setPatientDocs(Array.isArray(j) ? j : []);
         // fetch per-document permissions for professional view
-        if(profId && Array.isArray(j) && j.length>0){
+        if (profId && Array.isArray(j) && j.length > 0) {
           fetchDocPermissions(profId, p, j);
         }
       } else {
-        const t = await res.text().catch(()=>null);
+        const t = await res.text().catch(() => null);
         setPopupMessage('Error cargando documentos: ' + res.status + ' ' + t);
       }
-    }catch(e){ console.error('Error fetching docs', e); setPopupMessage('Error al cargar documentos'); }
+    } catch (e) { console.error('Error fetching docs', e); setPopupMessage('Error al cargar documentos'); }
   }
 
-  // helper to build a stable key for a document
-  function docKey(d, idx){
-    return d.referencia || d.codDocumPaciente || d.metadataId || d.filename || d.uriDocumento || idx;
-  }
-
-  async function fetchDocPermissions(profId, patient, docs){
+  async function fetchDocPermissions(profId, patient, docs) {
     const perms = {};
     await Promise.all(docs.map(async (d, idx) => {
       const key = docKey(d, idx);
-      try{
-        const q = `${backendBase}/api/profesional/verificar?profesionalId=${encodeURIComponent(profId)}&pacienteCI=${encodeURIComponent(patient.ci)}&tipoDoc=${encodeURIComponent(d.tipoDocumento||'')}`;
+      try {
+        const q = `${backendBase}/api/profesional/verificar?profesionalId=${encodeURIComponent(profId)}&pacienteCI=${encodeURIComponent(patient.ci)}&tipoDoc=${encodeURIComponent(d.tipoDocumento || '')}`;
         const r = await fetch(q, { credentials: 'include' });
-        if(r.ok){
+        if (r.ok) {
           const j = await r.json();
           // REST returns { tienePermiso: true/false }
           perms[key] = !!j.tienePermiso;
         } else {
           perms[key] = false;
         }
-      }catch(e){ perms[key] = false; }
+      } catch (e) {
+        console.error('Error fetching permission for document', e);
+        perms[key] = false; 
+      }
     }));
     setDocPermissions(perms);
   }
+  
+  function refreshIntegration() {
+    fetchIntegrationStatus();
+  }
+  
+  function doLogout() {
+    setSession(null);
+    setPatients([]);
+    setSelectedPatient(null);
+    setPatientDocs([]);
+    setDocPermissions({});
+  }
 
-  async function solicitarAcceso(doc){
-    try{
+  async function solicitarAcceso(doc) {
+    try {
       // Usar el backend del componente periférico (backendBase)
       // El backend periférico hará proxy al backend HCEN Central
       const body = {
@@ -143,118 +153,82 @@ function ClinicAdmin(){
         motivo: `Solicitud de acceso para ${doc.tipoDocumento || 'documento clínico'}`
       };
       const res = await fetch(`${backendBase}/api/documentos/solicitar-acceso`, {
-        method: 'POST', 
-        credentials: 'include', 
-        headers: {'Content-Type':'application/json'}, 
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      if(res.ok) {
+      if (res.ok) {
         setPopupMessage('Solicitud de acceso enviada exitosamente');
-      } else { 
-        const t = await res.text().catch(()=>null); 
-        setPopupMessage('Error: '+res.status+' '+t); 
+      } else {
+        const t = await res.text().catch(() => null);
+        setPopupMessage('Error: ' + res.status + ' ' + t);
       }
-    }catch(e){ console.error(e); setPopupMessage('Error al enviar solicitud'); }
+    } catch (e) { console.error(e); setPopupMessage('Error al enviar solicitud'); }
   }
 
-  async function doLogin(e){
+  async function doLogin(e) {
     e && e.preventDefault();
-    try{
+    try {
       const res = await fetch(`${backendBase}/api/auth/login`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type':'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       });
-      if(res.ok){
+      if (res.ok) {
         const j = await res.json();
         setSession({ authenticated: true, nombre: j.nombre || j.username, username: j.username });
         setPopupMessage('Login OK como ' + (j.nombre || j.username));
       } else if (res.status === 401) {
         setPopupMessage('Credenciales inválidas');
       } else {
-        const txt = await res.text().catch(()=>null);
+        const txt = await res.text().catch(() => null);
         setPopupMessage('Error al loguear: ' + res.status + ' ' + txt);
       }
-    }catch(err){ console.error(err); setPopupMessage('Error al hacer login'); }
+    } catch (err) { console.error(err); setPopupMessage('Error al hacer login'); }
   }
 
-  function onSearchPatients(){
+  function onSearchPatients() {
     loadPatients(patientQuery);
   }
-
-  async function fetchNodo(){
-    if(!nodoId) return;
-    setNodoLoading(true);
-    try{
-      const res = await fetch(`${backendBase}/api/nodos/${encodeURIComponent(nodoId)}`, { credentials: 'include' });
-      if(res.ok){
-        const j = await res.json();
-        // show node only if matches clinicId (simple multitenant check); assume nodo DTO has 'clinicId'
-        if (j.clinicId && j.clinicId !== clinicId) {
-          setNodoInfo({ notOwned: true });
-        } else {
-          setNodoInfo(j);
-        }
-      } else if (res.status === 404){
-        setNodoInfo({ notFound: true });
-      } else {
-        const t = await res.text().catch(()=>null);
-        setNodoInfo({ error: `${res.status} ${t}` });
-      }
-    }catch(e){ console.error(e); setNodoInfo({ error: e.message }); }
-    setNodoLoading(false);
+  
+  function renderDocumentActions(allowed, doc) {
+    if (allowed === null) {
+      // permission unknown yet; show neutral link and greyed button
+      return (
+        <>
+          <a className="link" href={doc.uriDocumento || '#'} target="_blank" rel="noreferrer">Ver/Descargar</a>
+          <button className="button-secondary" style={{ marginLeft: 8 }} onClick={() => solicitarAcceso(doc)}>Solicitar acceso</button>
+        </>
+      );
+    }
+    if (allowed) {
+      // has permission -> only provide download
+      return <a className="link" href={doc?.uriDocumento || '#'} target="_blank" rel="noreferrer">Descargar</a>;
+    }
+    // no permission -> only allow solicitud
+    return <button className="button-secondary" style={{ marginLeft: 8 }} onClick={() => solicitarAcceso(doc)}>Solicitar acceso</button>;
   }
 
-  // allow manual refresh from UI
-  function refreshIntegration(){
-    fetchIntegrationStatus();
-  }
-
-  // test-pdf download removed — central/Nodo debe exponer la descarga
-
-  async function doLogout(){
-    await fetch(`${backendBase}/api/auth/logout`, { credentials: 'include' });
-    setSession(null);
-  }
-
-  async function sendAlta(){
-    setLoading(true);
-    try{
-      const body = { payload };
-      const res = await fetch(`${backendBase}/api/clinica/alta`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      if(res.status === 202){
-        setPopupMessage('Alta enviada (202 Accepted).');
-      } else {
-        const t = await res.text();
-        setPopupMessage('Error: ' + res.status + ' ' + t);
-      }
-    }catch(e){ console.error(e); setPopupMessage('Error al enviar'); }
-    setLoading(false);
-  }
 
   return (
     <div>
       <div className="card">
         <h2>Sesión</h2>
-        <div style={{marginBottom:8}}>
+        <div style={{ marginBottom: 8 }}>
           {integrationLoading ? (
             <small>Comprobando integración...</small>
           ) : (
             <div>
-              <strong>Integración con Nodo Central:</strong> {integration && integration.integrated ? <span style={{color:'green'}}>Integrado</span> : <span style={{color:'red'}}>No integrado</span>} {integration.matchedNodo ? ` — nodo: ${integration.matchedNodo}` : ''}
-              <button className="button-secondary" style={{marginLeft:12}} onClick={refreshIntegration}>Refrescar</button>
+              <strong>Integración con Nodo Central:</strong> {integration?.integrated ? <span style={{ color: 'green' }}>Integrado</span> : <span style={{ color: 'red' }}>No integrado</span>} {integration?.matchedNodo ? ` — nodo: ${integration.matchedNodo}` : ''}
+              <button className="button-secondary" style={{ marginLeft: 12 }} onClick={refreshIntegration}>Refrescar</button>
             </div>
           )}
           {/* Debug info: show clinicId and raw integration object to help diagnose stale UI */}
-          <div style={{marginTop:8}}>
+          <div style={{ marginTop: 8 }}>
             <small>Debug: clinicId = <code>{localStorage.getItem('clinicId') || 'clinic-1'}</code></small>
-            <pre style={{maxHeight:120, overflow:'auto', background:'#f6f6f6', padding:8}}>{JSON.stringify(integration, null, 2)}</pre>
+            <pre style={{ maxHeight: 120, overflow: 'auto', background: '#f6f6f6', padding: 8 }}>{JSON.stringify(integration, null, 2)}</pre>
           </div>
         </div>
         {session && session.authenticated ? (
@@ -265,9 +239,9 @@ function ClinicAdmin(){
         ) : (
           <div>
             <p>No autenticado. Para pruebas, use el login de test a continuación (usuario: <code>admin</code> / pass: <code>admin</code>).</p>
-            <form onSubmit={doLogin} style={{display:'flex', gap:8, alignItems:'center'}}>
-              <input className="input" value={username} onChange={(e)=>setUsername(e.target.value)} />
-              <input className="input" type="password" value={password} onChange={(e)=>setPassword(e.target.value)} />
+            <form onSubmit={doLogin} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input className="input" value={username} onChange={(e) => setUsername(e.target.value)} />
+              <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
               <button className="button-primary" type="submit">Login (test)</button>
             </form>
           </div>
@@ -278,48 +252,37 @@ function ClinicAdmin(){
       {session && session.authenticated && Array.isArray(session.roles) && session.roles.includes('PROFESIONAL') ? (
         <div className="card">
           <h2>Panel Profesional</h2>
-          <div style={{display:'flex', gap:8, alignItems:'center'}}>
-            <input className="input" placeholder="Buscar paciente por nombre" value={patientQuery} onChange={(e)=>setPatientQuery(e.target.value)} />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input className="input" placeholder="Buscar paciente por nombre" value={patientQuery} onChange={(e) => setPatientQuery(e.target.value)} />
             <button className="button-primary" onClick={onSearchPatients}>Buscar</button>
-            <button className="button-secondary" onClick={()=>{ setPatientQuery(''); loadPatients(); }}>Limpiar</button>
+            <button className="button-secondary" onClick={() => { setPatientQuery(''); loadPatients(); }}>Limpiar</button>
           </div>
-          <div style={{marginTop:12}}>
+          <div style={{ marginTop: 12 }}>
             <h3>Pacientes</h3>
             {patients.length === 0 ? <div>No hay pacientes</div> : (
               <ul>
-                {patients.map((p, i) => (
-                  <li key={i}>
-                    {p.nombre} ({p.ci}) <button className="button-secondary" onClick={()=>selectPatient(p)}>Ver documentos</button>
+                {patients.map((p) => (
+                  <li key={p.ci || p.id || `patient-${p.nombre}`}>
+                    {p.nombre} ({p.ci}) <button className="button-secondary" onClick={() => selectPatient(p)}>Ver documentos</button>
                   </li>
                 ))}
               </ul>
             )}
 
             {selectedPatient && (
-              <div style={{marginTop:12}}>
+              <div style={{ marginTop: 12 }}>
                 <h4>Documentos de {selectedPatient.nombre} ({selectedPatient.ci})</h4>
                 {patientDocs.length === 0 ? <div>No se encontraron documentos</div> : (
                   <ul>
-                    {patientDocs.map((d,idx) => {
+                    {patientDocs.map((d, idx) => {
                       const key = docKey(d, idx);
-                      const allowed = docPermissions.hasOwnProperty(key) ? docPermissions[key] : null;
+                      const allowed = key in docPermissions ? docPermissions[key] : null;
+                      const documentKey = d.metadataId || d.id || d.codDocumPaciente || `doc-${idx}`;
                       return (
-                        <li key={idx}>
+                        <li key={documentKey}>
                           {d.tipoDocumento} - {d.formatoDocumento}
-                          <div style={{display:'inline-block', marginLeft:8}}>
-                            {allowed === null ? (
-                              // permission unknown yet; show neutral link and greyed button
-                              <>
-                                <a className="link" href={d.uriDocumento || '#'} target="_blank" rel="noreferrer">Ver/Descargar</a>
-                                <button className="button-secondary" style={{marginLeft:8}} onClick={()=>solicitarAcceso(d)}>Solicitar acceso</button>
-                              </>
-                            ) : allowed ? (
-                              // has permission -> only provide download
-                              <a className="link" href={d.uriDocumento || '#'} target="_blank" rel="noreferrer">Descargar</a>
-                            ) : (
-                              // no permission -> only allow solicitud
-                              <button className="button-secondary" style={{marginLeft:8}} onClick={()=>solicitarAcceso(d)}>Solicitar acceso</button>
-                            )}
+                          <div style={{ display: 'inline-block', marginLeft: 8 }}>
+                            {renderDocumentActions(allowed, d)}
                           </div>
                         </li>
                       );

@@ -24,6 +24,8 @@ import java.util.Map;
 public class ProfesionalResource {
 
     private static final Logger LOG = Logger.getLogger(ProfesionalResource.class);
+    
+    private static final String KEY_ERROR = "error";
 
     @Inject
     private PoliticasAccesoClient politicasAccesoClient;
@@ -54,7 +56,7 @@ public class ProfesionalResource {
             String tenantId = TenantContext.getCurrentTenant();
             if (tenantId == null || tenantId.isBlank()) {
                 return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(Map.of("error", "Tenant no identificado"))
+                    .entity(Map.of(KEY_ERROR, "Tenant no identificado"))
                     .build();
             }
             
@@ -64,32 +66,35 @@ public class ProfesionalResource {
                     profesionalId = securityContext.getUserPrincipal().getName();
                 } else {
                     return Response.status(Response.Status.BAD_REQUEST)
-                        .entity(Map.of("error", "profesionalId es requerido"))
+                        .entity(Map.of(KEY_ERROR, "profesionalId es requerido"))
                         .build();
                 }
             }
             
             if (pacienteCI == null || pacienteCI.isBlank()) {
                 return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(Map.of("error", "pacienteCI es requerido"))
+                    .entity(Map.of(KEY_ERROR, "pacienteCI es requerido"))
                     .build();
             }
             
             LOG.info(String.format("Verificando permiso - Profesional: %s, Paciente: %s, TipoDoc: %s, Tenant: %s", 
                     profesionalId, pacienteCI, tipoDoc, tenantId));
             
+            LOG.debugf("verificarPermiso: politicasAccesoClient=%s", politicasAccesoClient);
             boolean tienePermiso = politicasAccesoClient.verificarPermiso(
                     profesionalId, 
                     pacienteCI, 
                     tipoDoc, 
                     tenantId);
             
+            LOG.debugf("verificarPermiso: resultado=%s", tienePermiso);
             return Response.ok(Map.of("tienePermiso", tienePermiso)).build();
             
         } catch (Exception e) {
-            LOG.error("Error al verificar permiso", e);
+            LOG.errorf(e, "Error al verificar permiso - Profesional: %s, Paciente: %s, TipoDoc: %s, Tenant: %s", 
+                    profesionalId, pacienteCI, tipoDoc, TenantContext.getCurrentTenant());
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                .entity(Map.of("error", "Error al verificar permiso: " + e.getMessage()))
+                .entity(Map.of(KEY_ERROR, "Error al verificar permiso: " + e.getMessage()))
                 .build();
         }
     }

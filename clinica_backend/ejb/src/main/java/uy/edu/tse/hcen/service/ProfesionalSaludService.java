@@ -50,20 +50,12 @@ public class ProfesionalSaludService {
      * Crea un profesional y lo asocia al tenant actual.
      */
     public ProfesionalSalud create(ProfesionalDTO dto) throws IllegalArgumentException {
-        if (tenantContext.getRole() == null || !tenantContext.getRole().equals("ADMINISTRADOR")) {
+        if (tenantContext.getRole() == null || !"ADMINISTRADOR".equals(tenantContext.getRole())) {
             throw new SecurityException("Solo los administradores pueden crear profesionales.");
         }
 
         String tenantId = tenantContext.getTenantId();
         String schema = (tenantId != null && !tenantId.isBlank()) ? "schema_clinica_" + tenantId : "public";
-        Long currentTenantId = null;
-        if (tenantId != null && !tenantId.isBlank()) {
-            try {
-                currentTenantId = Long.parseLong(tenantId);
-            } catch (NumberFormatException nfe) {
-                LOGGER.log(Level.WARNING, "Invalid tenant id format: {0}", tenantId);
-            }
-        }
 
         // Build entity without touching DB (validations that don't need DB can go here)
         ProfesionalSalud profesional = new ProfesionalSalud();
@@ -79,9 +71,13 @@ public class ProfesionalSaludService {
             persistenceHelper.persistWithManualTransaction(profesional, schema);
             // Optionally, after persist we can perform uniqueness checks or other DB reads if needed
             return profesional;
+        } catch (IllegalArgumentException e) {
+            // Re-lanzar excepciones de validación sin envolver
+            throw e;
         } catch (Exception ex) {
-            LOGGER.log(Level.SEVERE, "Error persisting professional: " + ex.getMessage(), ex);
-            throw new RuntimeException("Failed to create professional", ex);
+            LOGGER.log(Level.SEVERE, "Error persisting professional: {0}", ex.getMessage());
+            LOGGER.log(Level.SEVERE, "Exception details", ex);
+            throw new jakarta.ejb.EJBException("Failed to create professional", ex);
         }
     }
 
@@ -94,18 +90,20 @@ public class ProfesionalSaludService {
             .orElseThrow(() -> new IllegalArgumentException("Profesional no encontrado."));
         // If updating nickname/email, check uniqueness
         if (dto.getNickname() != null && !dto.getNickname().equals(profesional.getNickname())) {
-            profesionalRepository.findByNickname(dto.getNickname()).ifPresent(p -> {
+            Optional<ProfesionalSalud> existingNickname = profesionalRepository.findByNickname(dto.getNickname());
+            if (existingNickname.isPresent()) {
                 throw new WebApplicationException(Response.status(Response.Status.CONFLICT)
                         .entity("nickname already exists").build());
-            });
+            }
             profesional.setNickname(dto.getNickname());
         }
 
         if (dto.getEmail() != null && !dto.getEmail().equals(profesional.getEmail())) {
-            profesionalRepository.findByEmail(dto.getEmail()).ifPresent(p -> {
+            Optional<ProfesionalSalud> existingEmail = profesionalRepository.findByEmail(dto.getEmail());
+            if (existingEmail.isPresent()) {
                 throw new WebApplicationException(Response.status(Response.Status.CONFLICT)
                         .entity("email already exists").build());
-            });
+            }
             profesional.setEmail(dto.getEmail());
         }
 

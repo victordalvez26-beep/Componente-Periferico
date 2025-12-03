@@ -111,7 +111,6 @@ function DocumentosPage() {
     } catch (err) {
       const errMsg = err.message || String(err);
       setError(handleDatabaseError(errMsg, 'Error de conexión. Verifique que el servidor esté disponible.'));
-      console.error('Error:', err);
     } finally {
       setLoading(false);
     }
@@ -143,7 +142,7 @@ function DocumentosPage() {
         'Authorization': `Bearer ${token}`,
       };
 
-      console.log('Descargando documento desde:', downloadUrl);
+      // Descargando documento desde la URL obtenida
 
       const response = await fetch(downloadUrl, {
         method: 'GET',
@@ -176,7 +175,6 @@ function DocumentosPage() {
       }
     } catch (err) {
       const errMsg = err.message || String(err);
-      console.error('Error al descargar:', err);
       if (errMsg.includes('Failed to fetch') || errMsg.includes('CORS')) {
         setPopupMessage(`Error de conexión: No se pudo conectar al servidor para descargar el documento. Verifique su conexión y que el servidor esté disponible. Error: ${errMsg}`);
       } else {
@@ -211,14 +209,12 @@ function DocumentosPage() {
         if (tokenParts.length === 3) {
           const payload = JSON.parse(atob(tokenParts[1]));
           profesionalId = payload.sub || payload.userId || payload.nickname || payload.username;
-          console.log('🔵 [FRONTEND] ProfesionalId extraído del token:', profesionalId);
         }
       } catch (e) {
-        console.warn('No se pudo decodificar el token para obtener profesionalId:', e);
+        // No se pudo decodificar el token
       }
       
       if (!profesionalId) {
-        console.error('❌ [FRONTEND] No se pudo obtener profesionalId del token');
         setError('No se pudo identificar al profesional. Por favor, inicie sesión nuevamente.');
         setLoading(false);
         return;
@@ -233,7 +229,6 @@ function DocumentosPage() {
         try {
           // Usar directamente el servicio de políticas (el proxy está devolviendo 404)
           const politicasUrl = `/hcen-politicas-service/api/politicas/profesional/${encodeURIComponent(profesionalId)}`;
-          console.log('🔵 [FRONTEND] Llamando directamente a servicio de políticas:', politicasUrl);
           
           let politicasResponse = await fetch(politicasUrl, {
             headers: {
@@ -241,11 +236,8 @@ function DocumentosPage() {
             }
           });
           
-          console.log('🔵 [FRONTEND] Respuesta de políticas:', politicasResponse.status, politicasResponse.statusText);
-          
           if (politicasResponse.ok) {
             const politicas = await politicasResponse.json().catch(() => []);
-            console.log('🔵 [FRONTEND] Políticas recibidas:', Array.isArray(politicas) ? politicas.length : 'no es array', politicas);
             
             // Verificar si hay políticas activas para este paciente específico
             tieneAcceso = Array.isArray(politicas) && politicas.some(politica => {
@@ -256,21 +248,13 @@ function DocumentosPage() {
                                             politica.profesionalAutorizado === '*' ||
                                             !politica.profesionalAutorizado);
               
-              const tieneAccesoParaEstePaciente = esPacienteCorrecto && esActiva && esProfesionalCorrecto;
-              if (tieneAccesoParaEstePaciente) {
-                console.log('✅ [FRONTEND] Política encontrada para paciente:', ciPacienteBuscado, 'profesional:', profesionalId, politica);
-              }
-              return tieneAccesoParaEstePaciente;
+              return esPacienteCorrecto && esActiva && esProfesionalCorrecto;
             });
-            console.log('🔵 [FRONTEND] Tiene acceso por políticas:', tieneAcceso);
           } else if (politicasResponse.status === 404) {
             // No hay políticas para este profesional, continuar con verificación de solicitudes
-            console.log('⚠️ [FRONTEND] No se encontraron políticas para el profesional:', profesionalId);
-          } else {
-            console.warn('⚠️ [FRONTEND] Error al obtener políticas:', politicasResponse.status, politicasResponse.statusText);
           }
         } catch (e) {
-          console.warn('Error al verificar políticas de acceso:', e);
+          // Error al verificar políticas de acceso
         }
         
         // 2. Si no tiene políticas o el endpoint devolvió 404, verificar solicitudes existentes (pendientes o aprobadas)
@@ -295,7 +279,6 @@ function DocumentosPage() {
             
             if (solicitudesResponse.ok) {
               const solicitudes = await solicitudesResponse.json().catch(() => []);
-              console.log('🔵 [FRONTEND] Solicitudes recibidas:', Array.isArray(solicitudes) ? solicitudes.length : 'no es array', solicitudes);
               
               // Verificar si hay solicitudes (pendientes o aprobadas) para este paciente
               const tieneSolicitudParaPaciente = Array.isArray(solicitudes) && solicitudes.some(solicitud => {
@@ -304,37 +287,26 @@ function DocumentosPage() {
                 const esSolicitanteCorrecto = (solicitud.solicitanteId === profesionalId);
                 const esPendienteOAprobada = (solicitud.estado === 'PENDIENTE' || solicitud.estado === 'APROBADA');
                 
-                const tieneSolicitud = esPacienteCorrecto && esSolicitanteCorrecto && esPendienteOAprobada;
-                if (tieneSolicitud) {
-                  console.log('✅ [FRONTEND] Solicitud encontrada para paciente:', ciPacienteBuscado, 'profesional:', profesionalId, solicitud);
-                }
-                return tieneSolicitud;
+                return esPacienteCorrecto && esSolicitanteCorrecto && esPendienteOAprobada;
               });
               
               if (tieneSolicitudParaPaciente) {
                 tieneAcceso = true;
-                console.log('✅ [FRONTEND] Tiene acceso por solicitud existente');
               }
-            } else {
-              console.warn('⚠️ [FRONTEND] Error al obtener solicitudes:', solicitudesResponse.status, solicitudesResponse.statusText);
             }
           } catch (e) {
-            console.warn('Error al verificar solicitudes de acceso:', e);
             // Continuar con la verificación de documentos si falla
           }
         }
         
         // 3. Si tiene acceso (política o solicitud aprobada), mostrar mensaje y no permitir nueva solicitud
         if (tieneAcceso) {
-          console.log('🛑 [FRONTEND] BLOQUEANDO solicitud - ya tiene acceso');
           setPopupMessage('Ya tiene acceso a los documentos de este paciente. No es necesario solicitar acceso nuevamente.');
           setShowSolicitarAccesoModal(false);
           setSolicitarAccesoForm({ ciPaciente: '', motivo: '' });
           setError(null);
           setLoading(false);
           return;
-        } else {
-          console.log('✅ [FRONTEND] No tiene acceso, continuando con verificación de documentos');
         }
       }
 
@@ -390,7 +362,6 @@ function DocumentosPage() {
         if (response.status === 409) {
           try {
             const errorData = await response.json();
-            console.log('🛑 [FRONTEND] Respuesta 409 recibida:', errorData);
             
             // Extraer solo el mensaje del JSON, asegurándose de que sea un string
             let mensaje = 'Ya tiene acceso a los documentos de este paciente. No es necesario solicitar acceso nuevamente.';
@@ -418,10 +389,8 @@ function DocumentosPage() {
               mensaje = errorData;
             }
             
-            console.log('🛑 [FRONTEND] Mensaje extraído:', mensaje);
             setPopupMessage(String(mensaje)); // Asegurar que sea string
           } catch (e) {
-            console.warn('⚠️ [FRONTEND] Error al parsear respuesta 409:', e);
             // Si no se puede parsear el JSON, usar mensaje por defecto
             setPopupMessage('Ya tiene acceso a los documentos de este paciente. No es necesario solicitar acceso nuevamente.');
           }
@@ -457,7 +426,6 @@ function DocumentosPage() {
     } catch (err) {
       const errMsg = err.message || String(err);
       setError(`Error al enviar solicitud de acceso: ${handleDatabaseError(errMsg)}`);
-      console.error('Error:', err);
     } finally {
       setLoading(false);
     }
@@ -515,9 +483,28 @@ function DocumentosPage() {
     } catch (err) {
       const errMsg = err.message || String(err);
       setError(handleDatabaseError(errMsg, 'Error de conexión al subir el documento'));
-      console.error('Error:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const verificarPacienteExiste = async (ciPaciente) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/hcen-web/api/clinica/${tenantId}/usuarios-salud`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const usuarios = await response.json();
+        return Array.isArray(usuarios) && usuarios.some(usuario => usuario.ci === ciPaciente);
+      }
+      return false;
+    } catch (err) {
+      // Si hay error al verificar, permitir continuar y dejar que el backend valide
+      return true;
     }
   };
 
@@ -531,8 +518,17 @@ function DocumentosPage() {
 
     setLoading(true);
     setError(null);
+    setCreateError(null);
 
     try {
+      // Verificar que el paciente existe antes de crear el documento
+      const pacienteExiste = await verificarPacienteExiste(createForm.ciPaciente.trim());
+      if (!pacienteExiste) {
+        setCreateError(`Paciente no encontrado en esta clínica: ${createForm.ciPaciente.trim()}. Por favor, registre al paciente antes de crear documentos.`);
+        setLoading(false);
+        return;
+      }
+
       const token = localStorage.getItem('token');
       const body = {
         ciPaciente: createForm.ciPaciente,
@@ -587,7 +583,6 @@ function DocumentosPage() {
       const errMsg = err.message || String(err);
       setError(handleDatabaseError(errMsg, 'Error de conexión al crear el documento'));
       setCreateError(null);
-      console.error('Error:', err);
     } finally {
       setLoading(false);
     }
@@ -630,7 +625,6 @@ function DocumentosPage() {
     } catch (err) {
       const errMsg = err.message || String(err);
       setErrorResumen(handleDatabaseError(errMsg, 'Error de conexión al generar el resumen'));
-      console.error('Error:', err);
     } finally {
       setLoadingResumen(false);
     }
@@ -831,8 +825,8 @@ function DocumentosPage() {
             Documentos encontrados ({documentos.length})
           </h3>
           <div style={styles.documentosList}>
-            {documentos.map((doc, index) => (
-              <div key={doc.id || index} style={styles.documentoItem}>
+            {documentos.map((doc) => (
+              <div key={doc.id || `doc-${doc.ciPaciente}-${doc.fechaCreacion}`} style={styles.documentoItem}>
                 <div style={styles.documentoIcon}>📄</div>
                 <div style={styles.documentoInfo}>
                   <div style={styles.documentoHeader}>

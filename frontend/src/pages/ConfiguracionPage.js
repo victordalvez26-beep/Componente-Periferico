@@ -17,7 +17,7 @@ function ConfiguracionPage() {
 
   useEffect(() => {
     loadConfig();
-  }, [tenantId]);
+  }, [tenantId]); // loadConfig está definido en el mismo componente
 
   const loadConfig = async () => {
     try {
@@ -68,7 +68,7 @@ function ConfiguracionPage() {
         setMessage('Configuración guardada exitosamente');
         // Recargar la página después de 1 segundo para aplicar los cambios (nombre y logo)
         setTimeout(() => {
-          window.location.reload();
+          globalThis.location.reload();
         }, 1000);
       } else {
         const errorData = await res.json().catch(() => ({}));
@@ -125,10 +125,11 @@ function ConfiguracionPage() {
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'grid', gap: '24px', maxWidth: '600px' }}>
             <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+              <label htmlFor="nombrePortal" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
                 Nombre del Portal
               </label>
               <input
+                id="nombrePortal"
                 type="text"
                 value={config.nombrePortal}
                 onChange={(e) => setConfig({...config, nombrePortal: e.target.value})}
@@ -145,17 +146,19 @@ function ConfiguracionPage() {
             </div>
 
             <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+              <label htmlFor="colorPrimario" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
                 Color Primario
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <input
+                  id="colorPrimarioPicker"
                   type="color"
                   value={config.colorPrimario}
                   onChange={(e) => setConfig({...config, colorPrimario: e.target.value})}
                   style={{ width: '60px', height: '50px', border: '2px solid #e5e7eb', borderRadius: '8px', cursor: 'pointer' }}
                 />
                 <input
+                  id="colorPrimario"
                   type="text"
                   value={config.colorPrimario}
                   onChange={(e) => setConfig({...config, colorPrimario: e.target.value})}
@@ -172,17 +175,19 @@ function ConfiguracionPage() {
             </div>
 
             <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+              <label htmlFor="colorSecundario" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
                 Color Secundario
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <input
+                  id="colorSecundarioPicker"
                   type="color"
                   value={config.colorSecundario}
                   onChange={(e) => setConfig({...config, colorSecundario: e.target.value})}
                   style={{ width: '60px', height: '50px', border: '2px solid #e5e7eb', borderRadius: '8px', cursor: 'pointer' }}
                 />
                 <input
+                  id="colorSecundario"
                   type="text"
                   value={config.colorSecundario}
                   onChange={(e) => setConfig({...config, colorSecundario: e.target.value})}
@@ -199,10 +204,11 @@ function ConfiguracionPage() {
             </div>
 
             <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+              <label htmlFor="logoUrl" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
                 URL del Logo
               </label>
               <input
+                id="logoUrl"
                 type="url"
                 value={config.logoUrl}
                 onChange={(e) => setConfig({...config, logoUrl: e.target.value})}

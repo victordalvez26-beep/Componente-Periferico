@@ -24,6 +24,13 @@ function UsuariosSaludPage() {
     'SAN_JOSE', 'SORIANO', 'TACUAREMBO', 'TREINTA_Y_TRES'
   ];
   
+  // Función helper para capitalizar palabras
+  const capitalizarPalabras = (texto) => {
+    return texto.split(' ').map(palabra => 
+      palabra.charAt(0).toUpperCase() + palabra.slice(1).toLowerCase()
+    ).join(' ');
+  };
+  
   // Función helper para formatear departamentos
   const formatDepartamento = (dept) => {
     if (!dept) return '-';
@@ -50,7 +57,11 @@ function UsuariosSaludPage() {
       'TREINTA_Y_TRES': 'Treinta y Tres'
     };
     
-    return departamentoMap[dept] || dept.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    if (departamentoMap[dept]) {
+      return departamentoMap[dept];
+    }
+    const sinGuiones = dept.replaceAll('_', ' ');
+    return capitalizarPalabras(sinGuiones);
   };
   
   const [formData, setFormData] = useState({
@@ -96,7 +107,6 @@ function UsuariosSaludPage() {
         }
       }
     } catch (error) {
-      console.error('Error:', error);
       const errMsg = (error.message || String(error)).toLowerCase();
       if (errMsg.includes('mongo') || errMsg.includes('database') || errMsg.includes('connection')) {
         mostrarMensaje('error', 'Error al conectarse con la base de datos. Contacte a su administrador.');
@@ -116,6 +126,36 @@ function UsuariosSaludPage() {
     }));
   };
   
+  const validarFechaNacimiento = (fechaStr) => {
+    if (!fechaStr) {
+      return null;
+    }
+    const fecha = new Date(fechaStr);
+    if (Number.isNaN(fecha.getTime())) {
+      return 'La fecha de nacimiento no es válida';
+    }
+    if (fecha > new Date()) {
+      return 'La fecha de nacimiento no puede ser una fecha futura';
+    }
+    return null;
+  };
+  
+  const esErrorBaseDatos = (errorMsg) => {
+    if (!errorMsg) {
+      return false;
+    }
+    const msg = errorMsg.toLowerCase();
+    return msg.includes('mongo') || msg.includes('database') || msg.includes('connection');
+  };
+  
+  const manejarErrorRespuesta = (errorMsg) => {
+    if (esErrorBaseDatos(errorMsg)) {
+      mostrarMensaje('error', 'Error al conectarse con la base de datos. Contacte a su administrador.');
+    } else {
+      mostrarMensaje('error', errorMsg || 'Error al guardar el paciente');
+    }
+  };
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -126,17 +166,10 @@ function UsuariosSaludPage() {
     }
     
     // Validar fecha de nacimiento si está presente
-    if (formData.fechaNacimiento) {
-      const fecha = new Date(formData.fechaNacimiento);
-      if (isNaN(fecha.getTime())) {
-        mostrarMensaje('error', 'La fecha de nacimiento no es válida');
-        return;
-      }
-      // Validar que la fecha no sea futura
-      if (fecha > new Date()) {
-        mostrarMensaje('error', 'La fecha de nacimiento no puede ser una fecha futura');
-        return;
-      }
+    const errorFecha = validarFechaNacimiento(formData.fechaNacimiento);
+    if (errorFecha) {
+      mostrarMensaje('error', errorFecha);
+      return;
     }
     
     try {
@@ -157,33 +190,21 @@ function UsuariosSaludPage() {
       });
       
       if (response.ok) {
-        mostrarMensaje('success', 
-          editingId 
-            ? 'Paciente actualizado correctamente' 
-            : 'Paciente registrado correctamente (sincronizado con HCEN)'
-        );
+        const mensaje = editingId 
+          ? 'Paciente actualizado correctamente' 
+          : 'Paciente registrado correctamente (sincronizado con HCEN)';
+        mostrarMensaje('success', mensaje);
         setShowForm(false);
         resetForm();
         cargarUsuarios();
       } else {
         const errorData = await response.json().catch(() => ({}));
         const errorMsg = errorData.error || 'Error al guardar el paciente';
-        // Verificar si es un error de base de datos
-        const msg = errorMsg.toLowerCase();
-        if (msg.includes('mongo') || msg.includes('database') || msg.includes('connection')) {
-          mostrarMensaje('error', 'Error al conectarse con la base de datos. Contacte a su administrador.');
-        } else {
-          mostrarMensaje('error', errorMsg);
-        }
+        manejarErrorRespuesta(errorMsg);
       }
     } catch (error) {
-      console.error('Error:', error);
-      const errMsg = (error.message || String(error)).toLowerCase();
-      if (errMsg.includes('mongo') || errMsg.includes('database') || errMsg.includes('connection')) {
-        mostrarMensaje('error', 'Error al conectarse con la base de datos. Contacte a su administrador.');
-      } else {
-        mostrarMensaje('error', 'Error de conexión al guardar');
-      }
+      const errMsg = error.message || String(error);
+      manejarErrorRespuesta(errMsg);
     }
   };
   
@@ -282,8 +303,9 @@ function UsuariosSaludPage() {
           <form onSubmit={handleSubmit}>
             <div className="form-row">
               <div className="form-group">
-                <label>CI *</label>
+                <label htmlFor="ci">CI *</label>
                 <input
+                  id="ci"
                   type="text"
                   name="ci"
                   value={formData.ci}
@@ -296,8 +318,9 @@ function UsuariosSaludPage() {
               </div>
               
               <div className="form-group">
-                <label>Nombre</label>
+                <label htmlFor="nombre">Nombre</label>
                 <input
+                  id="nombre"
                   type="text"
                   name="nombre"
                   value={formData.nombre}
@@ -307,8 +330,9 @@ function UsuariosSaludPage() {
               </div>
               
               <div className="form-group">
-                <label>Apellido</label>
+                <label htmlFor="apellido">Apellido</label>
                 <input
+                  id="apellido"
                   type="text"
                   name="apellido"
                   value={formData.apellido}
@@ -320,8 +344,9 @@ function UsuariosSaludPage() {
             
             <div className="form-row">
               <div className="form-group">
-                <label>Fecha de Nacimiento</label>
+                <label htmlFor="fechaNacimiento">Fecha de Nacimiento</label>
                 <input
+                  id="fechaNacimiento"
                   type="date"
                   name="fechaNacimiento"
                   value={formData.fechaNacimiento}
@@ -330,8 +355,9 @@ function UsuariosSaludPage() {
               </div>
               
               <div className="form-group">
-                <label>Teléfono</label>
+                <label htmlFor="telefono">Teléfono</label>
                 <input
+                  id="telefono"
                   type="tel"
                   name="telefono"
                   value={formData.telefono}
@@ -341,8 +367,9 @@ function UsuariosSaludPage() {
               </div>
               
               <div className="form-group">
-                <label>Email</label>
+                <label htmlFor="email">Email</label>
                 <input
+                  id="email"
                   type="email"
                   name="email"
                   value={formData.email}
@@ -354,8 +381,9 @@ function UsuariosSaludPage() {
             
             <div className="form-row">
               <div className="form-group">
-                <label>Dirección</label>
+                <label htmlFor="direccion">Dirección</label>
                 <input
+                  id="direccion"
                   type="text"
                   name="direccion"
                   value={formData.direccion}
@@ -365,8 +393,9 @@ function UsuariosSaludPage() {
               </div>
               
               <div className="form-group">
-                <label>Departamento</label>
+                <label htmlFor="departamento">Departamento</label>
                 <select
+                  id="departamento"
                   name="departamento"
                   value={formData.departamento}
                   onChange={handleInputChange}
@@ -381,8 +410,9 @@ function UsuariosSaludPage() {
               </div>
               
               <div className="form-group">
-                <label>Localidad</label>
+                <label htmlFor="localidad">Localidad</label>
                 <input
+                  id="localidad"
                   type="text"
                   name="localidad"
                   value={formData.localidad}
@@ -421,14 +451,19 @@ function UsuariosSaludPage() {
       <div className="table-container">
         <h2>Listado de Pacientes ({usuarios.length})</h2>
         
-        {loading ? (
-          <div className="loading">Cargando pacientes...</div>
-        ) : usuarios.length === 0 ? (
-          <div className="empty-state">
-            <p>No hay pacientes registrados en esta clínica.</p>
-            <p>Haz clic en "Agregar Paciente" para registrar el primero.</p>
-          </div>
-        ) : (
+        {(() => {
+          if (loading) {
+            return <div className="loading">Cargando pacientes...</div>;
+          }
+          if (usuarios.length === 0) {
+            return (
+              <div className="empty-state">
+                <p>No hay pacientes registrados en esta clínica.</p>
+                <p>Haz clic en "Agregar Paciente" para registrar el primero.</p>
+              </div>
+            );
+          }
+          return (
           <div style={{ overflowX: 'auto', width: '100%' }}>
             <table className="data-table">
             <thead>
@@ -448,9 +483,18 @@ function UsuariosSaludPage() {
                 <tr key={usuario.id}>
                   <td><strong>{usuario.ci}</strong></td>
                   <td>
-                    {usuario.apellido && usuario.nombre 
-                      ? `${usuario.apellido}, ${usuario.nombre}`
-                      : usuario.apellido || usuario.nombre || '-'}
+                    {(() => {
+                      if (usuario.apellido && usuario.nombre) {
+                        return `${usuario.apellido}, ${usuario.nombre}`;
+                      }
+                      if (usuario.apellido) {
+                        return usuario.apellido;
+                      }
+                      if (usuario.nombre) {
+                        return usuario.nombre;
+                      }
+                      return '-';
+                    })()}
                   </td>
                   <td>{usuario.fechaNacimiento || '-'}</td>
                   <td>{usuario.telefono || '-'}</td>
@@ -484,7 +528,8 @@ function UsuariosSaludPage() {
             </tbody>
           </table>
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

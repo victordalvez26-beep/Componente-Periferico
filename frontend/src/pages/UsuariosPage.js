@@ -37,7 +37,7 @@ function UsuariosPage() {
         setUsuarios(data);
       }
     } catch (err) {
-      console.error('Error al cargar usuarios:', err);
+      // Error al cargar usuarios
     } finally {
       setLoading(false);
     }

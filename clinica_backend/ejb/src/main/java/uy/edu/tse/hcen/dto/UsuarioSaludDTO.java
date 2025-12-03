@@ -1,5 +1,6 @@
 package uy.edu.tse.hcen.dto;
 
+import jakarta.json.bind.annotation.JsonbDateFormat;
 import java.time.LocalDate;
 
 /**
@@ -12,6 +13,8 @@ public class UsuarioSaludDTO {
     private String ci;
     private String nombre;
     private String apellido;
+    
+    @JsonbDateFormat(value = "yyyy-MM-dd", locale = "es")
     private LocalDate fechaNacimiento;
     private String direccion;
     private String telefono;
@@ -22,6 +25,7 @@ public class UsuarioSaludDTO {
     
     // Constructors
     public UsuarioSaludDTO() {
+        // Constructor por defecto para deserialización JSON
     }
     
     // Getters and Setters

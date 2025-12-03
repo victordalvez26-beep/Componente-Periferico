@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useClinicConfig } from '../hooks/useClinicConfig';
 import './Layout.css';
@@ -108,9 +109,9 @@ function Layout({ children }) {
 
         {/* Navigation */}
         <nav style={styles.nav} className="layout-nav">
-          {currentMenu.map((item, index) => (
+          {currentMenu.map((item) => (
             <button
-              key={index}
+              key={item.path}
               onClick={() => {
                 navigate(item.path);
                 setMobileMenuOpen(false);
@@ -138,7 +139,7 @@ function Layout({ children }) {
               ...styles.avatar,
               backgroundColor: config.colorPrimario
             }}>
-              {username.charAt(0).toUpperCase()}
+              {username?.charAt(0)?.toUpperCase() || 'U'}
             </div>
             {!sidebarCollapsed && (
               <div style={styles.userDetails}>
@@ -398,9 +399,13 @@ const styles = {
 function hexToRgb(hex) {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result 
-    ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
+    ? `${Number.parseInt(result[1], 16)}, ${Number.parseInt(result[2], 16)}, ${Number.parseInt(result[3], 16)}`
     : '59, 130, 246'; // Default azul
 }
+
+Layout.propTypes = {
+  children: PropTypes.node.isRequired
+};
 
 export default Layout;
 

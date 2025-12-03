@@ -15,6 +15,7 @@ import jakarta.ws.rs.core.UriBuilder;
 import java.net.URI;
 import java.util.List;
 import java.util.Optional;
+import jakarta.ejb.EJB;
 
 @Path("/profesionales")
 @Produces(MediaType.APPLICATION_JSON)
@@ -24,7 +25,7 @@ import java.util.Optional;
 @RequestScoped
 public class ProfesionalSaludResource {
 
-    @jakarta.ejb.EJB
+    @EJB
     private ProfesionalSaludService profesionalService;
 
     @GET
@@ -37,6 +38,10 @@ public class ProfesionalSaludResource {
     @GET
     @Path("/{id}")
     public Response getById(@PathParam("id") Long id) {
+
+        if (id == null) {
+            return Response.status(Response.Status.BAD_REQUEST).entity("id required").build();
+        }
         Optional<ProfesionalSalud> opt = profesionalService.findById(id);
         if (opt.isPresent()) {
             return Response.ok(ProfesionalResponse.fromEntity(opt.get())).build();
@@ -47,7 +52,7 @@ public class ProfesionalSaludResource {
 
     @POST
     public Response create(ProfesionalDTO dto) {
-        // Basic validation
+
         if (dto == null || dto.getNickname() == null || dto.getNickname().isBlank()) {
             return Response.status(Response.Status.BAD_REQUEST).entity("nickname required").build();
         }

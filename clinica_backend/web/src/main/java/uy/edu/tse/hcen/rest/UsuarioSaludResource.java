@@ -11,7 +11,6 @@ import uy.edu.tse.hcen.model.UsuarioSalud;
 import uy.edu.tse.hcen.service.UsuarioSaludService;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Endpoint REST para gestionar Usuarios de Salud (pacientes) en las clínicas periféricas.
@@ -40,7 +39,7 @@ public class UsuarioSaludResource {
         @PathParam("tenantId") Long tenantId,
         UsuarioSaludDTO dto) {
         
-        LOGGER.info("POST /clinica/" + tenantId + "/usuarios-salud - Crear paciente CI: " + dto.getCi());
+        LOGGER.infof("POST /clinica/%d/usuarios-salud - Crear paciente CI: %s", tenantId, dto.getCi());
         
         try {
             // Convertir DTO a entidad
@@ -57,13 +56,13 @@ public class UsuarioSaludResource {
                 .build();
                 
         } catch (IllegalArgumentException e) {
-            LOGGER.warn("Error de validación: " + e.getMessage());
+            LOGGER.warnf("Error de validación: %s", e.getMessage());
             return Response.status(Response.Status.BAD_REQUEST)
                 .entity(new ErrorResponse(e.getMessage()))
                 .build();
                 
         } catch (Exception e) {
-            LOGGER.error("Error al crear usuario de salud: " + e.getMessage(), e);
+            LOGGER.errorf(e, "Error al crear usuario de salud: %s", e.getMessage());
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                 .entity(new ErrorResponse("Error interno al crear paciente: " + e.getMessage()))
                 .build();
@@ -80,14 +79,14 @@ public class UsuarioSaludResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Response listarUsuariosSalud(@PathParam("tenantId") Long tenantId) {
         
-        LOGGER.info("GET /clinica/" + tenantId + "/usuarios-salud - Listar pacientes");
+        LOGGER.infof("GET /clinica/%d/usuarios-salud - Listar pacientes", tenantId);
         
         try {
             List<UsuarioSalud> usuarios = service.listarUsuariosSalud(tenantId);
             
             List<UsuarioSaludDTO> dtos = usuarios.stream()
                 .map(this::entityToDto)
-                .collect(Collectors.toList());
+                .toList();
             
             return Response.ok(dtos).build();
             
@@ -181,6 +180,7 @@ public class UsuarioSaludResource {
         usuario.setCi(dto.getCi());
         usuario.setNombre(dto.getNombre());
         usuario.setApellido(dto.getApellido());
+        // fechaNacimiento puede ser null si no se proporciona - se maneja automáticamente por el deserializador
         usuario.setFechaNacimiento(dto.getFechaNacimiento());
         usuario.setDireccion(dto.getDireccion());
         usuario.setTelefono(dto.getTelefono());

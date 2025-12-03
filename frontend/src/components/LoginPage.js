@@ -29,7 +29,7 @@ function LoginPage() {
     
     // Cargar información de la clínica
     fetchClinicInfo();
-  }, [tenantId, navigate]);
+  }, [tenantId, navigate]); // fetchClinicInfo está definido en el mismo componente
 
   const fetchClinicInfo = async () => {
     try {
@@ -130,9 +130,9 @@ function LoginPage() {
     if (hex.length === 3) {
       hex = hex.split('').map((c) => c + c).join('');
     }
-    const r = parseInt(hex.substring(0, 2), 16) / 255;
-    const g = parseInt(hex.substring(2, 4), 16) / 255;
-    const b = parseInt(hex.substring(4, 6), 16) / 255;
+    const r = Number.parseInt(hex.substring(0, 2), 16) / 255;
+    const g = Number.parseInt(hex.substring(2, 4), 16) / 255;
+    const b = Number.parseInt(hex.substring(4, 6), 16) / 255;
     return (0.299 * r + 0.587 * g + 0.114 * b);
   };
 
@@ -142,7 +142,7 @@ function LoginPage() {
     if (hex.length === 3) {
       hex = hex.split('').map((c) => c + c).join('');
     }
-    const num = parseInt(hex, 16);
+    const num = Number.parseInt(hex, 16);
     let r = (num >> 16) + Math.round(255 * amount);
     let g = ((num >> 8) & 0x00ff) + Math.round(255 * amount);
     let b = (num & 0x0000ff) + Math.round(255 * amount);
@@ -159,7 +159,7 @@ function LoginPage() {
     if (hex.length === 3) {
       hex = hex.split('').map((c) => c + c).join('');
     }
-    const num = parseInt(hex, 16);
+    const num = Number.parseInt(hex, 16);
     let r = (num >> 16) - Math.round(255 * amount);
     let g = ((num >> 8) & 0x00ff) - Math.round(255 * amount);
     let b = (num & 0x0000ff) - Math.round(255 * amount);
@@ -227,8 +227,9 @@ function LoginPage() {
         {/* Form */}
         <form onSubmit={handleSubmit} style={styles.form}>
           <div style={styles.formGroup}>
-            <label style={styles.label}>Usuario</label>
+            <label htmlFor="username" style={styles.label}>Usuario</label>
             <input
+              id="username"
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -240,8 +241,9 @@ function LoginPage() {
           </div>
 
           <div style={styles.formGroup}>
-            <label style={styles.label}>Contraseña</label>
+            <label htmlFor="password" style={styles.label}>Contraseña</label>
             <input
+              id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -262,7 +264,7 @@ function LoginPage() {
             disabled={loading}
             style={{
               ...styles.button,
-              backgroundColor: "#000000",
+              backgroundColor: buttonColor,
               color: buttonTextColor,
               opacity: loading ? 0.6 : 1,
               cursor: loading ? 'not-allowed' : 'pointer'
