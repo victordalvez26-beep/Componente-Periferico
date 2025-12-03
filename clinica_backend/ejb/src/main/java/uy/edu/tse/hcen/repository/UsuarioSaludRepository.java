@@ -2,14 +2,11 @@ package uy.edu.tse.hcen.repository;
 
 import jakarta.ejb.Stateless;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.NoResultException;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
 import uy.edu.tse.hcen.model.UsuarioSalud;
 
 import java.sql.Date;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,6 +15,12 @@ import java.util.List;
  */
 @Stateless
 public class UsuarioSaludRepository {
+    
+    private static final String SCHEMA_PREFIX = "schema_clinica_";
+    private static final String PARAM_TENANT_ID = "tenantId";
+    private static final String PARAM_HCEN_USER_ID = "hcenUserId";
+    private static final String PARAM_CI = "ci";
+    private static final String PARAM_ID = "id";
     
     @PersistenceContext(unitName = "hcenPersistenceUnit")
     private EntityManager em;
@@ -32,23 +35,21 @@ public class UsuarioSaludRepository {
      */
     public UsuarioSalud findByCiAndTenant(String ci, Long tenantId) {
         try {
-            String schema = "schema_clinica_" + tenantId;
+            String schema = SCHEMA_PREFIX + tenantId;
             String sql = "SELECT id, ci, nombre, apellido, fecha_nacimiento, direccion, telefono, email, " +
                         "departamento, localidad, hcen_user_id, tenant_id, fecha_alta, fecha_actualizacion " +
                         "FROM " + schema + ".usuario_salud " +
-                        "WHERE ci = :ci AND tenant_id = :tenantId";
+                        "WHERE ci = :" + PARAM_CI + " AND tenant_id = :" + PARAM_TENANT_ID;
             
             Query query = em.createNativeQuery(sql);
-            query.setParameter("ci", ci);
-            query.setParameter("tenantId", tenantId);
+            query.setParameter(PARAM_CI, ci);
+            query.setParameter(PARAM_TENANT_ID, tenantId);
             
             Object[] row = (Object[]) query.getSingleResult();
             return mapRowToEntity(row);
             
-        } catch (NoResultException e) {
-            return null;
         } catch (Exception e) {
-            return null;
+            return handleNoResult();
         }
     }
     
@@ -62,15 +63,15 @@ public class UsuarioSaludRepository {
     @SuppressWarnings("unchecked")
     public List<UsuarioSalud> findByTenant(Long tenantId) {
         try {
-            String schema = "schema_clinica_" + tenantId;
+            String schema = SCHEMA_PREFIX + tenantId;
             String sql = "SELECT id, ci, nombre, apellido, fecha_nacimiento, direccion, telefono, email, " +
                         "departamento, localidad, hcen_user_id, tenant_id, fecha_alta, fecha_actualizacion " +
                         "FROM " + schema + ".usuario_salud " +
-                        "WHERE tenant_id = :tenantId " +
+                        "WHERE tenant_id = :" + PARAM_TENANT_ID + " " +
                         "ORDER BY apellido, nombre";
             
             Query query = em.createNativeQuery(sql);
-            query.setParameter("tenantId", tenantId);
+            query.setParameter(PARAM_TENANT_ID, tenantId);
             
             List<Object[]> rows = query.getResultList();
             List<UsuarioSalud> result = new ArrayList<>();
@@ -94,22 +95,20 @@ public class UsuarioSaludRepository {
      */
     public UsuarioSalud findById(Long id, Long tenantId) {
         try {
-            String schema = "schema_clinica_" + tenantId;
+            String schema = SCHEMA_PREFIX + tenantId;
             String sql = "SELECT id, ci, nombre, apellido, fecha_nacimiento, direccion, telefono, email, " +
                         "departamento, localidad, hcen_user_id, tenant_id, fecha_alta, fecha_actualizacion " +
                         "FROM " + schema + ".usuario_salud " +
-                        "WHERE id = :id";
+                        "WHERE id = :" + PARAM_ID;
             
             Query query = em.createNativeQuery(sql);
-            query.setParameter("id", id);
+            query.setParameter(PARAM_ID, id);
             
             Object[] row = (Object[]) query.getSingleResult();
             return mapRowToEntity(row);
             
-        } catch (NoResultException e) {
-            return null;
         } catch (Exception e) {
-            return null;
+            return handleNoResult();
         }
     }
     
@@ -122,23 +121,21 @@ public class UsuarioSaludRepository {
      */
     public UsuarioSalud findByHcenUserId(Long hcenUserId, Long tenantId) {
         try {
-            String schema = "schema_clinica_" + tenantId;
+            String schema = SCHEMA_PREFIX + tenantId;
             String sql = "SELECT id, ci, nombre, apellido, fecha_nacimiento, direccion, telefono, email, " +
                         "departamento, localidad, hcen_user_id, tenant_id, fecha_alta, fecha_actualizacion " +
                         "FROM " + schema + ".usuario_salud " +
-                        "WHERE hcen_user_id = :hcenUserId AND tenant_id = :tenantId";
+                        "WHERE hcen_user_id = :" + PARAM_HCEN_USER_ID + " AND tenant_id = :" + PARAM_TENANT_ID;
             
             Query query = em.createNativeQuery(sql);
-            query.setParameter("hcenUserId", hcenUserId);
-            query.setParameter("tenantId", tenantId);
+            query.setParameter(PARAM_HCEN_USER_ID, hcenUserId);
+            query.setParameter(PARAM_TENANT_ID, tenantId);
             
             Object[] row = (Object[]) query.getSingleResult();
             return mapRowToEntity(row);
             
-        } catch (NoResultException e) {
-            return null;
         } catch (Exception e) {
-            return null;
+            return handleNoResult();
         }
     }
     
@@ -148,16 +145,16 @@ public class UsuarioSaludRepository {
      * @param usuario El usuario a persistir
      */
     public void persist(UsuarioSalud usuario) {
-        String schema = "schema_clinica_" + usuario.getTenantId();
+        String schema = SCHEMA_PREFIX + usuario.getTenantId();
         String sql = "INSERT INTO " + schema + ".usuario_salud " +
                     "(ci, nombre, apellido, fecha_nacimiento, direccion, telefono, email, " +
                     "departamento, localidad, hcen_user_id, tenant_id, fecha_alta) " +
-                    "VALUES (:ci, :nombre, :apellido, :fechaNac, :direccion, :telefono, :email, " +
-                    ":departamento, :localidad, :hcenUserId, :tenantId, :fechaAlta) " +
+                    "VALUES (:" + PARAM_CI + ", :nombre, :apellido, :fechaNac, :direccion, :telefono, :email, " +
+                    ":departamento, :localidad, :" + PARAM_HCEN_USER_ID + ", :" + PARAM_TENANT_ID + ", :fechaAlta) " +
                     "RETURNING id";
         
         Query query = em.createNativeQuery(sql);
-        query.setParameter("ci", usuario.getCi());
+        query.setParameter(PARAM_CI, usuario.getCi());
         query.setParameter("nombre", usuario.getNombre());
         query.setParameter("apellido", usuario.getApellido());
         query.setParameter("fechaNac", usuario.getFechaNacimiento() != null ? 
@@ -167,8 +164,8 @@ public class UsuarioSaludRepository {
         query.setParameter("email", usuario.getEmail());
         query.setParameter("departamento", usuario.getDepartamento());
         query.setParameter("localidad", usuario.getLocalidad());
-        query.setParameter("hcenUserId", usuario.getHcenUserId());
-        query.setParameter("tenantId", usuario.getTenantId());
+        query.setParameter(PARAM_HCEN_USER_ID, usuario.getHcenUserId());
+        query.setParameter(PARAM_TENANT_ID, usuario.getTenantId());
         query.setParameter("fechaAlta", usuario.getFechaAlta() != null ? 
             java.sql.Timestamp.valueOf(usuario.getFechaAlta()) : null);
         
@@ -183,13 +180,13 @@ public class UsuarioSaludRepository {
      * @return El usuario actualizado
      */
     public UsuarioSalud merge(UsuarioSalud usuario) {
-        String schema = "schema_clinica_" + usuario.getTenantId();
+        String schema = SCHEMA_PREFIX + usuario.getTenantId();
         String sql = "UPDATE " + schema + ".usuario_salud SET " +
                     "nombre = :nombre, apellido = :apellido, fecha_nacimiento = :fechaNac, " +
                     "direccion = :direccion, telefono = :telefono, email = :email, " +
                     "departamento = :departamento, localidad = :localidad, " +
-                    "hcen_user_id = :hcenUserId, fecha_actualizacion = :fechaAct " +
-                    "WHERE id = :id";
+                    "hcen_user_id = :" + PARAM_HCEN_USER_ID + ", fecha_actualizacion = :fechaAct " +
+                    "WHERE id = :" + PARAM_ID;
         
         Query query = em.createNativeQuery(sql);
         query.setParameter("nombre", usuario.getNombre());
@@ -201,10 +198,10 @@ public class UsuarioSaludRepository {
         query.setParameter("email", usuario.getEmail());
         query.setParameter("departamento", usuario.getDepartamento());
         query.setParameter("localidad", usuario.getLocalidad());
-        query.setParameter("hcenUserId", usuario.getHcenUserId());
+        query.setParameter(PARAM_HCEN_USER_ID, usuario.getHcenUserId());
         query.setParameter("fechaAct", usuario.getFechaActualizacion() != null ? 
             java.sql.Timestamp.valueOf(usuario.getFechaActualizacion()) : null);
-        query.setParameter("id", usuario.getId());
+        query.setParameter(PARAM_ID, usuario.getId());
         
         query.executeUpdate();
         return usuario;
@@ -216,12 +213,21 @@ public class UsuarioSaludRepository {
      * @param usuario El usuario a eliminar
      */
     public void remove(UsuarioSalud usuario) {
-        String schema = "schema_clinica_" + usuario.getTenantId();
-        String sql = "DELETE FROM " + schema + ".usuario_salud WHERE id = :id";
+        String schema = SCHEMA_PREFIX + usuario.getTenantId();
+        String sql = "DELETE FROM " + schema + ".usuario_salud WHERE id = :" + PARAM_ID;
         
         Query query = em.createNativeQuery(sql);
-        query.setParameter("id", usuario.getId());
+        query.setParameter(PARAM_ID, usuario.getId());
         query.executeUpdate();
+    }
+    
+    /**
+     * Maneja excepciones de consultas que no retornan resultados.
+     * 
+     * @return null siempre (indica que no se encontró el resultado)
+     */
+    private UsuarioSalud handleNoResult() {
+        return null;
     }
     
     /**

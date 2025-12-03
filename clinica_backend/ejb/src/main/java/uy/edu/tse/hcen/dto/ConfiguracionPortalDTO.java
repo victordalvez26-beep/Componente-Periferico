@@ -3,10 +3,12 @@ package uy.edu.tse.hcen.dto;
 import java.io.Serializable;
 
 public class ConfiguracionPortalDTO implements Serializable {
-    public String colorPrimario;
-    public String colorSecundario;
-    public String logoUrl;
-    public String nombrePortal;
+    private static final long serialVersionUID = 1L;
+    
+    private String colorPrimario;
+    private String colorSecundario;
+    private String logoUrl;
+    private String nombrePortal;
 
     public String getColorPrimario() {
         return colorPrimario;

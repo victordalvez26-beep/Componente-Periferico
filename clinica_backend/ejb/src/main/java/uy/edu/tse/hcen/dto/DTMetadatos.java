@@ -1,11 +1,13 @@
 package uy.edu.tse.hcen.dto;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
  * DTO used for authorization and routing metadata.
  */
-public class DTMetadatos {
+public class DTMetadatos implements Serializable {
+    private static final long serialVersionUID = 1L;
 
     // Campos necesarios para la autorización y el enrutamiento
     private String tenantId; // ID del Prestador/Clínica (Para Multi-tenancy)
@@ -29,6 +31,7 @@ public class DTMetadatos {
     private String datosPatronimicos;       // Nombre completo del paciente
 
     public DTMetadatos() {
+        // Constructor por defecto para deserialización JSON/XML
     }
 
     // getters / setters

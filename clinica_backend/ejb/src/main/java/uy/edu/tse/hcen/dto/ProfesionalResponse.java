@@ -1,11 +1,13 @@
 package uy.edu.tse.hcen.dto;
 
+import java.io.Serializable;
 import uy.edu.tse.hcen.model.ProfesionalSalud;
 
 /**
  * Response DTO for ProfesionalSalud 
  */
-public class ProfesionalResponse {
+public class ProfesionalResponse implements Serializable {
+    private static final long serialVersionUID = 1L;
     private Long id;
     private String nombre;
     private String email;
@@ -13,16 +15,18 @@ public class ProfesionalResponse {
     private String especialidad;
     private String direccion;
 
-    public ProfesionalResponse() {}
+    public ProfesionalResponse() {
+        // Constructor por defecto para deserialización JSON/XML
+    }
 
     public static ProfesionalResponse fromEntity(ProfesionalSalud p) {
         ProfesionalResponse r = new ProfesionalResponse();
-        r.id = p.getId();
-        r.nombre = p.getNombre();
-        r.email = p.getEmail();
-        r.nickname = p.getNickname();
-        r.especialidad = p.getEspecialidad() != null ? p.getEspecialidad().name() : null;
-        r.direccion = p.getDireccion();
+        r.setId(p.getId());
+        r.setNombre(p.getNombre());
+        r.setEmail(p.getEmail());
+        r.setNickname(p.getNickname());
+        r.setEspecialidad(p.getEspecialidad() != null ? p.getEspecialidad().name() : null);
+        r.setDireccion(p.getDireccion());
         return r;
     }
 

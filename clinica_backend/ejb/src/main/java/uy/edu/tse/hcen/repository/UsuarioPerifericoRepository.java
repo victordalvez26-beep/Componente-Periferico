@@ -8,9 +8,20 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.NoResultException;
 import jakarta.persistence.Query;
 import java.math.BigInteger;
+import java.util.logging.Logger;
+import java.util.logging.Level;
 
 @Stateless
 public class UsuarioPerifericoRepository {
+
+    private static final Logger LOG = Logger.getLogger(UsuarioPerifericoRepository.class.getName());
+    
+    // Constantes para literales duplicados
+    private static final String DTYPE_PROFESIONAL_SALUD = "ProfesionalSalud";
+    private static final String DTYPE_ADMINISTRADOR_CLINICA = "AdministradorClinica";
+    private static final String ROLE_PROFESIONAL = "PROFESIONAL";
+    private static final String ROLE_ADMINISTRADOR = "ADMINISTRADOR";
+    private static final String PARAM_NICKNAME = "nickname";
 
     @PersistenceContext(unitName = "hcenPersistenceUnit")
     private EntityManager em;
@@ -24,7 +35,7 @@ public class UsuarioPerifericoRepository {
         try {
             return em.createQuery(
                 "SELECT u FROM UsuarioPeriferico u WHERE u.nickname = :nickname", UsuarioPeriferico.class)
-                .setParameter("nickname", nickname)
+                .setParameter(PARAM_NICKNAME, nickname)
                 .getSingleResult();
         } catch (NoResultException e) {
             return null;
@@ -36,7 +47,7 @@ public class UsuarioPerifericoRepository {
      * Útil para buscar profesionales en schema_clinica_XXX.usuario sin problemas de herencia.
      */
     public UsuarioPeriferico findByNicknameInTenantSchema(String nickname, String schemaName) {
-        System.out.println("=== findByNicknameInTenantSchema: nickname=" + nickname + ", schema=" + schemaName);
+        LOG.log(Level.FINE, "findByNicknameInTenantSchema: nickname={0}, schema={1}", new Object[]{nickname, schemaName});
         try {
             // Query nativa SQL en el schema del tenant - buscar en usuarioperiferico
             // NOTA: No incluye tenant_id porque el schema YA define el tenant
@@ -54,12 +65,12 @@ public class UsuarioPerifericoRepository {
             UsuarioPeriferico user = new UsuarioPeriferico();
             
             Object idObj = row[0];
-            if (idObj instanceof Long) {
-                user.setId((Long) idObj);
-            } else if (idObj instanceof BigInteger) {
-                user.setId(((BigInteger) idObj).longValue());
-            } else if (idObj instanceof Integer) {
-                user.setId(((Integer) idObj).longValue());
+            if (idObj instanceof Long longValue) {
+                user.setId(longValue);
+            } else if (idObj instanceof BigInteger bigInteger) {
+                user.setId(bigInteger.longValue());
+            } else if (idObj instanceof Integer integerValue) {
+                user.setId(integerValue.longValue());
             }
             
             user.setNickname((String) row[1]);
@@ -71,31 +82,26 @@ public class UsuarioPerifericoRepository {
             
             if (role == null || role.isBlank()) {
                 // Deducir role del dtype
-                if ("ProfesionalSalud".equals(dtype)) {
-                    role = "PROFESIONAL";
-                } else if ("AdministradorClinica".equals(dtype)) {
-                    role = "ADMINISTRADOR";
+                if (DTYPE_PROFESIONAL_SALUD.equals(dtype)) {
+                    role = ROLE_PROFESIONAL;
+                } else if (DTYPE_ADMINISTRADOR_CLINICA.equals(dtype)) {
+                    role = ROLE_ADMINISTRADOR;
                 }
-                System.out.println("=== Role deducido del dtype: " + dtype + " → " + role);
+                LOG.log(Level.FINE, "Role deducido del dtype: {0} → {1}", new Object[]{dtype, role});
             }
             user.setRole(role);
             
             user.setNombre((String) row[4]);
             user.setEmail((String) row[5]);
             
-            // Campos adicionales opcionales
-            if (row.length > 6 && row[6] != null) {
-                System.out.println("=== Especialidad: " + row[6]);
-            }
-            
-            System.out.println("=== Usuario encontrado en tenant schema: " + user.getNickname() + ", role=" + role);
+            LOG.log(Level.FINE, "Usuario encontrado en tenant schema: {0}, role={1}", new Object[]{user.getNickname(), role});
             return user;
         } catch (NoResultException e) {
-            System.out.println("=== NoResultException en tenant schema");
+            LOG.log(Level.FINE, "NoResultException en tenant schema");
             return null;
         } catch (Exception e) {
-            System.out.println("=== Exception en findByNicknameInTenantSchema: " + e.getMessage());
-            e.printStackTrace();
+            String errorMsg = String.format("Exception en findByNicknameInTenantSchema: %s", e.getMessage());
+            LOG.log(Level.WARNING, errorMsg, e);
             return null;
         }
     }
@@ -105,7 +111,7 @@ public class UsuarioPerifericoRepository {
      * Usado específicamente para login donde solo necesitamos datos básicos.
      */
     public UsuarioPeriferico findByNicknameForLogin(String nickname) {
-        System.out.println("=== findByNicknameForLogin called with nickname: " + nickname);
+        LOG.log(Level.FINE, "findByNicknameForLogin called with nickname: {0}", nickname);
         try {
             // Query nativa SQL para evitar JOINs de herencia
             Query query = em.createNativeQuery(
@@ -117,22 +123,22 @@ public class UsuarioPerifericoRepository {
             );
             query.setParameter(1, nickname);
             
-            System.out.println("=== Query created, executing...");
+            LOG.log(Level.FINE, "Query created, executing...");
             Object[] row = (Object[]) query.getSingleResult();
-            System.out.println("=== Query returned " + row.length + " columns");
+            LOG.log(Level.FINE, "Query returned {0} columns", row.length);
             
             // Mapear manualmente a UsuarioPeriferico
             UsuarioPeriferico user = new UsuarioPeriferico();
             
             // Manejar ID que puede venir como Long o BigInteger
             Object idObj = row[0];
-            System.out.println("=== ID object type: " + (idObj != null ? idObj.getClass().getName() : "null"));
-            if (idObj instanceof Long) {
-                user.setId((Long) idObj);
-            } else if (idObj instanceof BigInteger) {
-                user.setId(((BigInteger) idObj).longValue());
-            } else if (idObj instanceof Integer) {
-                user.setId(((Integer) idObj).longValue());
+            LOG.log(Level.FINE, "ID object type: {0}", idObj != null ? idObj.getClass().getName() : "null");
+            if (idObj instanceof Long longValue) {
+                user.setId(longValue);
+            } else if (idObj instanceof BigInteger bigInteger) {
+                user.setId(bigInteger.longValue());
+            } else if (idObj instanceof Integer integerValue) {
+                user.setId(integerValue.longValue());
             }
             
             user.setNickname((String) row[1]);
@@ -142,14 +148,14 @@ public class UsuarioPerifericoRepository {
             user.setNombre((String) row[5]);
             user.setEmail((String) row[6]);
             
-            System.out.println("=== User mapped successfully: " + user.getNickname());
+            LOG.log(Level.FINE, "User mapped successfully: {0}", user.getNickname());
             return user;
         } catch (NoResultException e) {
-            System.out.println("=== NoResultException: User not found");
+            LOG.log(Level.FINE, "NoResultException: User not found");
             return null;
         } catch (Exception e) {
-            System.out.println("=== Exception in findByNicknameForLogin: " + e.getClass().getName() + " - " + e.getMessage());
-            e.printStackTrace();
+            String errorMsg = String.format("Exception in findByNicknameForLogin: %s - %s", e.getClass().getName(), e.getMessage());
+            LOG.log(Level.WARNING, errorMsg, e);
             return null;
         }
     }

@@ -38,6 +38,19 @@ import java.util.Map;
 public class DocumentoClinicoResource {
 
     private static final Logger LOG = Logger.getLogger(DocumentoClinicoResource.class);
+    
+    // Constantes para literales duplicados
+    private static final String ERROR_TENANT_NO_IDENTIFICADO = "Tenant no identificado";
+    private static final String KEY_CI_PACIENTE = "ciPaciente";
+    private static final String KEY_TIPO_DOCUMENTO = "tipoDocumento";
+    private static final String KEY_DESCRIPCION = "descripcion";
+    private static final String KEY_TITULO = "titulo";
+    private static final String KEY_AUTOR = "autor";
+    private static final String KEY_MONGO_ID = "mongoId";
+    private static final String KEY_DOCUMENTO_ID = "documentoId";
+    private static final String KEY_FECHA_CREACION = "fechaCreacion";
+    private static final String KEY_ERROR = "error";
+    private static final String KEY_PACIENTE_CI = "pacienteCI";
 
     @Inject
     private DocumentoService documentoService;
@@ -81,8 +94,10 @@ public class DocumentoClinicoResource {
     @RolesAllowed("PROFESIONAL")
     public Response crearDocumentoCompleto(Map<String, Object> body) {
         try {
+            LOG.info("=== crearDocumentoCompleto INICIO ===");
             // Validar body
             if (body == null) {
+                LOG.info("crearDocumentoCompleto: body es null - retornando 400");
                 return DocumentoResponseBuilder.badRequest(DocumentoConstants.ERROR_REQUEST_BODY_REQUIRED);
             }
 
@@ -92,32 +107,39 @@ public class DocumentoClinicoResource {
                 profesionalId = securityContext.getUserPrincipal().getName();
             }
 
+            LOG.infof("crearDocumentoCompleto: profesionalId=%s, securityContext=%s", profesionalId, securityContext);
             if (profesionalId == null || profesionalId.isBlank()) {
+                LOG.info("crearDocumentoCompleto: profesionalId es null o vacío - retornando 401");
                 return DocumentoResponseBuilder.unauthorized(DocumentoConstants.ERROR_AUTENTICACION_REQUERIDA);
             }
 
             // Obtener tenant actual
             String tenantIdStr = TenantContext.getCurrentTenant();
+            LOG.infof("crearDocumentoCompleto: tenantIdStr=%s", tenantIdStr);
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
-                return DocumentoResponseBuilder.badRequest("Tenant no identificado");
-        }
+                LOG.info("crearDocumentoCompleto: tenantIdStr es null o vacío - retornando 400");
+                return DocumentoResponseBuilder.badRequest(ERROR_TENANT_NO_IDENTIFICADO);
+            }
             Long tenantId = Long.parseLong(tenantIdStr);
 
             // Extraer campos del body
-            String ciPaciente = (String) body.get("ciPaciente");
+            String ciPaciente = (String) body.get(KEY_CI_PACIENTE);
             String contenido = (String) body.get("contenido");
-            String tipoDocumento = (String) body.get("tipoDocumento");
-            String descripcion = (String) body.get("descripcion");
-            String titulo = (String) body.get("titulo");
-            String autor = (String) body.get("autor");
+            String tipoDocumento = (String) body.get(KEY_TIPO_DOCUMENTO);
+            String descripcion = (String) body.get(KEY_DESCRIPCION);
+            String titulo = (String) body.get(KEY_TITULO);
+            String autor = (String) body.get(KEY_AUTOR);
 
             // Validaciones
+            LOG.infof("crearDocumentoCompleto: ciPaciente=%s, contenido=%s", ciPaciente, contenido != null ? "presente" : "null");
             if (ciPaciente == null || ciPaciente.isBlank()) {
+                LOG.info("crearDocumentoCompleto: ciPaciente es null o vacío");
                 return DocumentoResponseBuilder.badRequest("ciPaciente es requerido");
             }
             if (contenido == null || contenido.isBlank()) {
+                LOG.info("crearDocumentoCompleto: contenido es null o vacío");
                 return DocumentoResponseBuilder.badRequest(DocumentoConstants.ERROR_CONTENIDO_ES_REQUERIDO);
-        }
+            }
 
             // Crear documento
             Map<String, Object> resultado = documentoService.crearDocumentoCompleto(
@@ -132,7 +154,7 @@ public class DocumentoClinicoResource {
             );
 
             URI location = UriBuilder.fromPath("/api/documentos/{id}")
-                    .build(resultado.get("mongoId"));
+                    .build(resultado.get(KEY_MONGO_ID));
 
             return Response.created(location)
                     .entity(resultado)
@@ -171,81 +193,31 @@ public class DocumentoClinicoResource {
     @RolesAllowed("PROFESIONAL")
     public Response crearDocumentoCompletoConArchivo(MultipartFormDataInput input) {
         try {
-            // Obtener información del profesional autenticado
-            String profesionalId = null;
-            if (securityContext != null && securityContext.getUserPrincipal() != null) {
-                profesionalId = securityContext.getUserPrincipal().getName();
+            Response validacion = validarAutenticacionYTenant();
+            if (validacion != null) {
+                return validacion;
             }
 
-            if (profesionalId == null || profesionalId.isBlank()) {
-                return DocumentoResponseBuilder.unauthorized(DocumentoConstants.ERROR_AUTENTICACION_REQUERIDA);
+            String profesionalId = getUsuarioId();
+            Long tenantId = obtenerTenantId();
+            if (tenantId == null) {
+                return DocumentoResponseBuilder.badRequest(ERROR_TENANT_NO_IDENTIFICADO);
             }
 
-            // Obtener tenant actual
-            String tenantIdStr = TenantContext.getCurrentTenant();
-            if (tenantIdStr == null || tenantIdStr.isBlank()) {
-                return DocumentoResponseBuilder.badRequest("Tenant no identificado");
-        }
-            Long tenantId = Long.parseLong(tenantIdStr);
-
-            // Extraer datos del formulario
-            Map<String, List<InputPart>> formDataMap = input.getFormDataMap();
-            
-            String contenido = extractField(formDataMap, "contenido");
-            String ciPaciente = extractField(formDataMap, "ciPaciente");
-            String tipoDocumento = extractField(formDataMap, "tipoDocumento");
-            String descripcion = extractField(formDataMap, "descripcion");
-            String titulo = extractField(formDataMap, "titulo");
-            String autor = extractField(formDataMap, "autor");
-
-            // Validaciones
-            if (contenido == null || contenido.isBlank()) {
-                return DocumentoResponseBuilder.badRequest(DocumentoConstants.ERROR_CONTENIDO_ES_REQUERIDO);
-            }
-            if (ciPaciente == null || ciPaciente.isBlank()) {
-                return DocumentoResponseBuilder.badRequest("ciPaciente es requerido");
-        }
-        
-            // Extraer archivo adjunto (opcional)
-            byte[] archivoBytes = null;
-            String nombreArchivo = null;
-            String tipoArchivo = null;
-            
-            List<InputPart> archivoParts = formDataMap.get("archivo");
-            if (archivoParts != null && !archivoParts.isEmpty()) {
-                InputPart archivoPart = archivoParts.get(0);
-                InputStream archivoStream = archivoPart.getBody(InputStream.class, null);
-                archivoBytes = archivoStream.readAllBytes();
-                
-                // Obtener nombre y tipo del archivo desde headers
-                String contentDisposition = archivoPart.getHeaders().getFirst("Content-Disposition");
-                if (contentDisposition != null && contentDisposition.contains("filename=")) {
-                    int start = contentDisposition.indexOf("filename=") + 9;
-                    int end = contentDisposition.indexOf("\"", start);
-                    if (end == -1) end = contentDisposition.length();
-                    nombreArchivo = contentDisposition.substring(start, end).replace("\"", "");
-        }
-
-                tipoArchivo = archivoPart.getHeaders().getFirst("Content-Type");
+            DatosDocumentoConArchivo datos = extraerDatosDocumentoConArchivo(input);
+            Response validacionDatos = validarDatosDocumentoConArchivo(datos);
+            if (validacionDatos != null) {
+                return validacionDatos;
             }
 
-            // Crear documento
             Map<String, Object> resultado = documentoService.crearDocumentoCompletoConArchivo(
-                    tenantId,
-                    profesionalId,
-                    ciPaciente,
-                    contenido,
-                    tipoDocumento,
-                    descripcion,
-                    titulo,
-                    autor,
-                    archivoBytes,
-                    nombreArchivo,
-                    tipoArchivo
+                    tenantId, profesionalId, datos.ciPaciente, datos.contenido,
+                    datos.tipoDocumento, datos.descripcion, datos.titulo, datos.autor,
+                    datos.archivoBytes, datos.nombreArchivo, datos.tipoArchivo
             );
 
             URI location = UriBuilder.fromPath("/api/documentos/{id}")
-                    .build(resultado.get("mongoId"));
+                    .build(resultado.get(KEY_MONGO_ID));
 
             return Response.created(location)
                     .entity(resultado)
@@ -258,6 +230,119 @@ public class DocumentoClinicoResource {
             LOG.error("Error al crear documento completo con archivo", ex);
             return DocumentoResponseBuilder.internalServerError("Error al crear documento: " + ex.getMessage());
         }
+    }
+    
+    /**
+     * Clase interna para agrupar datos del documento con archivo.
+     */
+    private static class DatosDocumentoConArchivo {
+        String contenido;
+        String ciPaciente;
+        String tipoDocumento;
+        String descripcion;
+        String titulo;
+        String autor;
+        byte[] archivoBytes;
+        String nombreArchivo;
+        String tipoArchivo;
+    }
+    
+    /**
+     * Valida autenticación y tenant.
+     */
+    private Response validarAutenticacionYTenant() {
+        String profesionalId = getUsuarioId();
+        if (profesionalId == null || profesionalId.isBlank()) {
+            return DocumentoResponseBuilder.unauthorized(DocumentoConstants.ERROR_AUTENTICACION_REQUERIDA);
+        }
+        return null;
+    }
+    
+    /**
+     * Obtiene el tenant ID actual.
+     */
+    private Long obtenerTenantId() {
+        String tenantIdStr = TenantContext.getCurrentTenant();
+        if (tenantIdStr == null || tenantIdStr.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(tenantIdStr);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+    
+    /**
+     * Extrae los datos del formulario multipart.
+     */
+    private DatosDocumentoConArchivo extraerDatosDocumentoConArchivo(MultipartFormDataInput input) throws java.io.IOException {
+        DatosDocumentoConArchivo datos = new DatosDocumentoConArchivo();
+        Map<String, List<InputPart>> formDataMap = input.getFormDataMap();
+        
+        datos.contenido = extractField(formDataMap, "contenido");
+        datos.ciPaciente = extractField(formDataMap, KEY_CI_PACIENTE);
+        datos.tipoDocumento = extractField(formDataMap, KEY_TIPO_DOCUMENTO);
+        datos.descripcion = extractField(formDataMap, KEY_DESCRIPCION);
+        datos.titulo = extractField(formDataMap, KEY_TITULO);
+        datos.autor = extractField(formDataMap, KEY_AUTOR);
+        
+        DatosArchivo archivo = extraerArchivoAdjunto(formDataMap);
+        datos.archivoBytes = archivo.bytes;
+        datos.nombreArchivo = archivo.nombre;
+        datos.tipoArchivo = archivo.tipo;
+        
+        return datos;
+    }
+    
+    /**
+     * Clase interna para datos del archivo adjunto.
+     */
+    private static class DatosArchivo {
+        byte[] bytes;
+        String nombre;
+        String tipo;
+    }
+    
+    /**
+     * Extrae el archivo adjunto del formulario.
+     */
+    private DatosArchivo extraerArchivoAdjunto(Map<String, List<InputPart>> formDataMap) throws java.io.IOException {
+        DatosArchivo archivo = new DatosArchivo();
+        List<InputPart> archivoParts = formDataMap.get("archivo");
+        
+        if (archivoParts != null && !archivoParts.isEmpty()) {
+            InputPart archivoPart = archivoParts.get(0);
+            InputStream archivoStream = archivoPart.getBody(InputStream.class, null);
+            archivo.bytes = archivoStream.readAllBytes();
+            
+            String contentDisposition = archivoPart.getHeaders().getFirst("Content-Disposition");
+            if (contentDisposition != null && contentDisposition.contains("filename=")) {
+                int start = contentDisposition.indexOf("filename=") + 9;
+                int end = contentDisposition.indexOf("\"", start);
+                if (end == -1) {
+                    end = contentDisposition.length();
+                }
+                archivo.nombre = contentDisposition.substring(start, end).replace("\"", "");
+            }
+            
+            archivo.tipo = archivoPart.getHeaders().getFirst("Content-Type");
+        }
+        
+        return archivo;
+    }
+    
+    /**
+     * Valida los datos del documento con archivo.
+     */
+    private Response validarDatosDocumentoConArchivo(DatosDocumentoConArchivo datos) {
+        if (datos.contenido == null || datos.contenido.isBlank()) {
+            return DocumentoResponseBuilder.badRequest(DocumentoConstants.ERROR_CONTENIDO_ES_REQUERIDO);
+        }
+        if (datos.ciPaciente == null || datos.ciPaciente.isBlank()) {
+            return DocumentoResponseBuilder.badRequest("ciPaciente es requerido");
+        }
+        return null;
     }
 
     /**
@@ -276,14 +361,14 @@ public class DocumentoClinicoResource {
         try {
             String tenantIdStr = TenantContext.getCurrentTenant();
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
-                return DocumentoResponseBuilder.badRequest("Tenant no identificado");
-        }
+                return DocumentoResponseBuilder.badRequest(ERROR_TENANT_NO_IDENTIFICADO);
+            }
             Long tenantId = Long.parseLong(tenantIdStr);
 
             String contenido = documentoService.obtenerContenido(id, tenantId);
             if (contenido == null) {
-            return DocumentoResponseBuilder.notFound(DocumentoConstants.ERROR_DOCUMENT_NOT_FOUND);
-        }
+                return DocumentoResponseBuilder.notFound(DocumentoConstants.ERROR_DOCUMENT_NOT_FOUND);
+            }
 
             return Response.ok(contenido, MediaType.TEXT_PLAIN).build();
 
@@ -322,13 +407,13 @@ public class DocumentoClinicoResource {
                     LOG.warn("No se encontró tenantId en query parameter ni en contexto. Intentando con tenantId=1");
                     tenantId = 1L;
                     TenantContext.setCurrentTenant("1");
-        }
+                }
             }
 
             byte[] pdfBytes = documentoService.obtenerPdf(id, tenantId);
             if (pdfBytes == null || pdfBytes.length == 0) {
                 return DocumentoResponseBuilder.notFound("PDF no encontrado");
-        }
+            }
         
             return Response.ok(pdfBytes, "application/pdf")
                     .header("Content-Disposition", "inline; filename=\"documento_" + id + ".pdf\"")
@@ -356,7 +441,7 @@ public class DocumentoClinicoResource {
         try {
             String tenantIdStr = TenantContext.getCurrentTenant();
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
-                return DocumentoResponseBuilder.badRequest("Tenant no identificado");
+                return DocumentoResponseBuilder.badRequest(ERROR_TENANT_NO_IDENTIFICADO);
             }
             Long tenantId = Long.parseLong(tenantIdStr);
 
@@ -366,30 +451,30 @@ public class DocumentoClinicoResource {
             }
 
             Map<String, Object> docInfo = new HashMap<>();
-            docInfo.put("mongoId", id);
-            docInfo.put("documentoId", doc.getString("documentoId"));
-            docInfo.put("ciPaciente", doc.getString("ciPaciente"));
-            docInfo.put("tipoDocumento", doc.getString("tipoDocumento"));
-            docInfo.put("descripcion", doc.getString("descripcion"));
-            docInfo.put("titulo", doc.getString("titulo"));
-            docInfo.put("autor", doc.getString("autor"));
+            docInfo.put(KEY_MONGO_ID, id);
+            docInfo.put(KEY_DOCUMENTO_ID, doc.getString(KEY_DOCUMENTO_ID));
+            docInfo.put(KEY_CI_PACIENTE, doc.getString(KEY_CI_PACIENTE));
+            docInfo.put(KEY_TIPO_DOCUMENTO, doc.getString(KEY_TIPO_DOCUMENTO));
+            docInfo.put(KEY_DESCRIPCION, doc.getString(KEY_DESCRIPCION));
+            docInfo.put(KEY_TITULO, doc.getString(KEY_TITULO));
+            docInfo.put(KEY_AUTOR, doc.getString(KEY_AUTOR));
             // Convertir fecha: MongoDB guarda en UTC, pero debemos mostrarla en hora de Uruguay
             // La fecha guardada representa el instante correcto, pero al serializarse a JSON se interpreta como UTC
             // Para corregir esto, ajustamos el instante para que cuando se interprete como UTC, 
             // represente la misma hora local que queremos mostrar en Uruguay
-            java.util.Date fechaUtc = doc.getDate("fechaCreacion");
+            java.util.Date fechaUtc = doc.getDate(KEY_FECHA_CREACION);
             if (fechaUtc != null) {
                 java.time.ZoneId uruguayZone = java.time.ZoneId.of("America/Montevideo");
                 java.time.Instant instant = fechaUtc.toInstant();
-                // Convertir a hora de Uruguay para obtener la hora local correcta
-                java.time.ZonedDateTime fechaUruguay = instant.atZone(uruguayZone);
+                // Convertir a hora de Uruguay para obtener la hora local correcta y el offset
+                java.time.ZonedDateTime zonedDateTime = instant.atZone(uruguayZone);
                 // Ajustar: restar el offset de Uruguay para que cuando se interprete como UTC, muestre la hora correcta
                 // Esto es necesario porque JSON serializa Date como UTC, pero queremos que muestre la hora de Uruguay
-                int offsetSegundos = uruguayZone.getRules().getOffset(instant).getTotalSeconds();
+                int offsetSegundos = zonedDateTime.getOffset().getTotalSeconds();
                 java.time.Instant instanteAjustado = instant.minusSeconds(offsetSegundos);
-                docInfo.put("fechaCreacion", java.util.Date.from(instanteAjustado));
+                docInfo.put(KEY_FECHA_CREACION, java.util.Date.from(instanteAjustado));
             } else {
-                docInfo.put("fechaCreacion", null);
+                docInfo.put(KEY_FECHA_CREACION, null);
             }
 
             // Verificar si tiene PDF
@@ -432,192 +517,279 @@ public class DocumentoClinicoResource {
     @RolesAllowed("PROFESIONAL")
     public Response solicitarAcceso(Map<String, Object> body) {
         LOG.info("Proxy: Solicitud de acceso recibida en componente periférico");
-        LOG.info(String.format("Proxy: Body recibido: %s", body));
+        LOG.infof("Proxy: Body recibido: %s", body);
         
         try {
-            // Validar datos requeridos
-            // Validar datos de la solicitud - pacienteCI es requerido, documentoId es opcional (null = todos los documentos)
-            if (body == null) {
-                LOG.warn("Proxy: Body es null");
-                return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(Map.of("error", "pacienteCI es requerido"))
-                    .build();
+            Response validacion = validarBodySolicitud(body);
+            if (validacion != null) {
+                return validacion;
             }
             
-            if (!body.containsKey("pacienteCI")) {
-                LOG.warn(String.format("Proxy: pacienteCI no está en el body. Keys disponibles: %s", body.keySet()));
-                return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(Map.of("error", "pacienteCI es requerido"))
-                    .build();
+            Response validacionProfesional = validarProfesionalAutenticado();
+            if (validacionProfesional != null) {
+                return validacionProfesional;
             }
             
-            LOG.info(String.format("Proxy: pacienteCI recibido: %s, documentoId presente: %s", 
-                    body.get("pacienteCI"), body.containsKey("documentoId")));
+            String tenantIdStr = obtenerYLoggearTenantId();
+            String solicitudUrl = construirUrlSolicitud();
+            Map<String, Object> payload = construirPayload(body, tenantIdStr);
             
-            // Obtener información del profesional autenticado
-            String profesionalId = null;
-            if (securityContext != null && securityContext.getUserPrincipal() != null) {
-                profesionalId = securityContext.getUserPrincipal().getName();
-            }
-            
-            if (profesionalId == null || profesionalId.isBlank()) {
-                return Response.status(Response.Status.UNAUTHORIZED)
-                    .entity(Map.of("error", "No se pudo identificar al profesional autenticado"))
-                .build();
-    }
-
-            // Obtener tenantId de la clínica del profesional autenticado
-            String tenantIdStr = TenantContext.getCurrentTenant();
-            if (tenantIdStr == null || tenantIdStr.isBlank()) {
-                LOG.warn("Proxy: No se pudo obtener tenantId del contexto, la solicitud puede fallar al crear la política");
-            } else {
-                LOG.info(String.format("Proxy: TenantId obtenido: %s", tenantIdStr));
-            }
-            
-            // URL del backend HCEN Central (usando utilidad centralizada)
-            String solicitudUrl = uy.edu.tse.hcen.utils.HcenCentralUrlUtil.buildApiUrl("/metadatos-documento/solicitar-acceso");
-            LOG.info(String.format("Proxy: Redirigiendo solicitud a HCEN Central: %s", solicitudUrl));
-            
-            // Construir payload para HCEN Central (debe incluir el profesionalId y tenantId del usuario autenticado)
-            Map<String, Object> payload = new HashMap<>();
-            
-            // Asegurarse de que pacienteCI sea un String válido
-            Object pacienteCI = body.get("pacienteCI");
-            if (pacienteCI != null) {
-                payload.put("pacienteCI", pacienteCI.toString());
-            } else {
-                LOG.warn("Proxy: pacienteCI es null, no se incluirá en el payload");
-            }
-            
-            // Agregar tenantId (clinicaAutorizada) para que se guarde en la solicitud y se use al crear la política
-            if (tenantIdStr != null && !tenantIdStr.isBlank()) {
-                payload.put("tenantId", tenantIdStr);
-                LOG.info(String.format("Proxy: Incluyendo tenantId en payload: %s", tenantIdStr));
-            }
-            
-            // documentoId es opcional - si no se proporciona, es para todos los documentos del paciente
-            // NO agregamos documentoId si no está presente o es null
-            if (body.containsKey("documentoId") && body.get("documentoId") != null) {
-                Object documentoId = body.get("documentoId");
-                payload.put("documentoId", documentoId != null ? documentoId.toString() : null);
-                LOG.info("Proxy: Incluyendo documentoId en payload");
-            } else {
-                LOG.info("Proxy: No se incluye documentoId - solicitud para todos los documentos del paciente");
-            }
-            
-            // tipoDocumento es opcional
-            if (body.containsKey("tipoDocumento") && body.get("tipoDocumento") != null) {
-                Object tipoDocumento = body.get("tipoDocumento");
-                if (tipoDocumento != null) {
-                    payload.put("tipoDocumento", tipoDocumento.toString());
-                }
-            }
-
-            // Motivo - asegurarse de que sea un String válido
-            Object motivo = body.getOrDefault("motivo", "Acceso necesario para atención médica");
-            payload.put("motivo", motivo != null ? motivo.toString() : "Acceso necesario para atención médica");
-            
-            LOG.info(String.format("Proxy: Payload final enviado a HCEN Central: %s", payload));
-            
-            // El backend HCEN Central obtendrá el profesionalId del JWT, pero también podemos enviarlo
-            // Nota: El backend HCEN Central extraerá el profesionalId del JWT del usuario
-            
-            // Hacer proxy al backend HCEN Central
-            jakarta.ws.rs.client.Client client = jakarta.ws.rs.client.ClientBuilder.newClient();
-            try {
-                // Extraer el token JWT del header Authorization del request actual
-                String authHeader = null;
-                if (httpHeaders != null) {
-                    List<String> authHeaders = httpHeaders.getRequestHeader(HttpHeaders.AUTHORIZATION);
-                    if (authHeaders != null && !authHeaders.isEmpty()) {
-                        authHeader = authHeaders.get(0);
-                        LOG.info("Proxy: Token JWT encontrado en header Authorization");
-                    }
-                }
-                
-                jakarta.ws.rs.client.Invocation.Builder requestBuilder = client.target(solicitudUrl)
-                    .request(MediaType.APPLICATION_JSON);
-                
-                // Reenviar el token JWT al backend HCEN Central
-                if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                    requestBuilder.header(HttpHeaders.AUTHORIZATION, authHeader);
-                    LOG.info("Proxy: Token JWT reenviado al backend HCEN Central");
-                } else {
-                    LOG.warn("Proxy: No se encontró token JWT para reenviar al backend HCEN Central");
-                }
-                
-                jakarta.ws.rs.core.Response response = requestBuilder
-                    .post(jakarta.ws.rs.client.Entity.entity(payload, MediaType.APPLICATION_JSON));
-                
-                int status = response.getStatus();
-                
-                LOG.info(String.format("Proxy: Respuesta de HCEN Central - Status: %d", status));
-                
-                // Manejar errores específicos ANTES de intentar leer la respuesta
-                if (status == 404) {
-                    String errorDetail = "";
-                    try {
-                        if (response.hasEntity()) {
-                            errorDetail = response.readEntity(String.class);
-                        }
-                    } catch (Exception e) {
-                        // Ignorar errores al leer el cuerpo del 404
-                    }
-                    LOG.warn(String.format("Proxy: Endpoint no encontrado en HCEN Central (404). El servicio puede no estar disponible. Detalle: %s", errorDetail));
-                    if (client != null) {
-                        client.close();
-                    }
-                    return Response.status(Response.Status.SERVICE_UNAVAILABLE)
-                        .entity(Map.of(
-                            "error", "El servicio de solicitud de acceso no está disponible",
-                            "detalle", "El endpoint solicitado no fue encontrado en HCEN Central. Es posible que el servicio no esté configurado o no esté disponible en este momento."
-                        ))
-                        .build();
-                }
-                
-                // Leer la respuesta de manera más robusta
-                Object responseEntity = null;
-                if (response.hasEntity()) {
-                    try {
-                        // Leer primero como String para evitar problemas con content-type
-                        String textResponse = response.readEntity(String.class);
-                        LOG.info(String.format("Proxy: Respuesta recibida (texto): %s", textResponse));
-                        
-                        // Si parece JSON, intentar parsearlo manualmente o dejarlo como texto
-                        if (textResponse.trim().startsWith("{") || textResponse.trim().startsWith("[")) {
-                            // Intentar parsear JSON simple manualmente o usar el texto
-                            responseEntity = Map.of("mensaje", textResponse);
-                        } else {
-                            // Es HTML u otro formato
-                            responseEntity = Map.of("error", textResponse.contains("404") ? 
-                                "El servicio no está disponible" : textResponse);
-                        }
-                    } catch (Exception e) {
-                        LOG.error("Error al leer respuesta de HCEN Central", e);
-                        responseEntity = Map.of("error", "Error al procesar respuesta del servidor");
-                    }
-                }
-                
-                return Response.status(status)
-                    .entity(responseEntity != null ? responseEntity : Map.of("status", status))
-                    .build();
-                    
-            } finally {
-                if (client != null) {
-                    try {
-                        client.close();
-                    } catch (Exception e) {
-                        LOG.warn("Error al cerrar cliente HTTP", e);
-                    }
-                }
-        }
+            return realizarPeticionProxy(solicitudUrl, payload);
             
         } catch (Exception e) {
             LOG.error("Error en proxy de solicitud de acceso", e);
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                .entity(Map.of("error", "Error al procesar la solicitud: " + e.getMessage()))
+                .entity(Map.of(KEY_ERROR, "Error al procesar la solicitud: " + e.getMessage()))
                 .build();
+        }
+    }
+    
+    /**
+     * Valida el body de la solicitud.
+     */
+    private Response validarBodySolicitud(Map<String, Object> body) {
+        if (body == null) {
+            LOG.warn("Proxy: Body es null");
+            return Response.status(Response.Status.BAD_REQUEST)
+                .entity(Map.of(KEY_ERROR, "pacienteCI es requerido"))
+                .build();
+        }
+        
+        if (!body.containsKey(KEY_PACIENTE_CI)) {
+            LOG.warnf("Proxy: pacienteCI no está en el body. Keys disponibles: %s", body.keySet());
+            return Response.status(Response.Status.BAD_REQUEST)
+                .entity(Map.of(KEY_ERROR, "pacienteCI es requerido"))
+                .build();
+        }
+        
+        LOG.infof("Proxy: pacienteCI recibido: %s, documentoId presente: %s", 
+                body.get(KEY_PACIENTE_CI), body.containsKey(KEY_DOCUMENTO_ID));
+        return null;
+    }
+    
+    /**
+     * Valida que el profesional esté autenticado.
+     */
+    private Response validarProfesionalAutenticado() {
+        String profesionalId = getUsuarioId();
+        if (profesionalId == null || profesionalId.isBlank()) {
+            return Response.status(Response.Status.UNAUTHORIZED)
+                .entity(Map.of(KEY_ERROR, "No se pudo identificar al profesional autenticado"))
+                .build();
+        }
+        return null;
+    }
+    
+    /**
+     * Obtiene y registra el tenant ID.
+     */
+    private String obtenerYLoggearTenantId() {
+        String tenantIdStr = TenantContext.getCurrentTenant();
+        if (tenantIdStr == null || tenantIdStr.isBlank()) {
+            LOG.warn("Proxy: No se pudo obtener tenantId del contexto, la solicitud puede fallar al crear la política");
+        } else {
+            LOG.infof("Proxy: TenantId obtenido: %s", tenantIdStr);
+        }
+        return tenantIdStr;
+    }
+    
+    /**
+     * Construye la URL de la solicitud.
+     */
+    private String construirUrlSolicitud() {
+        String solicitudUrl = uy.edu.tse.hcen.utils.HcenCentralUrlUtil.buildApiUrl("/metadatos-documento/solicitar-acceso");
+        LOG.infof("Proxy: Redirigiendo solicitud a HCEN Central: %s", solicitudUrl);
+        return solicitudUrl;
+    }
+    
+    /**
+     * Construye el payload para HCEN Central.
+     */
+    private Map<String, Object> construirPayload(Map<String, Object> body, String tenantIdStr) {
+        Map<String, Object> payload = new HashMap<>();
+        
+        Object pacienteCI = body.get(KEY_PACIENTE_CI);
+        if (pacienteCI != null) {
+            payload.put(KEY_PACIENTE_CI, pacienteCI.toString());
+        } else {
+            LOG.warn("Proxy: pacienteCI es null, no se incluirá en el payload");
+        }
+        
+        if (tenantIdStr != null && !tenantIdStr.isBlank()) {
+            payload.put("tenantId", tenantIdStr);
+            LOG.infof("Proxy: Incluyendo tenantId en payload: %s", tenantIdStr);
+        }
+        
+        agregarDocumentoIdAlPayload(body, payload);
+        agregarTipoDocumentoAlPayload(body, payload);
+        agregarMotivoAlPayload(body, payload);
+        
+        LOG.infof("Proxy: Payload final enviado a HCEN Central: %s", payload);
+        return payload;
+    }
+    
+    /**
+     * Agrega documentoId al payload si está presente.
+     */
+    private void agregarDocumentoIdAlPayload(Map<String, Object> body, Map<String, Object> payload) {
+        if (body.containsKey(KEY_DOCUMENTO_ID) && body.get(KEY_DOCUMENTO_ID) != null) {
+            Object documentoId = body.get(KEY_DOCUMENTO_ID);
+            payload.put(KEY_DOCUMENTO_ID, documentoId != null ? documentoId.toString() : null);
+            LOG.info("Proxy: Incluyendo documentoId en payload");
+        } else {
+            LOG.info("Proxy: No se incluye documentoId - solicitud para todos los documentos del paciente");
+        }
+    }
+    
+    /**
+     * Agrega tipoDocumento al payload si está presente.
+     */
+    private void agregarTipoDocumentoAlPayload(Map<String, Object> body, Map<String, Object> payload) {
+        if (body.containsKey(KEY_TIPO_DOCUMENTO) && body.get(KEY_TIPO_DOCUMENTO) != null) {
+            Object tipoDocumento = body.get(KEY_TIPO_DOCUMENTO);
+            if (tipoDocumento != null) {
+                payload.put(KEY_TIPO_DOCUMENTO, tipoDocumento.toString());
             }
+        }
+    }
+    
+    /**
+     * Agrega motivo al payload.
+     */
+    private void agregarMotivoAlPayload(Map<String, Object> body, Map<String, Object> payload) {
+        Object motivo = body.getOrDefault("motivo", "Acceso necesario para atención médica");
+        payload.put("motivo", motivo != null ? motivo.toString() : "Acceso necesario para atención médica");
+    }
+    
+    /**
+     * Realiza la petición proxy al backend HCEN Central.
+     */
+    private Response realizarPeticionProxy(String solicitudUrl, Map<String, Object> payload) {
+        jakarta.ws.rs.client.Client client = jakarta.ws.rs.client.ClientBuilder.newClient();
+        try {
+            String authHeader = extraerTokenJWT();
+            jakarta.ws.rs.client.Invocation.Builder requestBuilder = client.target(solicitudUrl)
+                .request(MediaType.APPLICATION_JSON);
+            
+            agregarHeaderAutorizacion(requestBuilder, authHeader);
+            
+            jakarta.ws.rs.core.Response response = requestBuilder
+                .post(jakarta.ws.rs.client.Entity.entity(payload, MediaType.APPLICATION_JSON));
+            
+            return procesarRespuestaProxy(response, client);
+                    
+        } finally {
+            cerrarCliente(client);
+        }
+    }
+    
+    /**
+     * Extrae el token JWT del header Authorization.
+     */
+    private String extraerTokenJWT() {
+        if (httpHeaders != null) {
+            List<String> authHeaders = httpHeaders.getRequestHeader(HttpHeaders.AUTHORIZATION);
+            if (authHeaders != null && !authHeaders.isEmpty()) {
+                LOG.info("Proxy: Token JWT encontrado en header Authorization");
+                return authHeaders.get(0);
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Agrega el header de autorización si existe.
+     */
+    private void agregarHeaderAutorizacion(jakarta.ws.rs.client.Invocation.Builder requestBuilder, String authHeader) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            requestBuilder.header(HttpHeaders.AUTHORIZATION, authHeader);
+            LOG.info("Proxy: Token JWT reenviado al backend HCEN Central");
+        } else {
+            LOG.warn("Proxy: No se encontró token JWT para reenviar al backend HCEN Central");
+        }
+    }
+    
+    /**
+     * Procesa la respuesta del proxy.
+     */
+    private Response procesarRespuestaProxy(jakarta.ws.rs.core.Response response, jakarta.ws.rs.client.Client client) {
+        int status = response.getStatus();
+        LOG.infof("Proxy: Respuesta de HCEN Central - Status: %d", status);
+        
+        if (status == 404) {
+            return manejarError404(response, client);
+        }
+        
+        Object responseEntity = leerRespuesta(response);
+        return Response.status(status)
+            .entity(responseEntity != null ? responseEntity : Map.of("status", status))
+            .build();
+    }
+    
+    /**
+     * Maneja el error 404 del servicio.
+     */
+    private Response manejarError404(jakarta.ws.rs.core.Response response, jakarta.ws.rs.client.Client client) {
+        String errorDetail = leerErrorDetail(response);
+        LOG.warnf("Proxy: Endpoint no encontrado en HCEN Central (404). El servicio puede no estar disponible. Detalle: %s", errorDetail);
+        cerrarCliente(client);
+        return Response.status(Response.Status.SERVICE_UNAVAILABLE)
+            .entity(Map.of(
+                KEY_ERROR, "El servicio de solicitud de acceso no está disponible",
+                "detalle", "El endpoint solicitado no fue encontrado en HCEN Central. Es posible que el servicio no esté configurado o no esté disponible en este momento."
+            ))
+            .build();
+    }
+    
+    /**
+     * Lee el detalle del error de la respuesta.
+     */
+    private String leerErrorDetail(jakarta.ws.rs.core.Response response) {
+        try {
+            if (response.hasEntity()) {
+                return response.readEntity(String.class);
+            }
+        } catch (Exception e) {
+            // Ignorar errores al leer el cuerpo del 404
+        }
+        return "";
+    }
+    
+    /**
+     * Lee la respuesta de manera robusta.
+     */
+    private Object leerRespuesta(jakarta.ws.rs.core.Response response) {
+        if (!response.hasEntity()) {
+            return null;
+        }
+        
+        try {
+            String textResponse = response.readEntity(String.class);
+            LOG.infof("Proxy: Respuesta recibida (texto): %s", textResponse);
+            
+            if (textResponse.trim().startsWith("{") || textResponse.trim().startsWith("[")) {
+                return Map.of("mensaje", textResponse);
+            } else {
+                return Map.of(KEY_ERROR, textResponse.contains("404") ? 
+                    "El servicio no está disponible" : textResponse);
+            }
+        } catch (Exception e) {
+            LOG.error("Error al leer respuesta de HCEN Central", e);
+            return Map.of(KEY_ERROR, "Error al procesar respuesta del servidor");
+        }
+    }
+    
+    /**
+     * Cierra el cliente HTTP de forma segura.
+     */
+    private void cerrarCliente(jakarta.ws.rs.client.Client client) {
+        if (client != null) {
+            try {
+                client.close();
+            } catch (Exception e) {
+                LOG.warn("Error al cerrar cliente HTTP", e);
+            }
+        }
     }
 
     /**
@@ -648,20 +820,10 @@ public class DocumentoClinicoResource {
             // Verificar permisos usando el servicio de políticas
             String tenantIdStr = TenantContext.getCurrentTenant();
             if (tenantIdStr == null || tenantIdStr.isBlank()) {
-                return DocumentoResponseBuilder.badRequest("Tenant no identificado");
+                return DocumentoResponseBuilder.badRequest(ERROR_TENANT_NO_IDENTIFICADO);
             }
             
-            boolean tienePermiso = true; // Por defecto permitir si no se puede verificar
-            try {
-                tienePermiso = politicasAccesoClient.verificarPermiso(
-                        profesionalId, 
-                        documentoIdPaciente, 
-                        null, 
-                        tenantIdStr);
-            } catch (Exception ex) {
-                LOG.warnf("No se pudo verificar permisos con el servicio de políticas (continuando): %s", ex.getMessage());
-                // Continuar sin verificación de permisos si el servicio no está disponible
-            }
+            boolean tienePermiso = verificarPermisosConFallback(profesionalId, documentoIdPaciente, tenantIdStr);
 
             if (!tienePermiso) {
                 LOG.warnf("Acceso denegado - Profesional: %s, Paciente: %s, Endpoint: /api/documentos/%s/resumen", 
@@ -680,13 +842,7 @@ public class DocumentoClinicoResource {
             String historiaClinicaCompleta = construirHistoriaClinicaCompleta(contenidos);
             
             // Intentar generar resumen con OpenAI
-            String resumen;
-            try {
-                resumen = openAIService.generarResumenHistoriaClinica(historiaClinicaCompleta);
-            } catch (RuntimeException ex) {
-                LOG.warnf("No se pudo generar resumen con OpenAI, usando fallback: %s", ex.getMessage());
-                resumen = generarResumenFallback(contenidos);
-            }
+            String resumen = generarResumenConFallback(historiaClinicaCompleta, contenidos);
 
             // Registrar acceso sensible
             LOG.infof("Acceso sensible registrado - Profesional: %s, Paciente: %s, Endpoint: /api/documentos/%s/resumen", 
@@ -719,6 +875,30 @@ public class DocumentoClinicoResource {
     }
 
     /**
+     * Verifica permisos con fallback si falla el servicio.
+     */
+    private boolean verificarPermisosConFallback(String profesionalId, String documentoIdPaciente, String tenantIdStr) {
+        try {
+            return politicasAccesoClient.verificarPermiso(profesionalId, documentoIdPaciente, null, tenantIdStr);
+        } catch (Exception ex) {
+            LOG.warnf("No se pudo verificar permisos con el servicio de políticas (continuando): %s", ex.getMessage());
+            return true; // Por defecto permitir si no se puede verificar
+        }
+    }
+    
+    /**
+     * Genera resumen con fallback si OpenAI falla.
+     */
+    private String generarResumenConFallback(String historiaClinicaCompleta, List<String> contenidos) {
+        try {
+            return openAIService.generarResumenHistoriaClinica(historiaClinicaCompleta);
+        } catch (RuntimeException ex) {
+            LOG.warnf("No se pudo generar resumen con OpenAI, usando fallback: %s", ex.getMessage());
+            return generarResumenFallback(contenidos);
+        }
+    }
+    
+    /**
      * Construye una historia clínica completa concatenando todos los contenidos.
      */
     private String construirHistoriaClinicaCompleta(List<String> contenidos) {
@@ -739,25 +919,25 @@ public class DocumentoClinicoResource {
         builder.append("Resumen automático (sin servicio de IA)\n");
         builder.append("Documentos procesados: ").append(contenidos.size()).append("\n\n");
         
-        for (int i = 0; i < contenidos.size(); i++) {
+        int documentosProcesados = 0;
+        for (int i = 0; i < contenidos.size() && documentosProcesados < 3; i++) {
             String texto = contenidos.get(i);
-            if (texto == null || texto.isBlank()) {
-                continue;
-            }
-            builder.append("Documento ").append(i + 1).append(":\n");
-            String snippet = texto.trim();
-            if (snippet.length() > 400) {
-                snippet = snippet.substring(0, 400) + "...";
-            }
-            builder.append(snippet).append("\n\n");
-            
-            if (i >= 2) {
-                builder.append("... (").append(contenidos.size() - 3).append(" documentos adicionales)\n");
-                break;
+            if (texto != null && !texto.isBlank()) {
+                builder.append("Documento ").append(i + 1).append(":\n");
+                String snippet = texto.trim();
+                if (snippet.length() > 400) {
+                    snippet = snippet.substring(0, 400) + "...";
+                }
+                builder.append(snippet).append("\n\n");
+                documentosProcesados++;
             }
         }
         
-        if (builder.length() == 0) {
+        if (contenidos.size() > 3) {
+            builder.append("... (").append(contenidos.size() - 3).append(" documentos adicionales)\n");
+        }
+        
+        if (builder.isEmpty()) {
             builder.append("No hay contenido clínico para resumir.");
         }
         

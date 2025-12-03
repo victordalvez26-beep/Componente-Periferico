@@ -22,6 +22,9 @@ import java.util.logging.Level;
 public class StatsResource {
 
     private static final Logger LOGGER = Logger.getLogger(StatsResource.class.getName());
+    
+    // Constantes para literales duplicados
+    private static final String KEY_ERROR = "error";
 
     @EJB
     private StatsService statsService;
@@ -38,15 +41,19 @@ public class StatsResource {
     @Path("/{tenantId}")
     @RolesAllowed({"ADMINISTRADOR", "PROFESIONAL"})
     public Response obtenerEstadisticas(@PathParam("tenantId") String tenantId) {
-        LOGGER.info(String.format("Solicitando estadísticas para tenant: %s", tenantId));
+        if (LOGGER.isLoggable(Level.INFO)) {
+            LOGGER.info(String.format("Solicitando estadísticas para tenant: %s", tenantId));
+        }
         
         try {
             // Validar que el tenantId del path coincida con el tenant del usuario autenticado
             String tenantActual = TenantContext.getCurrentTenant();
-            if (tenantActual == null || !tenantActual.equals(tenantId)) {
-                LOGGER.warning(String.format("Tenant del usuario (%s) no coincide con tenant solicitado (%s)", tenantActual, tenantId));
+            if (tenantActual == null || !tenantId.equals(tenantActual)) {
+                if (LOGGER.isLoggable(Level.WARNING)) {
+                    LOGGER.warning(String.format("Tenant del usuario (%s) no coincide con tenant solicitado (%s)", tenantActual, tenantId));
+                }
                 return Response.status(Response.Status.FORBIDDEN)
-                    .entity(Map.of("error", "No tiene permiso para acceder a las estadísticas de este tenant"))
+                    .entity(Map.of(KEY_ERROR, "No tiene permiso para acceder a las estadísticas de este tenant"))
                     .build();
             }
             
@@ -56,7 +63,7 @@ public class StatsResource {
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, String.format("Error al obtener estadísticas para tenant %s", tenantId), e);
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                .entity(Map.of("error", "Error al obtener estadísticas: " + e.getMessage()))
+                .entity(Map.of(KEY_ERROR, "Error al obtener estadísticas: " + e.getMessage()))
                 .build();
         }
     }
@@ -76,15 +83,19 @@ public class StatsResource {
     public Response obtenerActividadReciente(
             @PathParam("tenantId") String tenantId,
             @QueryParam("limite") @DefaultValue("10") int limite) {
-        LOGGER.info(String.format("Solicitando actividad reciente para tenant: %s (limite: %d)", tenantId, limite));
+        if (LOGGER.isLoggable(Level.INFO)) {
+            LOGGER.info(String.format("Solicitando actividad reciente para tenant: %s (limite: %d)", tenantId, limite));
+        }
         
         try {
             // Validar que el tenantId del path coincida con el tenant del usuario autenticado
             String tenantActual = TenantContext.getCurrentTenant();
-            if (tenantActual == null || !tenantActual.equals(tenantId)) {
-                LOGGER.warning(String.format("Tenant del usuario (%s) no coincide con tenant solicitado (%s)", tenantActual, tenantId));
+            if (tenantActual == null || !tenantId.equals(tenantActual)) {
+                if (LOGGER.isLoggable(Level.WARNING)) {
+                    LOGGER.warning(String.format("Tenant del usuario (%s) no coincide con tenant solicitado (%s)", tenantActual, tenantId));
+                }
                 return Response.status(Response.Status.FORBIDDEN)
-                    .entity(Map.of("error", "No tiene permiso para acceder a la actividad de este tenant"))
+                    .entity(Map.of(KEY_ERROR, "No tiene permiso para acceder a la actividad de este tenant"))
                     .build();
             }
             
@@ -99,7 +110,7 @@ public class StatsResource {
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, String.format("Error al obtener actividad reciente para tenant %s", tenantId), e);
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                .entity(Map.of("error", "Error al obtener actividad reciente: " + e.getMessage()))
+                .entity(Map.of(KEY_ERROR, "Error al obtener actividad reciente: " + e.getMessage()))
                 .build();
         }
     }

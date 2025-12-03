@@ -9,8 +9,12 @@ import jakarta.inject.Inject;
 @Stateless
 public class PortalConfiguracionService {
 
+    private final PortalConfiguracionRepository configRepository;
+
     @Inject
-    private PortalConfiguracionRepository configRepository;
+    public PortalConfiguracionService(PortalConfiguracionRepository configRepository) {
+        this.configRepository = configRepository;
+    }
      
     /**
      * Obtiene la configuración actual del tenant, o crea la configuración por defecto si no existe.
@@ -28,10 +32,10 @@ public class PortalConfiguracionService {
             .orElseGet(this::createDefaultConfig);
 
         // Mapeo DTO a Entidad
-        if (dto.colorPrimario != null) config.setColorPrimario(dto.colorPrimario);
-        if (dto.colorSecundario != null) config.setColorSecundario(dto.colorSecundario);
-        if (dto.logoUrl != null) config.setLogoUrl(dto.logoUrl);
-        if (dto.nombrePortal != null) config.setNombrePortal(dto.nombrePortal);
+        if (dto.getColorPrimario() != null) config.setColorPrimario(dto.getColorPrimario());
+        if (dto.getColorSecundario() != null) config.setColorSecundario(dto.getColorSecundario());
+        if (dto.getLogoUrl() != null) config.setLogoUrl(dto.getLogoUrl());
+        if (dto.getNombrePortal() != null) config.setNombrePortal(dto.getNombrePortal());
 
         return configRepository.save(config);
     }
