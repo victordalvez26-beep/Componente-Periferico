@@ -12,6 +12,8 @@ public class ProfesionalResponse {
     private String nickname;
     private String especialidad;
     private String direccion;
+    private String telefono;
+    private String ci;
 
     public ProfesionalResponse() {}
 
@@ -23,6 +25,8 @@ public class ProfesionalResponse {
         r.nickname = p.getNickname();
         r.especialidad = p.getEspecialidad() != null ? p.getEspecialidad().name() : null;
         r.direccion = p.getDireccion();
+        r.telefono = p.getTelefono();
+        r.ci = p.getCi();
         return r;
     }
 
@@ -43,4 +47,10 @@ public class ProfesionalResponse {
 
     public String getDireccion() { return direccion; }
     public void setDireccion(String direccion) { this.direccion = direccion; }
+    
+    public String getTelefono() { return telefono; }
+    public void setTelefono(String telefono) { this.telefono = telefono; }
+    
+    public String getCi() { return ci; }
+    public void setCi(String ci) { this.ci = ci; }
 }
