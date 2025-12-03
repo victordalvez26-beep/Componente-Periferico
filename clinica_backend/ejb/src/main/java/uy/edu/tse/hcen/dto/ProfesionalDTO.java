@@ -12,6 +12,8 @@ public class ProfesionalDTO {
     private Especialidad especialidad;
     private String direccion;
     private String password;
+    private String telefono;
+    private String ci;
 
     public ProfesionalDTO() {
         // DTO vacío
@@ -34,4 +36,10 @@ public class ProfesionalDTO {
 
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
+    
+    public String getTelefono() { return telefono; }
+    public void setTelefono(String telefono) { this.telefono = telefono; }
+    
+    public String getCi() { return ci; }
+    public void setCi(String ci) { this.ci = ci; }
 }
