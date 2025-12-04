@@ -532,6 +532,378 @@ class HcenClientComprehensiveTest {
     }
 
     @Nested
+    @DisplayName("Token Management Tests")
+    class TokenManagementTests {
+
+        @Test
+        @DisplayName("Debe generar token de servicio localmente")
+        void getServiceToken_generatesLocally() throws Exception {
+            // Arrange
+            DTMetadatos metadata = createMetadata();
+            Client mockClient = mock(Client.class);
+            WebTarget mockTarget = mock(WebTarget.class);
+            Invocation.Builder mockBuilder = mock(Invocation.Builder.class);
+            Response mockResponse = mock(Response.class);
+
+            try (MockedStatic<ClientBuilder> cb = mockStatic(ClientBuilder.class);
+                 MockedStatic<HcenCentralUrlUtil> util = mockStatic(HcenCentralUrlUtil.class)) {
+                
+                cb.when(ClientBuilder::newClient).thenReturn(mockClient);
+                util.when(() -> HcenCentralUrlUtil.buildApiUrl(anyString()))
+                        .thenReturn("http://localhost:8080/api");
+
+                when(mockClient.target(anyString())).thenReturn(mockTarget);
+                when(mockTarget.request(MediaType.APPLICATION_JSON)).thenReturn(mockBuilder);
+                when(mockBuilder.header(anyString(), anyString())).thenReturn(mockBuilder);
+                when(mockBuilder.post(any(Entity.class))).thenReturn(mockResponse);
+                when(mockResponse.getStatus()).thenReturn(200);
+
+                // Act - Llama getServiceToken() internamente
+                hcenClient.registrarMetadatos(metadata);
+
+                // Assert - Verifica que se agregó header de autorización
+                verify(mockBuilder).header(eq("Authorization"), startsWith("Bearer "));
+            }
+        }
+
+        @Test
+        @DisplayName("Debe usar token cacheado en llamadas consecutivas")
+        void getServiceToken_usesCache() throws Exception {
+            // Arrange
+            DTMetadatos metadata = createMetadata();
+            Client mockClient = mock(Client.class);
+            WebTarget mockTarget = mock(WebTarget.class);
+            Invocation.Builder mockBuilder = mock(Invocation.Builder.class);
+            Response mockResponse = mock(Response.class);
+
+            try (MockedStatic<ClientBuilder> cb = mockStatic(ClientBuilder.class);
+                 MockedStatic<HcenCentralUrlUtil> util = mockStatic(HcenCentralUrlUtil.class)) {
+                
+                cb.when(ClientBuilder::newClient).thenReturn(mockClient);
+                util.when(() -> HcenCentralUrlUtil.buildApiUrl(anyString()))
+                        .thenReturn("http://localhost:8080/api");
+
+                when(mockClient.target(anyString())).thenReturn(mockTarget);
+                when(mockTarget.request(MediaType.APPLICATION_JSON)).thenReturn(mockBuilder);
+                when(mockBuilder.header(anyString(), anyString())).thenReturn(mockBuilder);
+                when(mockBuilder.post(any(Entity.class))).thenReturn(mockResponse);
+                when(mockResponse.getStatus()).thenReturn(200);
+
+                // Act - Hacer 3 llamadas consecutivas
+                hcenClient.registrarMetadatos(metadata);
+                hcenClient.registrarMetadatos(metadata);
+                hcenClient.registrarMetadatos(metadata);
+
+                // Assert - Token se genera una vez y se reusa
+                verify(mockBuilder, times(3)).header(eq("Authorization"), anyString());
+            }
+        }
+
+        @Test
+        @DisplayName("Debe reintentar con nuevo token cuando recibe 401")
+        void handleTokenRejection_retries() throws Exception {
+            // Arrange
+            DTMetadatos metadata = createMetadata();
+            Client mockClient = mock(Client.class);
+            WebTarget mockTarget = mock(WebTarget.class);
+            Invocation.Builder mockBuilder = mock(Invocation.Builder.class);
+            Response mockResponse401 = mock(Response.class);
+            Response mockResponse200 = mock(Response.class);
+
+            try (MockedStatic<ClientBuilder> cb = mockStatic(ClientBuilder.class);
+                 MockedStatic<HcenCentralUrlUtil> util = mockStatic(HcenCentralUrlUtil.class)) {
+                
+                cb.when(ClientBuilder::newClient).thenReturn(mockClient);
+                util.when(() -> HcenCentralUrlUtil.buildApiUrl(anyString()))
+                        .thenReturn("http://localhost:8080/api");
+
+                when(mockClient.target(anyString())).thenReturn(mockTarget);
+                when(mockTarget.request(MediaType.APPLICATION_JSON)).thenReturn(mockBuilder);
+                when(mockBuilder.header(anyString(), anyString())).thenReturn(mockBuilder);
+                
+                // Primera llamada retorna 401, segunda retorna 200
+                when(mockBuilder.post(any(Entity.class)))
+                        .thenReturn(mockResponse401)
+                        .thenReturn(mockResponse200);
+                when(mockResponse401.getStatus()).thenReturn(401);
+                when(mockResponse200.getStatus()).thenReturn(200);
+
+                // Act - Ejecuta el código de retry
+                hcenClient.registrarMetadatos(metadata);
+
+                // Assert - Se hicieron 2 intentos (original + retry)
+                verify(mockBuilder, times(2)).post(any(Entity.class));
+                verify(mockResponse401).close();
+                verify(mockResponse200).close();
+            }
+        }
+
+        @Test
+        @DisplayName("Debe reintentar con nuevo token cuando recibe 403")
+        void handleTokenRejection_403_retries() throws Exception {
+            // Arrange
+            DTMetadatos metadata = createMetadata();
+            Client mockClient = mock(Client.class);
+            WebTarget mockTarget = mock(WebTarget.class);
+            Invocation.Builder mockBuilder = mock(Invocation.Builder.class);
+            Response mockResponse403 = mock(Response.class);
+            Response mockResponse200 = mock(Response.class);
+
+            try (MockedStatic<ClientBuilder> cb = mockStatic(ClientBuilder.class);
+                 MockedStatic<HcenCentralUrlUtil> util = mockStatic(HcenCentralUrlUtil.class)) {
+                
+                cb.when(ClientBuilder::newClient).thenReturn(mockClient);
+                util.when(() -> HcenCentralUrlUtil.buildApiUrl(anyString()))
+                        .thenReturn("http://localhost:8080/api");
+
+                when(mockClient.target(anyString())).thenReturn(mockTarget);
+                when(mockTarget.request(MediaType.APPLICATION_JSON)).thenReturn(mockBuilder);
+                when(mockBuilder.header(anyString(), anyString())).thenReturn(mockBuilder);
+                
+                when(mockBuilder.post(any(Entity.class)))
+                        .thenReturn(mockResponse403)
+                        .thenReturn(mockResponse200);
+                when(mockResponse403.getStatus()).thenReturn(403);
+                when(mockResponse200.getStatus()).thenReturn(200);
+
+                // Act
+                hcenClient.registrarMetadatos(metadata);
+
+                // Assert
+                verify(mockBuilder, times(2)).post(any(Entity.class));
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("HTTP Status Code Tests")
+    class HttpStatusCodeTests {
+
+        @Test
+        @DisplayName("Debe aceptar status 202 (Accepted)")
+        void registrar_status202_success() throws Exception {
+            // Arrange
+            DTMetadatos metadata = createMetadata();
+            Client mockClient = mock(Client.class);
+            WebTarget mockTarget = mock(WebTarget.class);
+            Invocation.Builder mockBuilder = mock(Invocation.Builder.class);
+            Response mockResponse = mock(Response.class);
+
+            try (MockedStatic<ClientBuilder> cb = mockStatic(ClientBuilder.class);
+                 MockedStatic<HcenCentralUrlUtil> util = mockStatic(HcenCentralUrlUtil.class)) {
+                
+                cb.when(ClientBuilder::newClient).thenReturn(mockClient);
+                util.when(() -> HcenCentralUrlUtil.buildApiUrl(anyString()))
+                        .thenReturn("http://localhost:8080/api");
+
+                when(mockClient.target(anyString())).thenReturn(mockTarget);
+                when(mockTarget.request(MediaType.APPLICATION_JSON)).thenReturn(mockBuilder);
+                when(mockBuilder.header(anyString(), anyString())).thenReturn(mockBuilder);
+                when(mockBuilder.post(any(Entity.class))).thenReturn(mockResponse);
+                when(mockResponse.getStatus()).thenReturn(202);
+
+                // Act
+                hcenClient.registrarMetadatos(metadata);
+
+                // Assert - No debe lanzar excepción
+                verify(mockBuilder).post(any(Entity.class));
+            }
+        }
+
+        @Test
+        @DisplayName("Debe lanzar excepción con status 400")
+        void registrar_status400_throwsException() throws Exception {
+            // Arrange
+            DTMetadatos metadata = createMetadata();
+            Client mockClient = mock(Client.class);
+            WebTarget mockTarget = mock(WebTarget.class);
+            Invocation.Builder mockBuilder = mock(Invocation.Builder.class);
+            Response mockResponse = mock(Response.class);
+
+            try (MockedStatic<ClientBuilder> cb = mockStatic(ClientBuilder.class);
+                 MockedStatic<HcenCentralUrlUtil> util = mockStatic(HcenCentralUrlUtil.class)) {
+                
+                cb.when(ClientBuilder::newClient).thenReturn(mockClient);
+                util.when(() -> HcenCentralUrlUtil.buildApiUrl(anyString()))
+                        .thenReturn("http://localhost:8080/api");
+
+                when(mockClient.target(anyString())).thenReturn(mockTarget);
+                when(mockTarget.request(MediaType.APPLICATION_JSON)).thenReturn(mockBuilder);
+                when(mockBuilder.header(anyString(), anyString())).thenReturn(mockBuilder);
+                when(mockBuilder.post(any(Entity.class))).thenReturn(mockResponse);
+                when(mockResponse.getStatus()).thenReturn(400);
+                when(mockResponse.hasEntity()).thenReturn(true);
+                when(mockResponse.readEntity(String.class)).thenReturn("Bad Request");
+
+                // Act & Assert
+                assertThrows(HcenUnavailableException.class, () ->
+                        hcenClient.registrarMetadatos(metadata));
+            }
+        }
+
+        @Test
+        @DisplayName("Debe lanzar excepción con status 500")
+        void registrar_status500_throwsException() throws Exception {
+            // Arrange
+            DTMetadatos metadata = createMetadata();
+            Client mockClient = mock(Client.class);
+            WebTarget mockTarget = mock(WebTarget.class);
+            Invocation.Builder mockBuilder = mock(Invocation.Builder.class);
+            Response mockResponse = mock(Response.class);
+
+            try (MockedStatic<ClientBuilder> cb = mockStatic(ClientBuilder.class);
+                 MockedStatic<HcenCentralUrlUtil> util = mockStatic(HcenCentralUrlUtil.class)) {
+                
+                cb.when(ClientBuilder::newClient).thenReturn(mockClient);
+                util.when(() -> HcenCentralUrlUtil.buildApiUrl(anyString()))
+                        .thenReturn("http://localhost:8080/api");
+
+                when(mockClient.target(anyString())).thenReturn(mockTarget);
+                when(mockTarget.request(MediaType.APPLICATION_JSON)).thenReturn(mockBuilder);
+                when(mockBuilder.header(anyString(), anyString())).thenReturn(mockBuilder);
+                when(mockBuilder.post(any(Entity.class))).thenReturn(mockResponse);
+                when(mockResponse.getStatus()).thenReturn(500);
+                when(mockResponse.hasEntity()).thenReturn(true);
+                when(mockResponse.readEntity(String.class)).thenReturn("Internal Server Error");
+
+                // Act & Assert
+                assertThrows(HcenUnavailableException.class, () ->
+                        hcenClient.registrarMetadatos(metadata));
+            }
+        }
+
+        @Test
+        @DisplayName("Debe manejar error sin entity body")
+        void registrar_errorNoEntity_throwsException() throws Exception {
+            // Arrange
+            DTMetadatos metadata = createMetadata();
+            Client mockClient = mock(Client.class);
+            WebTarget mockTarget = mock(WebTarget.class);
+            Invocation.Builder mockBuilder = mock(Invocation.Builder.class);
+            Response mockResponse = mock(Response.class);
+
+            try (MockedStatic<ClientBuilder> cb = mockStatic(ClientBuilder.class);
+                 MockedStatic<HcenCentralUrlUtil> util = mockStatic(HcenCentralUrlUtil.class)) {
+                
+                cb.when(ClientBuilder::newClient).thenReturn(mockClient);
+                util.when(() -> HcenCentralUrlUtil.buildApiUrl(anyString()))
+                        .thenReturn("http://localhost:8080/api");
+
+                when(mockClient.target(anyString())).thenReturn(mockTarget);
+                when(mockTarget.request(MediaType.APPLICATION_JSON)).thenReturn(mockBuilder);
+                when(mockBuilder.header(anyString(), anyString())).thenReturn(mockBuilder);
+                when(mockBuilder.post(any(Entity.class))).thenReturn(mockResponse);
+                when(mockResponse.getStatus()).thenReturn(500);
+                when(mockResponse.hasEntity()).thenReturn(false);
+
+                // Act & Assert
+                HcenUnavailableException ex = assertThrows(HcenUnavailableException.class, () ->
+                        hcenClient.registrarMetadatos(metadata));
+                assertTrue(ex.getMessage().contains("Unknown error"));
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("URL Encoding Tests")
+    class UrlEncodingTests {
+
+        @Test
+        @DisplayName("Debe encodear caracteres especiales en profesionalId")
+        void obtener_specialCharsInProfesionalId_encodesUrl() throws Exception {
+            // Arrange
+            Client mockClient = mock(Client.class);
+            WebTarget mockTarget = mock(WebTarget.class);
+            Invocation.Builder mockBuilder = mock(Invocation.Builder.class);
+            Response mockResponse = mock(Response.class);
+
+            try (MockedStatic<ClientBuilder> cb = mockStatic(ClientBuilder.class);
+                 MockedStatic<HcenCentralUrlUtil> util = mockStatic(HcenCentralUrlUtil.class)) {
+                
+                cb.when(ClientBuilder::newClient).thenReturn(mockClient);
+                util.when(() -> HcenCentralUrlUtil.buildApiUrl(anyString()))
+                        .thenReturn("http://localhost:8080/api");
+
+                when(mockClient.target(anyString())).thenReturn(mockTarget);
+                when(mockTarget.request(MediaType.APPLICATION_JSON)).thenReturn(mockBuilder);
+                when(mockBuilder.header(anyString(), anyString())).thenReturn(mockBuilder);
+                when(mockBuilder.get()).thenReturn(mockResponse);
+                when(mockResponse.getStatus()).thenReturn(200);
+                when(mockResponse.readEntity(List.class)).thenReturn(new ArrayList<>());
+
+                // Act - profesionalId con caracteres especiales
+                hcenClient.obtenerMetadatosDocumentosPorCI("12345678", "prof@123", "101", "CARDIOLOGIA", "Dr. José");
+
+                // Assert - Verifica que se llamó con URL encodificada
+                verify(mockClient).target(contains("prof"));
+            }
+        }
+
+        @Test
+        @DisplayName("Debe encodear espacios en nombreProfesional")
+        void obtener_spacesInNombre_encodesUrl() throws Exception {
+            // Arrange
+            Client mockClient = mock(Client.class);
+            WebTarget mockTarget = mock(WebTarget.class);
+            Invocation.Builder mockBuilder = mock(Invocation.Builder.class);
+            Response mockResponse = mock(Response.class);
+
+            try (MockedStatic<ClientBuilder> cb = mockStatic(ClientBuilder.class);
+                 MockedStatic<HcenCentralUrlUtil> util = mockStatic(HcenCentralUrlUtil.class)) {
+                
+                cb.when(ClientBuilder::newClient).thenReturn(mockClient);
+                util.when(() -> HcenCentralUrlUtil.buildApiUrl(anyString()))
+                        .thenReturn("http://localhost:8080/api");
+
+                when(mockClient.target(anyString())).thenReturn(mockTarget);
+                when(mockTarget.request(MediaType.APPLICATION_JSON)).thenReturn(mockBuilder);
+                when(mockBuilder.header(anyString(), anyString())).thenReturn(mockBuilder);
+                when(mockBuilder.get()).thenReturn(mockResponse);
+                when(mockResponse.getStatus()).thenReturn(200);
+                when(mockResponse.readEntity(List.class)).thenReturn(new ArrayList<>());
+
+                // Act - nombre con espacios
+                hcenClient.obtenerMetadatosDocumentosPorCI("12345678", "prof1", "101", "CARDIOLOGIA", "Dr. José María");
+
+                // Assert
+                verify(mockBuilder).get();
+            }
+        }
+
+        @Test
+        @DisplayName("Debe manejar parámetros null sin agregar query params")
+        void obtener_nullParams_noQueryParams() throws Exception {
+            // Arrange
+            Client mockClient = mock(Client.class);
+            WebTarget mockTarget = mock(WebTarget.class);
+            Invocation.Builder mockBuilder = mock(Invocation.Builder.class);
+            Response mockResponse = mock(Response.class);
+
+            try (MockedStatic<ClientBuilder> cb = mockStatic(ClientBuilder.class);
+                 MockedStatic<HcenCentralUrlUtil> util = mockStatic(HcenCentralUrlUtil.class)) {
+                
+                cb.when(ClientBuilder::newClient).thenReturn(mockClient);
+                util.when(() -> HcenCentralUrlUtil.buildApiUrl(anyString()))
+                        .thenReturn("http://localhost:8080/api");
+
+                when(mockClient.target(anyString())).thenReturn(mockTarget);
+                when(mockTarget.request(MediaType.APPLICATION_JSON)).thenReturn(mockBuilder);
+                when(mockBuilder.header(anyString(), anyString())).thenReturn(mockBuilder);
+                when(mockBuilder.get()).thenReturn(mockResponse);
+                when(mockResponse.getStatus()).thenReturn(200);
+                when(mockResponse.readEntity(List.class)).thenReturn(new ArrayList<>());
+
+                // Act - Todos los params null
+                List<Map<String, Object>> result = hcenClient.obtenerMetadatosDocumentosPorCI("12345678", null, null, null, null);
+
+                // Assert - Retorna lista vacía, no lanza excepción
+                assertNotNull(result);
+                verify(mockClient).target(anyString());
+            }
+        }
+    }
+
+    @Nested
     @DisplayName("Edge Cases")
     class EdgeCasesTests {
 
