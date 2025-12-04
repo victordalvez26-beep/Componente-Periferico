@@ -146,7 +146,7 @@ public class ConfigResource {
                 tenantAdminService.createAdminUser(tenantId, schemaName, adminEmail, peripheralBaseUrl);
             
             LOG.infof("Successfully initialized tenant: %s (id=%s), admin user: %s", 
-                      req.getNombre(), req.getId(), adminResult.getAdminNickname());
+                      req.getNombre(), req.getId(), adminResult.adminNickname);
             
             return Response.ok()
                     .entity(Map.of(
@@ -154,10 +154,10 @@ public class ConfigResource {
                         KEY_TENANT_ID, tenantId,
                         "schemaName", schemaName,
                         "clinicName", req.getNombre(),
-                        "adminNickname", adminResult.getAdminNickname(),
-                        "activationToken", adminResult.getActivationToken(),
-                        "activationUrl", adminResult.getActivationUrl(),
-                        "tokenExpiresAt", adminResult.getTokenExpiry().toString()
+                        "adminNickname", adminResult.adminNickname,
+                        "activationToken", adminResult.activationToken,
+                        "activationUrl", adminResult.activationUrl,
+                        "tokenExpiresAt", adminResult.tokenExpiry.toString()
                     ))
                     .build();
                     
