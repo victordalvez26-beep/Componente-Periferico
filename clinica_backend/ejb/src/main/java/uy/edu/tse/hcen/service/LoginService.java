@@ -53,18 +53,15 @@ public class LoginService {
     user = userRepository.findByNicknameForLogin(nickname);
     
     if (user != null) {
-        System.out.println("=== Usuario encontrado en public.usuarioperiferico (ADMIN)");
         actualTenantId = user.getTenantId();
     } else if (tenantId != null && !tenantId.isBlank()) {
         // 2) Buscar en schema del tenant (profesionales)
-        System.out.println("=== No encontrado en public, buscando en schema_clinica_" + tenantId);
         String schemaName = "schema_clinica_" + tenantId;
         
         // Usar query nativa para evitar problemas con herencia JOINED
         user = userRepository.findByNicknameInTenantSchema(nickname, schemaName);
         
         if (user != null) {
-            System.out.println("=== Usuario encontrado en schema_clinica_" + tenantId + " (PROFESIONAL)");
             actualTenantId = tenantId;
             // Setear el tenant en el contexto
             tenantResolver.setTenantIdentifier(tenantId);
@@ -72,23 +69,13 @@ public class LoginService {
         }
     }
 
-        // DEBUG: show stored hash and result of verification
         if (user != null) {
-            System.out.println("=== LoginService: User found: " + user.getNickname());
-            System.out.println("=== LoginService: User ID: " + user.getId());
-            String storedHash = user.getPasswordHash();
-            System.out.println("=== LoginService: Stored hash: " + (storedHash != null ? storedHash.substring(0, Math.min(20, storedHash.length())) + "..." : "NULL"));
-            System.out.println("=== LoginService: Hash length: " + (storedHash != null ? storedHash.length() : 0));
-            System.out.println("=== LoginService: Raw password length: " + rawPassword.length());
-            
-            boolean matches = PasswordUtils.verifyPassword(rawPassword, storedHash);
-            System.out.println("=== LoginService: Password matches: " + matches);
+            boolean matches = PasswordUtils.verifyPassword(rawPassword, user.getPasswordHash());
             
             if (!matches) {
                 throw new SecurityException("Credenciales inválidas.");
             }
         } else {
-            System.out.println("=== LoginService: User NOT found");
             throw new SecurityException("Credenciales inválidas.");
         }
 
