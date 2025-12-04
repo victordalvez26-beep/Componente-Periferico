@@ -37,22 +37,41 @@ public class LoginService {
         return null;
     }
 
-    public LoginResponse authenticateAndGenerateToken(String nickname, String rawPassword) throws SecurityException {
-    // Resolve authentication against the GLOBAL schema (public).
-    tenantResolver.setTenantIdentifier(null);
+    public LoginResponse authenticateAndGenerateToken(String nickname, String rawPassword, String tenantId) throws SecurityException {
+    UsuarioPeriferico user = null;
+    String actualTenantId = null;
+    
+    // Estrategia de búsqueda:
+    // 1. Buscar primero en public (admins globales)
+    // 2. Si no encuentra Y hay tenantId, buscar en schema del tenant (profesionales)
+    
+    LOG.debugf("Login attempt for nickname=%s, tenantId=%s", nickname, tenantId);
+    
+    // 1) Buscar en schema público (admins)
+    tenantResolver.setTenantIdentifier("public");
     TenantContext.clear();
-
-    LOG.debugf("TenantContext in LoginService before query: '%s'", TenantContext.getCurrentTenant());
-
-    // 1) Buscar usuario en el schema por defecto (global)
-    UsuarioPeriferico user = userRepository.findByNickname(nickname);
-
-        // DEBUG: show stored hash and result of verification
+    user = userRepository.findByNicknameForLogin(nickname);
+    
+    if (user != null) {
+        actualTenantId = user.getTenantId();
+    } else if (tenantId != null && !tenantId.isBlank()) {
+        // 2) Buscar en schema del tenant (profesionales)
+        String schemaName = "schema_clinica_" + tenantId;
+        
+        // Usar query nativa para evitar problemas con herencia JOINED
+        user = userRepository.findByNicknameInTenantSchema(nickname, schemaName);
+        
         if (user != null) {
-            LOG.debugf("Retrieved user id=%s, nickname=%s", user.getId(), user.getNickname());
-            LOG.debugf("Stored password hash='%s'", user.getPasswordHash());
+            actualTenantId = tenantId;
+            // Setear el tenant en el contexto
+            tenantResolver.setTenantIdentifier(tenantId);
+            TenantContext.setCurrentTenant(tenantId);
+        }
+    }
+
+        if (user != null) {
             boolean matches = PasswordUtils.verifyPassword(rawPassword, user.getPasswordHash());
-            LOG.debugf("PasswordUtils.verifyPassword returned: %s", matches);
+            
             if (!matches) {
                 throw new SecurityException("Credenciales inválidas.");
             }
@@ -73,22 +92,13 @@ public class LoginService {
             role = "OTRO";
         }
 
-        // Determine tenant id for the token. Prefer explicit tenant_id stored in the
-        // global public.usuarioperiferico row. Fall back to the heuristic lookup if
-        // the stored value is missing.
-        String tenantId = null;
-        if (user.getTenantId() != null && !user.getTenantId().isBlank()) {
-            tenantId = user.getTenantId();
-        } else {
-            tenantId = lookupTenantIdByNickname(nickname);
-        }
-
+        // Usar el tenant_id que ya determinamos al buscar el usuario
         // Set the resolved tenant into the TenantContext for downstream calls
-        if (tenantId != null) {
-            TenantContext.setCurrentTenant(tenantId);
+        if (actualTenantId != null) {
+            TenantContext.setCurrentTenant(actualTenantId);
         }
 
-        String token = TokenUtils.generateToken(nickname, role, tenantId);
-        return new LoginResponse(token, role);
+        String token = TokenUtils.generateToken(nickname, role, actualTenantId);
+        return new LoginResponse(token, role, actualTenantId);
     }
 }

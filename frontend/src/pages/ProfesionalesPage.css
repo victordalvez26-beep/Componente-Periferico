@@ -1,0 +1,98 @@
+/* Responsive Styles para ProfesionalesPage */
+
+@media (max-width: 1024px) {
+  .profesionales-page {
+    padding: 16px;
+  }
+  
+  .table-wrapper {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .profesionales-page {
+    padding: 12px;
+  }
+  
+  .form-card {
+    padding: 20px !important;
+    min-width: 0 !important;
+  }
+  
+  .form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+    gap: 8px !important;
+  }
+  
+  .form-actions button {
+    width: 100%;
+  }
+  
+  .table-card {
+    padding: 16px !important;
+  }
+  
+  .table {
+    font-size: 13px;
+  }
+  
+  .table th,
+  .table td {
+    padding: 8px 6px !important;
+    white-space: nowrap;
+  }
+  
+  .table th:nth-child(4),
+  .table td:nth-child(4),
+  .table th:nth-child(5),
+  .table td:nth-child(5),
+  .table th:nth-child(6),
+  .table td:nth-child(6) {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .profesionales-page {
+    padding: 8px;
+  }
+  
+  .form-card {
+    padding: 16px !important;
+  }
+  
+  .table-card {
+    padding: 12px !important;
+  }
+  
+  .table {
+    font-size: 12px;
+  }
+  
+  .table th,
+  .table td {
+    padding: 6px 4px !important;
+  }
+  
+  .table th:nth-child(3),
+  .table td:nth-child(3) {
+    display: none;
+  }
+  
+  .header {
+    flex-direction: column;
+    align-items: flex-start !important;
+  }
+  
+  .add-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+

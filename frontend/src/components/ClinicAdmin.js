@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import SimplePopup from './SimplePopup';
 
 function ClinicAdmin(){
   const [session, setSession] = useState(null);
@@ -26,6 +27,7 @@ function ClinicAdmin(){
   const [docPermissions, setDocPermissions] = useState({});
   // multitenant: clinic id configured in this instance
   const [clinicId, setClinicId] = useState(localStorage.getItem('clinicId') || 'clinic-1');
+  const [popupMessage, setPopupMessage] = useState(null);
 
   useEffect(()=>{ checkSession(); },[]);
 
@@ -101,9 +103,9 @@ function ClinicAdmin(){
         }
       } else {
         const t = await res.text().catch(()=>null);
-        alert('Error cargando documentos: ' + res.status + ' ' + t);
+        setPopupMessage('Error cargando documentos: ' + res.status + ' ' + t);
       }
-    }catch(e){ console.error('Error fetching docs', e); alert('Error al cargar documentos'); }
+    }catch(e){ console.error('Error fetching docs', e); setPopupMessage('Error al cargar documentos'); }
   }
 
   // helper to build a stable key for a document
@@ -132,16 +134,27 @@ function ClinicAdmin(){
 
   async function solicitarAcceso(doc){
     try{
+      // Usar el backend del componente periférico (backendBase)
+      // El backend periférico hará proxy al backend HCEN Central
       const body = {
-        codDocumPaciente: selectedPatient.ci,
+        pacienteCI: selectedPatient.ci,
+        documentoId: doc.metadataId || doc.id || doc.codDocumPaciente, // ID de metadata en HCEN
         tipoDocumento: doc.tipoDocumento,
-        profesionalSolicitante: session ? session.username : 'prof1'
+        motivo: `Solicitud de acceso para ${doc.tipoDocumento || 'documento clínico'}`
       };
-      const res = await fetch(`${backendBase}/api/profesional/solicitudes`, {
-        method: 'POST', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+      const res = await fetch(`${backendBase}/api/documentos/solicitar-acceso`, {
+        method: 'POST', 
+        credentials: 'include', 
+        headers: {'Content-Type':'application/json'}, 
+        body: JSON.stringify(body)
       });
-      if(res.ok) alert('Solicitud enviada'); else { const t = await res.text().catch(()=>null); alert('Error: '+res.status+' '+t); }
-    }catch(e){ console.error(e); alert('Error al enviar solicitud'); }
+      if(res.ok) {
+        setPopupMessage('Solicitud de acceso enviada exitosamente');
+      } else { 
+        const t = await res.text().catch(()=>null); 
+        setPopupMessage('Error: '+res.status+' '+t); 
+      }
+    }catch(e){ console.error(e); setPopupMessage('Error al enviar solicitud'); }
   }
 
   async function doLogin(e){
@@ -156,14 +169,14 @@ function ClinicAdmin(){
       if(res.ok){
         const j = await res.json();
         setSession({ authenticated: true, nombre: j.nombre || j.username, username: j.username });
-        alert('Login OK como ' + (j.nombre || j.username));
+        setPopupMessage('Login OK como ' + (j.nombre || j.username));
       } else if (res.status === 401) {
-        alert('Credenciales inválidas');
+        setPopupMessage('Credenciales inválidas');
       } else {
         const txt = await res.text().catch(()=>null);
-        alert('Error al loguear: ' + res.status + ' ' + txt);
+        setPopupMessage('Error al loguear: ' + res.status + ' ' + txt);
       }
-    }catch(err){ console.error(err); alert('Error al hacer login'); }
+    }catch(err){ console.error(err); setPopupMessage('Error al hacer login'); }
   }
 
   function onSearchPatients(){
@@ -216,12 +229,12 @@ function ClinicAdmin(){
         body: JSON.stringify(body)
       });
       if(res.status === 202){
-        alert('Alta enviada (202 Accepted).');
+        setPopupMessage('Alta enviada (202 Accepted).');
       } else {
         const t = await res.text();
-        alert('Error: ' + res.status + ' ' + t);
+        setPopupMessage('Error: ' + res.status + ' ' + t);
       }
-    }catch(e){ console.error(e); alert('Error al enviar'); }
+    }catch(e){ console.error(e); setPopupMessage('Error al enviar'); }
     setLoading(false);
   }
 
@@ -320,6 +333,12 @@ function ClinicAdmin(){
       ) : null}
 
       {/* Removed clinic configuration and nodo alta UI — handled in backend for this app */}
+
+      {/* Popup simple para mensajes */}
+      <SimplePopup
+        message={popupMessage}
+        onClose={() => setPopupMessage(null)}
+      />
     </div>
   )
 }

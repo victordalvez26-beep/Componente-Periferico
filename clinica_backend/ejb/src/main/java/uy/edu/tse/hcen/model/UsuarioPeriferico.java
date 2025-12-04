@@ -2,9 +2,14 @@ package uy.edu.tse.hcen.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Inheritance;
+import jakarta.persistence.InheritanceType;
 import uy.edu.tse.hcen.utils.PasswordUtils;
 
 @Entity
+@jakarta.persistence.Table(name = "usuarioperiferico")
+@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
+@jakarta.persistence.DiscriminatorColumn(name = "dtype")
 public class UsuarioPeriferico extends Usuario {
 
     @Column(nullable = false, unique = true)

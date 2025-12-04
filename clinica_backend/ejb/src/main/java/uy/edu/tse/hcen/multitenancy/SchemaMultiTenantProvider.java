@@ -57,9 +57,25 @@ public class SchemaMultiTenantProvider implements MultiTenantConnectionProvider<
         // the actual schema name used in the search_path. The resolver class
         // converts tenant ids (e.g. "101") into schema names (e.g. "schema_clinica_101").
         try {
-            // Return the physical connection from the shared DataSource. Schema switching
-            // is handled at a higher level (service layer / integrator) in current deployments.
-            return getAnyConnection();
+            Connection connection = getAnyConnection();
+            
+            // Establecer el search_path al esquema del tenant
+            if (tenantIdentifierObj != null) {
+                String schemaName = tenantIdentifierObj.toString();
+                if (!schemaName.equals("public")) {
+                    try (java.sql.Statement stmt = connection.createStatement()) {
+                        // Establecer search_path al esquema del tenant, con public como fallback
+                        String sql = "SET search_path TO " + schemaName + ", public";
+                        LOG.debugf("Setting search_path to: %s", schemaName);
+                        stmt.execute(sql);
+                    } catch (SQLException e) {
+                        LOG.warnf("Error setting search_path to %s: %s", schemaName, e.getMessage());
+                        // Continuar con la conexión aunque falle el set (puede que el esquema no exista)
+                    }
+                }
+            }
+            
+            return connection;
         } catch (final SQLException e) {
             throw new HibernateException("Error trying to obtain connection", e);
         }

@@ -25,8 +25,86 @@ import java.util.Map;
 @Priority(Priorities.AUTHENTICATION)
 public class AuthTokenFilter implements ContainerRequestFilter, ContainerResponseFilter {
 
+    /**
+     * Determina si un origen está permitido para CORS
+     * Permite: localhost, AWS EC2, Render, Vercel, Elastic Cloud
+     */
+    private boolean isAllowedOrigin(String origin) {
+        if (origin == null) return false;
+        
+        // Desarrollo local
+        if (origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:")) {
+            return true;
+        }
+        
+        // AWS EC2 - Dominios de Amazon AWS
+        if (origin.contains(".amazonaws.com") || 
+            origin.contains(".compute.amazonaws.com") ||
+            origin.contains("ec2-") ||
+            origin.contains("amazonaws")) {
+            return true;
+        }
+        
+        // Render (producción)
+        if (origin.contains(".onrender.com")) {
+            return true;
+        }
+        
+        // Vercel (producción)
+        if (origin.contains(".vercel.app") || origin.contains("vercel.com")) {
+            return true;
+        }
+        
+        // Elastic Cloud (producción)
+        if (origin.contains(".web.elasticloud.uy") || origin.contains("elasticloud.uy")) {
+            return true;
+        }
+        
+        return false;
+    }
+
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
+        // Manejar peticiones OPTIONS (CORS preflight) - siempre permitir con headers CORS
+        if ("OPTIONS".equalsIgnoreCase(requestContext.getMethod())) {
+            String origin = requestContext.getHeaderString("Origin");
+            Response.ResponseBuilder responseBuilder = Response.ok();
+            
+            // Agregar headers CORS al preflight
+            if (origin != null && isAllowedOrigin(origin)) {
+                responseBuilder.header("Access-Control-Allow-Origin", origin);
+                responseBuilder.header("Access-Control-Allow-Credentials", "true");
+            } else if (origin != null) {
+                // Para otros orígenes permitidos (cross-site)
+                responseBuilder.header("Access-Control-Allow-Origin", origin);
+            } else {
+                // Sin origin header, permitir cualquier origen (solo desarrollo)
+                responseBuilder.header("Access-Control-Allow-Origin", "*");
+            }
+            responseBuilder.header("Access-Control-Allow-Credentials", "true");
+            responseBuilder.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH");
+            responseBuilder.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+            responseBuilder.header("Access-Control-Max-Age", "3600");
+            
+            requestContext.abortWith(responseBuilder.build());
+            return;
+        }
+        
+        // Excluir endpoints públicos que NO requieren autenticación JWT:
+        // - /config/* : Llamados por HCEN central (init, update, delete, activate, health)
+        // - /auth/login : Login de usuarios
+        // - /api/documentos-pdf/{id} : Descarga de PDFs (el backend HCEN ya valida autenticación)
+        //   Esto aplica tanto para PDFs subidos directamente como para documentos generados desde texto
+        // NO incluir /api/documentos-pdf/paciente/{ci} que requiere autenticación
+        String path = requestContext.getUriInfo().getPath();
+        if (path.startsWith("config/") || path.equals("auth/login") || 
+            (path.contains("documentos-pdf/") && "GET".equals(requestContext.getMethod()) && !path.contains("documentos-pdf/paciente/"))) {
+            // Permitir acceso sin JWT a estos endpoints públicos
+            // Si viene un token, lo validamos pero no bloqueamos si falta
+            return;
+        }
+        
+        // Para el resto de endpoints, verificar JWT si está presente
         String auth = requestContext.getHeaderString(HttpHeaders.AUTHORIZATION);
         if (auth != null && auth.startsWith("Bearer ")) {
             String token = auth.substring("Bearer ".length()).trim();
@@ -81,11 +159,29 @@ public class AuthTokenFilter implements ContainerRequestFilter, ContainerRespons
                         .build());
             }
         }
-        // Si no hay header Authorization, dejamos pasar la request (endpoints públicos)
+        // Si no hay header Authorization, dejamos pasar la request
+        // (algunos endpoints pueden ser públicos, otros pueden validar manualmente)
     }
 
     @Override
     public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) throws IOException {
+        // Agregar headers CORS para permitir llamadas desde el frontend React
+        // Soporta: localhost (desarrollo), AWS EC2, Render, Vercel, Elastic Cloud (producción)
+        String origin = requestContext.getHeaderString("Origin");
+        if (origin != null && isAllowedOrigin(origin)) {
+            responseContext.getHeaders().add("Access-Control-Allow-Origin", origin);
+            responseContext.getHeaders().add("Access-Control-Allow-Credentials", "true");
+        } else if (origin != null) {
+            // Para otros orígenes permitidos (cross-site)
+            responseContext.getHeaders().add("Access-Control-Allow-Origin", origin);
+        } else {
+            // Si no hay Origin header, permitir cualquier origen (solo para desarrollo)
+            responseContext.getHeaders().add("Access-Control-Allow-Origin", "*");
+        }
+        responseContext.getHeaders().add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH");
+        responseContext.getHeaders().add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+        responseContext.getHeaders().add("Access-Control-Expose-Headers", "Content-Type, Authorization");
+        
         // Limpiar el TenantContext al finalizar la petición para evitar fugas entre hilos
         TenantContext.clear();
     }
