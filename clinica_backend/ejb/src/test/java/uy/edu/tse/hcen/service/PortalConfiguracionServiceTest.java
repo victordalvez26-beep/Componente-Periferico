@@ -70,5 +70,78 @@ class PortalConfiguracionServiceTest {
         assertEquals("New Name", result.getNombrePortal());
         verify(mockRepository).save(any(PortalConfiguracion.class));
     }
+
+    @Test
+    void testUpdateConfiguracion_withPartialDTO() {
+        PortalConfiguracion existing = new PortalConfiguracion();
+        existing.setColorPrimario("#000000");
+        existing.setNombrePortal("Original");
+        
+        when(mockRepository.findCurrentConfig()).thenReturn(Optional.of(existing));
+        when(mockRepository.save(any(PortalConfiguracion.class))).thenAnswer(i -> i.getArguments()[0]);
+        
+        ConfiguracionPortalDTO dto = new ConfiguracionPortalDTO();
+        dto.setColorPrimario("#FF0000");
+        // otros campos null
+        
+        PortalConfiguracion result = service.updateConfiguracion(dto);
+        
+        assertNotNull(result);
+        assertEquals("#FF0000", result.getColorPrimario());
+        verify(mockRepository).save(any(PortalConfiguracion.class));
+    }
+
+    @Test
+    void testUpdateConfiguracion_withAllFields() {
+        PortalConfiguracion existing = new PortalConfiguracion();
+        
+        when(mockRepository.findCurrentConfig()).thenReturn(Optional.of(existing));
+        when(mockRepository.save(any(PortalConfiguracion.class))).thenAnswer(i -> i.getArguments()[0]);
+        
+        ConfiguracionPortalDTO dto = new ConfiguracionPortalDTO();
+        dto.setColorPrimario("#FF0000");
+        dto.setColorSecundario("#00FF00");
+        dto.setLogoUrl("http://logo.com/logo.png");
+        dto.setNombrePortal("Clínica Test");
+        
+        PortalConfiguracion result = service.updateConfiguracion(dto);
+        
+        assertNotNull(result);
+        assertEquals("#FF0000", result.getColorPrimario());
+        assertEquals("#00FF00", result.getColorSecundario());
+        assertEquals("http://logo.com/logo.png", result.getLogoUrl());
+        assertEquals("Clínica Test", result.getNombrePortal());
+    }
+
+    @Test
+    void testUpdateConfiguracion_withEmptyDTO() {
+        PortalConfiguracion existing = new PortalConfiguracion();
+        existing.setColorPrimario("#000000");
+        
+        when(mockRepository.findCurrentConfig()).thenReturn(Optional.of(existing));
+        when(mockRepository.save(any(PortalConfiguracion.class))).thenAnswer(i -> i.getArguments()[0]);
+        
+        ConfiguracionPortalDTO dto = new ConfiguracionPortalDTO();
+        // Todos los campos null
+        
+        PortalConfiguracion result = service.updateConfiguracion(dto);
+        
+        assertNotNull(result);
+        assertEquals("#000000", result.getColorPrimario()); // No cambió
+    }
+
+    @Test
+    void testUpdateConfiguracion_createsDefaultIfNotExists() {
+        when(mockRepository.findCurrentConfig()).thenReturn(Optional.empty());
+        when(mockRepository.save(any(PortalConfiguracion.class))).thenAnswer(i -> i.getArguments()[0]);
+        
+        ConfiguracionPortalDTO dto = new ConfiguracionPortalDTO();
+        dto.setColorPrimario("#FF0000");
+        
+        PortalConfiguracion result = service.updateConfiguracion(dto);
+        
+        assertNotNull(result);
+        verify(mockRepository, times(2)).save(any(PortalConfiguracion.class)); // createDefault + update
+    }
 }
 
