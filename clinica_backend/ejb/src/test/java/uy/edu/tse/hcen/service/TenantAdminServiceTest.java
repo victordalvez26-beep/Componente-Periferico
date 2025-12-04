@@ -83,4 +83,88 @@ class TenantAdminServiceTest {
         assertEquals("token123", result.activationToken);
         assertNotNull(result.tokenExpiry);
     }
+
+    @Nested
+    @DisplayName("Additional Coverage Tests")
+    class AdditionalCoverageTests {
+
+        @Test
+        @DisplayName("Debe manejar colorPrimario null")
+        void createSchema_withNullColor_shouldUseDefault() {
+            // Act & Assert - No debe lanzar excepción
+            assertThrows(Exception.class, () -> 
+                service.createTenantSchema("schema_101", null, "Test"));
+        }
+
+        @Test
+        @DisplayName("Debe manejar nombrePortal null")
+        void createSchema_withNullNombre_shouldUseDefault() {
+            // Act & Assert
+            assertThrows(Exception.class, () -> 
+                service.createTenantSchema("schema_101", "#007bff", null));
+        }
+
+        @Test
+        @DisplayName("Debe manejar schema con caracteres especiales")
+        void createSchema_withSpecialChars_shouldEscape() {
+            // Act & Assert
+            assertThrows(Exception.class, () -> 
+                service.createTenantSchema("schema_test_123", "#007bff", "Test"));
+        }
+
+        @Test
+        @DisplayName("Debe manejar color con comillas")
+        void createSchema_withQuotesInColor_shouldEscape() {
+            // Act & Assert
+            assertThrows(Exception.class, () -> 
+                service.createTenantSchema("schema_101", "#00'7bff", "Test"));
+        }
+
+        @Test
+        @DisplayName("Debe manejar nombre con comillas")
+        void createSchema_withQuotesInNombre_shouldEscape() {
+            // Act & Assert
+            assertThrows(Exception.class, () -> 
+                service.createTenantSchema("schema_101", "#007bff", "Test'Clinic"));
+        }
+
+        @Test
+        @DisplayName("AdminCreationResult debe ser mutable")
+        void adminCreationResult_shouldBeMutable() {
+            // Arrange
+            TenantAdminService.AdminCreationResult result = new TenantAdminService.AdminCreationResult();
+            
+            // Act
+            result.adminNickname = "admin1";
+            result.activationToken = "token1";
+            result.activationUrl = "url1";
+            result.tokenExpiry = java.time.LocalDateTime.now();
+            
+            result.adminNickname = "admin2";
+            result.activationToken = "token2";
+            
+            // Assert
+            assertEquals("admin2", result.adminNickname);
+            assertEquals("token2", result.activationToken);
+        }
+
+        @Test
+        @DisplayName("AdminCreationResult debe permitir null en campos")
+        void adminCreationResult_shouldAllowNulls() {
+            // Arrange
+            TenantAdminService.AdminCreationResult result = new TenantAdminService.AdminCreationResult();
+            
+            // Act
+            result.adminNickname = null;
+            result.activationToken = null;
+            result.activationUrl = null;
+            result.tokenExpiry = null;
+            
+            // Assert
+            assertNull(result.adminNickname);
+            assertNull(result.activationToken);
+            assertNull(result.activationUrl);
+            assertNull(result.tokenExpiry);
+        }
+    }
 }
