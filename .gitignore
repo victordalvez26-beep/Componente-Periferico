@@ -2,3 +2,6 @@ node_modules/
 .cache/
 *.log
 .env
+
+# Excluir archivos de datos de prueba SQL
+clinica_backend/load-test-data*.sql
