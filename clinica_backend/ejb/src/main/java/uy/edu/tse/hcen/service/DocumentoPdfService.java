@@ -133,9 +133,6 @@ public class DocumentoPdfService {
                     
         // Incluir tenantId en la URL para que el acceso directo funcione
         String urlAcceso = nodoBaseUrl + "/hcen-web/api/documentos-pdf/" + mongoId + "?tenantId=" + tenantId;
-        
-        LOG.info(String.format("📝 [PERIFERICO] Construyendo URL de acceso - Base URL: %s, MongoId: %s, URL completa: %s", 
-                nodoBaseUrl, mongoId, urlAcceso));
 
         // 9. Generar metadata
         DTMetadatos metadata = new DTMetadatos();
@@ -192,52 +189,37 @@ public class DocumentoPdfService {
      * @return Map con la metadata del documento o null si no existe
      */
     public Map<String, Object> obtenerMetadataPorId(String mongoId, Long tenantId) {
-        LOG.info(String.format("🔍 [PERIFERICO] Obteniendo metadata - ID: %s, Tenant: %d", mongoId, tenantId));
-        
         // Primero intentar buscar en DocumentoPdfRepository (PDFs subidos directamente)
         Document doc = documentoPdfRepository.buscarPorId(mongoId, tenantId);
         
         // Si no se encuentra, intentar buscar en DocumentoClinicoRepository (documentos completos)
         if (doc == null) {
-            LOG.info(String.format("🔍 [PERIFERICO] Metadata no encontrada en DocumentoPdfRepository, buscando en DocumentoClinicoRepository - ID: %s", mongoId));
             try {
                 doc = documentoClinicoRepository.buscarPorId(mongoId, tenantId);
-                
-                if (doc != null) {
-                    LOG.info(String.format("✅ [PERIFERICO] Metadata encontrada en DocumentoClinicoRepository - ID: %s", mongoId));
-                }
             } catch (Exception ex) {
-                LOG.warn(String.format("⚠️ [PERIFERICO] Error al buscar metadata en DocumentoClinicoRepository: %s", ex.getMessage()));
+                LOG.warn("Error al buscar metadata en DocumentoClinicoRepository: " + ex.getMessage());
             }
-        } else {
-            LOG.info(String.format("✅ [PERIFERICO] Metadata encontrada en DocumentoPdfRepository - ID: %s", mongoId));
         }
         
         // Si no se encuentra con el tenantId proporcionado, intentar buscar sin filtrar por tenantId
-        // (útil cuando la URL de descarga no incluye el tenantId correcto)
         if (doc == null && tenantId != null) {
-            LOG.info(String.format("🔍 [PERIFERICO] Metadata no encontrada con tenant %d, buscando sin filtrar por tenant - ID: %s", tenantId, mongoId));
             try {
-                // Buscar en DocumentoPdfRepository sin filtrar por tenant
                 doc = documentoPdfRepository.buscarPorId(mongoId, null);
                 if (doc == null) {
-                    // Buscar en DocumentoClinicoRepository sin filtrar por tenant
                     doc = documentoClinicoRepository.buscarPorId(mongoId, null);
                 }
                 
                 if (doc != null) {
                     Long docTenantId = doc.getLong("tenantId");
-                    LOG.info(String.format("✅ [PERIFERICO] Metadata encontrada sin filtrar por tenant - ID: %s, Tenant real: %d", mongoId, docTenantId));
-                    // Actualizar tenantId al real del documento
                     tenantId = docTenantId;
                 }
             } catch (Exception ex) {
-                LOG.warn(String.format("⚠️ [PERIFERICO] Error al buscar metadata sin filtrar por tenant: %s", ex.getMessage()));
+                LOG.warn("Error al buscar metadata sin filtrar por tenant: " + ex.getMessage());
             }
         }
         
         if (doc == null) {
-            LOG.warn(String.format("❌ [PERIFERICO] Metadata no encontrada en ningún repositorio - ID: %s, Tenant: %d", mongoId, tenantId));
+            LOG.warn(String.format("Metadata no encontrada - ID: %s, Tenant: %d", mongoId, tenantId));
             return null;
         }
         
@@ -254,9 +236,6 @@ public class DocumentoPdfService {
         metadata.put("profesionalId", doc.getString("profesionalId"));
         metadata.put("tenantId", tenantId);
         
-        LOG.info(String.format("✅ [PERIFERICO] Metadata obtenida - CI Paciente: %s, Tipo: %s, Tenant: %d", 
-                metadata.get("ciPaciente"), metadata.get("tipoDocumento"), tenantId));
-        
         return metadata;
     }
     
@@ -270,50 +249,32 @@ public class DocumentoPdfService {
      * @return Bytes del PDF
      */
     public byte[] obtenerPdfPorId(String mongoId, Long tenantId) {
-        LOG.info(String.format("🔍 [PERIFERICO] Obteniendo PDF de MongoDB - ID: %s, Clínica: %d", mongoId, tenantId));
-        
         // Primero intentar buscar en DocumentoPdfRepository (PDFs subidos directamente)
         Document documento = documentoPdfRepository.buscarPorId(mongoId, tenantId);
         
         // Si no se encuentra, intentar buscar en DocumentoClinicoRepository (documentos completos)
         if (documento == null) {
-            LOG.info(String.format("🔍 [PERIFERICO] Documento no encontrado en DocumentoPdfRepository, buscando en DocumentoClinicoRepository - ID: %s", mongoId));
             try {
                 documento = documentoClinicoRepository.buscarPorId(mongoId, tenantId);
-                
-                if (documento != null) {
-                    LOG.info(String.format("✅ [PERIFERICO] Documento encontrado en DocumentoClinicoRepository - ID: %s", mongoId));
-                }
             } catch (Exception ex) {
-                LOG.warn(String.format("⚠️ [PERIFERICO] Error al buscar en DocumentoClinicoRepository: %s", ex.getMessage()));
+                LOG.warn("Error al buscar en DocumentoClinicoRepository: " + ex.getMessage());
             }
-        } else {
-            LOG.info(String.format("✅ [PERIFERICO] Documento encontrado en DocumentoPdfRepository - ID: %s", mongoId));
         }
         
         // Si no se encuentra con el tenantId proporcionado, intentar buscar sin filtrar por tenantId
-        // (útil cuando la URL de descarga no incluye el tenantId correcto)
         if (documento == null && tenantId != null) {
-            LOG.info(String.format("🔍 [PERIFERICO] Documento no encontrado con tenant %d, buscando sin filtrar por tenant - ID: %s", tenantId, mongoId));
             try {
-                // Buscar en DocumentoPdfRepository sin filtrar por tenant
                 documento = documentoPdfRepository.buscarPorId(mongoId, null);
                 if (documento == null) {
-                    // Buscar en DocumentoClinicoRepository sin filtrar por tenant
                     documento = documentoClinicoRepository.buscarPorId(mongoId, null);
                 }
-                
-                if (documento != null) {
-                    Long docTenantId = documento.getLong("tenantId");
-                    LOG.info(String.format("✅ [PERIFERICO] Documento encontrado sin filtrar por tenant - ID: %s, Tenant real: %d", mongoId, docTenantId));
-                }
             } catch (Exception ex) {
-                LOG.warn(String.format("⚠️ [PERIFERICO] Error al buscar sin filtrar por tenant: %s", ex.getMessage()));
+                LOG.warn("Error al buscar sin filtrar por tenant: " + ex.getMessage());
             }
         }
         
         if (documento == null) {
-            LOG.warn(String.format("❌ [PERIFERICO] Documento no encontrado en ningún repositorio - ID: %s, Tenant: %d", mongoId, tenantId));
+            LOG.warn(String.format("Documento no encontrado - ID: %s, Tenant: %d", mongoId, tenantId));
             return null;
         }
 
@@ -325,32 +286,25 @@ public class DocumentoPdfService {
         }
         
         if (pdfBinary == null || pdfBinary.getData() == null || pdfBinary.getData().length == 0) {
-            LOG.info(String.format("ℹ️ [PERIFERICO] Documento %s no tiene PDF persistido, generando on-demand", mongoId));
             try {
                 byte[] generado = DocumentoPdfFactory.generarDesdeDocumento(documento);
-                LOG.info(String.format("✅ [PERIFERICO] PDF generado on-demand - ID: %s, Tamaño: %d bytes", mongoId, generado.length));
                 return generado;
             } catch (IOException ex) {
-                LOG.error(String.format("❌ [PERIFERICO] Error al generar PDF on-demand - ID: %s", mongoId), ex);
+                LOG.error("Error al generar PDF on-demand - ID: " + mongoId, ex);
                 return null;
             } catch (IllegalArgumentException ex) {
-                LOG.warn(String.format("❌ [PERIFERICO] No se pudo generar PDF on-demand (datos incompletos) - ID: %s", mongoId), ex);
+                LOG.warn("No se pudo generar PDF on-demand (datos incompletos) - ID: " + mongoId, ex);
                 return null;
             }
         }
 
         byte[] pdfData = pdfBinary.getData();
-        LOG.info(String.format("✅ [PERIFERICO] PDF extraído de MongoDB - ID: %s, Tamaño: %d bytes", mongoId, pdfData.length));
         
         // Verificar que los primeros bytes sean de un PDF válido
         if (pdfData.length >= 4) {
             String header = new String(pdfData, 0, 4);
             if (!header.startsWith("%PDF")) {
-                LOG.warn(String.format("⚠️ [PERIFERICO] Los primeros bytes no son de un PDF válido: %s", header));
-                LOG.warn(String.format("⚠️ [PERIFERICO] Primeros 200 bytes: %s", 
-                        new String(pdfData, 0, Math.min(200, pdfData.length))));
-            } else {
-                LOG.info(String.format("✅ [PERIFERICO] PDF válido detectado en MongoDB - Header: %s", header));
+                LOG.warn("Los primeros bytes no son de un PDF válido: " + header);
             }
         }
 

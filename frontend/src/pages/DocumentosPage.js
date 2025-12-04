@@ -143,8 +143,6 @@ function DocumentosPage() {
         'Authorization': `Bearer ${token}`,
       };
 
-      console.log('Descargando documento desde:', downloadUrl);
-
       const response = await fetch(downloadUrl, {
         method: 'GET',
         headers: headers,
@@ -211,14 +209,13 @@ function DocumentosPage() {
         if (tokenParts.length === 3) {
           const payload = JSON.parse(atob(tokenParts[1]));
           profesionalId = payload.sub || payload.userId || payload.nickname || payload.username;
-          console.log('🔵 [FRONTEND] ProfesionalId extraído del token:', profesionalId);
         }
       } catch (e) {
         console.warn('No se pudo decodificar el token para obtener profesionalId:', e);
       }
       
       if (!profesionalId) {
-        console.error('❌ [FRONTEND] No se pudo obtener profesionalId del token');
+        console.error('No se pudo obtener profesionalId del token');
         setError('No se pudo identificar al profesional. Por favor, inicie sesión nuevamente.');
         setLoading(false);
         return;
@@ -233,7 +230,6 @@ function DocumentosPage() {
         try {
           // Usar directamente el servicio de políticas (el proxy está devolviendo 404)
           const politicasUrl = `/hcen-politicas-service/api/politicas/profesional/${encodeURIComponent(profesionalId)}`;
-          console.log('🔵 [FRONTEND] Llamando directamente a servicio de políticas:', politicasUrl);
           
           let politicasResponse = await fetch(politicasUrl, {
             headers: {
@@ -241,11 +237,8 @@ function DocumentosPage() {
             }
           });
           
-          console.log('🔵 [FRONTEND] Respuesta de políticas:', politicasResponse.status, politicasResponse.statusText);
-          
           if (politicasResponse.ok) {
             const politicas = await politicasResponse.json().catch(() => []);
-            console.log('🔵 [FRONTEND] Políticas recibidas:', Array.isArray(politicas) ? politicas.length : 'no es array', politicas);
             
             // Verificar si hay políticas activas para este paciente específico
             tieneAcceso = Array.isArray(politicas) && politicas.some(politica => {
@@ -257,17 +250,12 @@ function DocumentosPage() {
                                             !politica.profesionalAutorizado);
               
               const tieneAccesoParaEstePaciente = esPacienteCorrecto && esActiva && esProfesionalCorrecto;
-              if (tieneAccesoParaEstePaciente) {
-                console.log('✅ [FRONTEND] Política encontrada para paciente:', ciPacienteBuscado, 'profesional:', profesionalId, politica);
-              }
               return tieneAccesoParaEstePaciente;
             });
-            console.log('🔵 [FRONTEND] Tiene acceso por políticas:', tieneAcceso);
           } else if (politicasResponse.status === 404) {
             // No hay políticas para este profesional, continuar con verificación de solicitudes
-            console.log('⚠️ [FRONTEND] No se encontraron políticas para el profesional:', profesionalId);
           } else {
-            console.warn('⚠️ [FRONTEND] Error al obtener políticas:', politicasResponse.status, politicasResponse.statusText);
+            console.warn('Error al obtener políticas:', politicasResponse.status, politicasResponse.statusText);
           }
         } catch (e) {
           console.warn('Error al verificar políticas de acceso:', e);
@@ -295,7 +283,6 @@ function DocumentosPage() {
             
             if (solicitudesResponse.ok) {
               const solicitudes = await solicitudesResponse.json().catch(() => []);
-              console.log('🔵 [FRONTEND] Solicitudes recibidas:', Array.isArray(solicitudes) ? solicitudes.length : 'no es array', solicitudes);
               
               // Verificar si hay solicitudes (pendientes o aprobadas) para este paciente
               const tieneSolicitudParaPaciente = Array.isArray(solicitudes) && solicitudes.some(solicitud => {
@@ -305,18 +292,14 @@ function DocumentosPage() {
                 const esPendienteOAprobada = (solicitud.estado === 'PENDIENTE' || solicitud.estado === 'APROBADA');
                 
                 const tieneSolicitud = esPacienteCorrecto && esSolicitanteCorrecto && esPendienteOAprobada;
-                if (tieneSolicitud) {
-                  console.log('✅ [FRONTEND] Solicitud encontrada para paciente:', ciPacienteBuscado, 'profesional:', profesionalId, solicitud);
-                }
                 return tieneSolicitud;
               });
               
               if (tieneSolicitudParaPaciente) {
                 tieneAcceso = true;
-                console.log('✅ [FRONTEND] Tiene acceso por solicitud existente');
               }
             } else {
-              console.warn('⚠️ [FRONTEND] Error al obtener solicitudes:', solicitudesResponse.status, solicitudesResponse.statusText);
+              console.warn('Error al obtener solicitudes:', solicitudesResponse.status, solicitudesResponse.statusText);
             }
           } catch (e) {
             console.warn('Error al verificar solicitudes de acceso:', e);
@@ -326,15 +309,12 @@ function DocumentosPage() {
         
         // 3. Si tiene acceso (política o solicitud aprobada), mostrar mensaje y no permitir nueva solicitud
         if (tieneAcceso) {
-          console.log('🛑 [FRONTEND] BLOQUEANDO solicitud - ya tiene acceso');
           setPopupMessage('Ya tiene acceso a los documentos de este paciente. No es necesario solicitar acceso nuevamente.');
           setShowSolicitarAccesoModal(false);
           setSolicitarAccesoForm({ ciPaciente: '', motivo: '' });
           setError(null);
           setLoading(false);
           return;
-        } else {
-          console.log('✅ [FRONTEND] No tiene acceso, continuando con verificación de documentos');
         }
       }
 
@@ -390,7 +370,6 @@ function DocumentosPage() {
         if (response.status === 409) {
           try {
             const errorData = await response.json();
-            console.log('🛑 [FRONTEND] Respuesta 409 recibida:', errorData);
             
             // Extraer solo el mensaje del JSON, asegurándose de que sea un string
             let mensaje = 'Ya tiene acceso a los documentos de este paciente. No es necesario solicitar acceso nuevamente.';
@@ -418,10 +397,9 @@ function DocumentosPage() {
               mensaje = errorData;
             }
             
-            console.log('🛑 [FRONTEND] Mensaje extraído:', mensaje);
             setPopupMessage(String(mensaje)); // Asegurar que sea string
           } catch (e) {
-            console.warn('⚠️ [FRONTEND] Error al parsear respuesta 409:', e);
+            console.warn('Error al parsear respuesta 409:', e);
             // Si no se puede parsear el JSON, usar mensaje por defecto
             setPopupMessage('Ya tiene acceso a los documentos de este paciente. No es necesario solicitar acceso nuevamente.');
           }

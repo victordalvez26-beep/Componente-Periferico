@@ -36,7 +36,6 @@ public class UsuarioPerifericoRepository {
      * Útil para buscar profesionales en schema_clinica_XXX.usuario sin problemas de herencia.
      */
     public UsuarioPeriferico findByNicknameInTenantSchema(String nickname, String schemaName) {
-        System.out.println("=== findByNicknameInTenantSchema: nickname=" + nickname + ", schema=" + schemaName);
         try {
             // Query nativa SQL en el schema del tenant - buscar en usuarioperiferico
             // NOTA: No incluye tenant_id porque el schema YA define el tenant
@@ -76,25 +75,16 @@ public class UsuarioPerifericoRepository {
                 } else if ("AdministradorClinica".equals(dtype)) {
                     role = "ADMINISTRADOR";
                 }
-                System.out.println("=== Role deducido del dtype: " + dtype + " → " + role);
             }
             user.setRole(role);
             
             user.setNombre((String) row[4]);
             user.setEmail((String) row[5]);
             
-            // Campos adicionales opcionales
-            if (row.length > 6 && row[6] != null) {
-                System.out.println("=== Especialidad: " + row[6]);
-            }
-            
-            System.out.println("=== Usuario encontrado en tenant schema: " + user.getNickname() + ", role=" + role);
             return user;
         } catch (NoResultException e) {
-            System.out.println("=== NoResultException en tenant schema");
             return null;
         } catch (Exception e) {
-            System.out.println("=== Exception en findByNicknameInTenantSchema: " + e.getMessage());
             e.printStackTrace();
             return null;
         }
@@ -105,7 +95,6 @@ public class UsuarioPerifericoRepository {
      * Usado específicamente para login donde solo necesitamos datos básicos.
      */
     public UsuarioPeriferico findByNicknameForLogin(String nickname) {
-        System.out.println("=== findByNicknameForLogin called with nickname: " + nickname);
         try {
             // Query nativa SQL para evitar JOINs de herencia
             Query query = em.createNativeQuery(
@@ -117,16 +106,13 @@ public class UsuarioPerifericoRepository {
             );
             query.setParameter(1, nickname);
             
-            System.out.println("=== Query created, executing...");
             Object[] row = (Object[]) query.getSingleResult();
-            System.out.println("=== Query returned " + row.length + " columns");
             
             // Mapear manualmente a UsuarioPeriferico
             UsuarioPeriferico user = new UsuarioPeriferico();
             
             // Manejar ID que puede venir como Long o BigInteger
             Object idObj = row[0];
-            System.out.println("=== ID object type: " + (idObj != null ? idObj.getClass().getName() : "null"));
             if (idObj instanceof Long) {
                 user.setId((Long) idObj);
             } else if (idObj instanceof BigInteger) {
@@ -142,13 +128,10 @@ public class UsuarioPerifericoRepository {
             user.setNombre((String) row[5]);
             user.setEmail((String) row[6]);
             
-            System.out.println("=== User mapped successfully: " + user.getNickname());
             return user;
         } catch (NoResultException e) {
-            System.out.println("=== NoResultException: User not found");
             return null;
         } catch (Exception e) {
-            System.out.println("=== Exception in findByNicknameForLogin: " + e.getClass().getName() + " - " + e.getMessage());
             e.printStackTrace();
             return null;
         }

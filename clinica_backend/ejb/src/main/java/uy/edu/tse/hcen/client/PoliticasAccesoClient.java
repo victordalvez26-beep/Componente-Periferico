@@ -67,12 +67,12 @@ public class PoliticasAccesoClient {
                 
                 Boolean tienePermiso = (Boolean) result.get("tienePermiso");
                 if (tienePermiso != null && tienePermiso) {
-                    LOG.info(String.format("✅ Permiso concedido - Profesional: %s, Paciente: %s", 
+                    LOG.info(String.format("Permiso concedido - Profesional: %s, Paciente: %s", 
                             profesionalId, pacienteCI));
                     client.close();
                     return true;
                 } else {
-                    LOG.warn(String.format("❌ Permiso denegado - Profesional: %s, Paciente: %s", 
+                    LOG.warn(String.format("Permiso denegado - Profesional: %s, Paciente: %s", 
                             profesionalId, pacienteCI));
                     client.close();
                     return false;

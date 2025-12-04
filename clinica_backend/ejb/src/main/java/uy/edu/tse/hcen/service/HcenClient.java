@@ -378,10 +378,10 @@ public class HcenClient {
                 
                 int status = response.getStatus();
                 if (status == 201 || status == 200) {
-                    LOG.info(String.format("✅ Acceso registrado exitosamente - Status: %d", status));
+                    LOG.info(String.format("Acceso registrado exitosamente - Status: %d", status));
                 } else {
                     String errorBody = response.hasEntity() ? response.readEntity(String.class) : "Sin detalles";
-                    LOG.warning(String.format("⚠️ Error al registrar acceso - Status: %d, Response: %s", status, errorBody));
+                    LOG.warning(String.format("Error al registrar acceso - Status: %d, Response: %s", status, errorBody));
                 }
             } finally {
                 client.close();
