@@ -9,6 +9,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import javax.sql.DataSource;
 import java.sql.*;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -208,14 +210,149 @@ class TenantAdminServiceComprehensiveTest {
             assertThrows(IllegalArgumentException.class,
                     () -> service.createAdminUser("101", "", "admin@test.com", "http://test"));
         }
+
+        @Test
+        @DisplayName("Debe crear admin con email válido y ejecutar SQL")
+        void createAdmin_withEmail_executesSQL() throws SQLException {
+            // Arrange - createAdminUser usa MÚLTIPLES PreparedStatements
+            PreparedStatement ps1 = mock(PreparedStatement.class);
+            PreparedStatement ps2 = mock(PreparedStatement.class);
+            PreparedStatement ps3 = mock(PreparedStatement.class);
+            PreparedStatement ps4 = mock(PreparedStatement.class);
+            PreparedStatement ps5 = mock(PreparedStatement.class);
+            
+            when(dataSource.getConnection()).thenReturn(connection);
+            when(connection.prepareStatement(anyString()))
+                    .thenReturn(ps1)
+                    .thenReturn(ps2)
+                    .thenReturn(ps3)
+                    .thenReturn(ps4)
+                    .thenReturn(ps5);
+            
+            when(ps1.execute()).thenReturn(true);
+            when(ps2.executeUpdate()).thenReturn(1);
+            when(ps3.executeQuery()).thenReturn(resultSet);
+            when(ps4.executeUpdate()).thenReturn(1);
+            when(ps5.executeUpdate()).thenReturn(1);
+            
+            when(resultSet.next()).thenReturn(true);
+            when(resultSet.getLong(1)).thenReturn(1001L);
+
+            // Act
+            TenantAdminService.AdminCreationResult result = service.createAdminUser(
+                    "101", "schema_clinica_101", "admin@test.com", "http://test");
+
+            // Assert
+            assertNotNull(result);
+            assertEquals("admin_c101", result.adminNickname);
+            assertNotNull(result.activationToken);
+            assertTrue(result.activationUrl.contains("101"));
+            assertTrue(result.activationUrl.contains("activate"));
+        }
+
+        @Test
+        @DisplayName("Debe crear admin con email null (usa email por defecto)")
+        void createAdmin_nullEmail_usesDefaultEmail() throws SQLException {
+            // Arrange
+            PreparedStatement ps1 = mock(PreparedStatement.class);
+            PreparedStatement ps2 = mock(PreparedStatement.class);
+            PreparedStatement ps3 = mock(PreparedStatement.class);
+            PreparedStatement ps4 = mock(PreparedStatement.class);
+            PreparedStatement ps5 = mock(PreparedStatement.class);
+            
+            when(dataSource.getConnection()).thenReturn(connection);
+            when(connection.prepareStatement(anyString()))
+                    .thenReturn(ps1)
+                    .thenReturn(ps2)
+                    .thenReturn(ps3)
+                    .thenReturn(ps4)
+                    .thenReturn(ps5);
+            
+            when(ps1.execute()).thenReturn(true);
+            when(ps2.executeUpdate()).thenReturn(1);
+            when(ps3.executeQuery()).thenReturn(resultSet);
+            when(ps4.executeUpdate()).thenReturn(1);
+            when(ps5.executeUpdate()).thenReturn(1);
+            
+            when(resultSet.next()).thenReturn(true);
+            when(resultSet.getLong(1)).thenReturn(1002L);
+
+            // Act
+            TenantAdminService.AdminCreationResult result = service.createAdminUser(
+                    "102", "schema_clinica_102", null, "http://test");
+
+            // Assert
+            assertNotNull(result);
+            assertEquals("admin_c102", result.adminNickname);
+        }
+
+        @Test
+        @DisplayName("Debe generar nickname único por tenant")
+        void createAdmin_generatesUniqueNickname() throws SQLException {
+            // Arrange
+            PreparedStatement ps1 = mock(PreparedStatement.class);
+            PreparedStatement ps2 = mock(PreparedStatement.class);
+            PreparedStatement ps3 = mock(PreparedStatement.class);
+            PreparedStatement ps4 = mock(PreparedStatement.class);
+            PreparedStatement ps5 = mock(PreparedStatement.class);
+            
+            when(dataSource.getConnection()).thenReturn(connection);
+            when(connection.prepareStatement(anyString()))
+                    .thenReturn(ps1, ps2, ps3, ps4, ps5)
+                    .thenReturn(ps1, ps2, ps3, ps4, ps5);
+            
+            when(ps1.execute()).thenReturn(true);
+            when(ps2.executeUpdate()).thenReturn(1);
+            when(ps3.executeQuery()).thenReturn(resultSet);
+            when(ps4.executeUpdate()).thenReturn(1);
+            when(ps5.executeUpdate()).thenReturn(1);
+            
+            when(resultSet.next()).thenReturn(true);
+            when(resultSet.getLong(1)).thenReturn(1003L).thenReturn(1004L);
+
+            // Act
+            TenantAdminService.AdminCreationResult result1 = service.createAdminUser(
+                    "201", "schema_clinica_201", "admin1@test.com", "http://test");
+            TenantAdminService.AdminCreationResult result2 = service.createAdminUser(
+                    "202", "schema_clinica_202", "admin2@test.com", "http://test");
+
+            // Assert
+            assertNotEquals(result1.adminNickname, result2.adminNickname);
+            assertEquals("admin_c201", result1.adminNickname);
+            assertEquals("admin_c202", result2.adminNickname);
+        }
     }
 
     @Nested
-    @DisplayName("activateAdminUser Tests")
+    @DisplayName("activateAdminUser Tests - TODOS LOS CASOS")
     class ActivateAdminUserTests {
 
         @Test
-        @DisplayName("Debe rechazar token inválido")
+        @DisplayName("Debe rechazar tenantId null")
+        void activateAdmin_nullTenantId_throws() {
+            // Act & Assert
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.activateAdminUser(null, "token123", "Password123!"));
+        }
+
+        @Test
+        @DisplayName("Debe rechazar token null")
+        void activateAdmin_nullToken_throws() {
+            // Act & Assert
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.activateAdminUser("101", null, "Password123!"));
+        }
+
+        @Test
+        @DisplayName("Debe rechazar password null")
+        void activateAdmin_nullPassword_throws() {
+            // Act & Assert
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.activateAdminUser("101", "token123", null));
+        }
+
+        @Test
+        @DisplayName("Debe rechazar token inválido (no encontrado)")
         void activateAdmin_invalidToken_throws() throws SQLException {
             // Arrange
             when(dataSource.getConnection()).thenReturn(connection);
@@ -224,34 +361,87 @@ class TenantAdminServiceComprehensiveTest {
             when(resultSet.next()).thenReturn(false); // Token no encontrado
 
             // Act & Assert
-            assertThrows(Exception.class,
+            SecurityException ex = assertThrows(SecurityException.class,
                     () -> service.activateAdminUser("101", "invalidToken", "Password123!"));
+            assertTrue(ex.getMessage().contains("inválido"));
         }
 
         @Test
-        @DisplayName("Debe ejecutar código de activación")
-        void activateAdmin_executesCode() throws SQLException {
+        @DisplayName("Debe rechazar token ya usado")
+        void activateAdmin_usedToken_throws() throws SQLException {
             // Arrange
             when(dataSource.getConnection()).thenReturn(connection);
             when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
             when(preparedStatement.executeQuery()).thenReturn(resultSet);
-            when(resultSet.next()).thenReturn(false);
+            when(resultSet.next()).thenReturn(true);
+            when(resultSet.getString("user_nickname")).thenReturn("admin_c101");
+            when(resultSet.getTimestamp("expires_at")).thenReturn(Timestamp.valueOf(LocalDateTime.now().plusHours(24)));
+            when(resultSet.getBoolean("used")).thenReturn(true); // Token ya usado
 
-            // Act & Assert - Ejecuta código aunque falle por token inválido
-            assertThrows(Exception.class,
-                    () -> service.activateAdminUser("101", "token123", "Password123!"));
+            // Act & Assert
+            SecurityException ex = assertThrows(SecurityException.class,
+                    () -> service.activateAdminUser("101", "usedToken", "Password123!"));
+            assertTrue(ex.getMessage().contains("ya fue utilizado"));
+        }
+
+        @Test
+        @DisplayName("Debe rechazar token expirado")
+        void activateAdmin_expiredToken_throws() throws SQLException {
+            // Arrange
+            when(dataSource.getConnection()).thenReturn(connection);
+            when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+            when(preparedStatement.executeQuery()).thenReturn(resultSet);
+            when(resultSet.next()).thenReturn(true);
+            when(resultSet.getString("user_nickname")).thenReturn("admin_c101");
+            when(resultSet.getTimestamp("expires_at")).thenReturn(Timestamp.valueOf(LocalDateTime.now().minusHours(1))); // Expirado
+            when(resultSet.getBoolean("used")).thenReturn(false);
+
+            // Act & Assert
+            SecurityException ex = assertThrows(SecurityException.class,
+                    () -> service.activateAdminUser("101", "expiredToken", "Password123!"));
+            assertTrue(ex.getMessage().contains("expirado"));
+        }
+
+        @Test
+        @DisplayName("Debe activar usuario con token válido")
+        void activateAdmin_validToken_activatesUser() throws SQLException {
+            // Arrange
+            PreparedStatement ps1 = mock(PreparedStatement.class);
+            PreparedStatement ps2 = mock(PreparedStatement.class);
+            PreparedStatement ps3 = mock(PreparedStatement.class);
             
-            verify(dataSource).getConnection();
+            when(dataSource.getConnection()).thenReturn(connection);
+            when(connection.prepareStatement(anyString()))
+                    .thenReturn(ps1)
+                    .thenReturn(ps2)
+                    .thenReturn(ps3);
+            
+            when(ps1.executeQuery()).thenReturn(resultSet);
+            when(resultSet.next()).thenReturn(true);
+            when(resultSet.getString("user_nickname")).thenReturn("admin_c101");
+            when(resultSet.getTimestamp("expires_at")).thenReturn(Timestamp.valueOf(LocalDateTime.now().plusHours(24)));
+            when(resultSet.getBoolean("used")).thenReturn(false);
+            
+            when(ps2.executeUpdate()).thenReturn(1);
+            when(ps3.executeUpdate()).thenReturn(1);
+
+            // Act
+            String nickname = service.activateAdminUser("101", "validToken", "Password123!");
+
+            // Assert
+            assertEquals("admin_c101", nickname);
+            verify(ps2).executeUpdate(); // Update password
+            verify(ps3).executeUpdate(); // Mark token as used
         }
     }
 
     @Nested
-    @DisplayName("listTenants Tests")
+    @DisplayName("listTenants Tests - TODOS LOS CASOS")
     class ListTenantsTests {
 
         @Test
-        @DisplayName("Debe ejecutar query de listado")
-        void listTenants_executesQuery() throws SQLException {
+        @DisplayName("Debe retornar lista vacía cuando no hay tenants")
+        void listTenants_empty_returnsEmptyList() throws SQLException {
             // Arrange
             when(dataSource.getConnection()).thenReturn(connection);
             when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
@@ -259,16 +449,87 @@ class TenantAdminServiceComprehensiveTest {
             when(resultSet.next()).thenReturn(false);
 
             // Act
-            java.util.List<java.util.Map<String, Object>> result = service.listTenants();
+            List<Map<String, Object>> result = service.listTenants();
 
             // Assert
             assertNotNull(result);
+            assertTrue(result.isEmpty());
             verify(preparedStatement).executeQuery();
+        }
+
+        @Test
+        @DisplayName("Debe retornar lista con un tenant")
+        void listTenants_oneTenant_returnsList() throws SQLException {
+            // Arrange
+            when(dataSource.getConnection()).thenReturn(connection);
+            when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+            when(preparedStatement.executeQuery()).thenReturn(resultSet);
+            when(resultSet.next()).thenReturn(true).thenReturn(false);
+            when(resultSet.getLong("id")).thenReturn(101L);
+            when(resultSet.getString("nombre")).thenReturn("Clinica Test");
+            when(resultSet.getString("rut")).thenReturn("123456789012");
+
+            // Act
+            List<Map<String, Object>> result = service.listTenants();
+
+            // Assert
+            assertNotNull(result);
+            assertEquals(1, result.size());
+            assertEquals(101L, result.get(0).get("id"));
+            assertEquals("Clinica Test", result.get(0).get("nombre"));
+            assertEquals("123456789012", result.get(0).get("rut"));
+        }
+
+        @Test
+        @DisplayName("Debe retornar lista con múltiples tenants")
+        void listTenants_multipleTenants_returnsList() throws SQLException {
+            // Arrange
+            when(dataSource.getConnection()).thenReturn(connection);
+            when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+            when(preparedStatement.executeQuery()).thenReturn(resultSet);
+            when(resultSet.next())
+                    .thenReturn(true)
+                    .thenReturn(true)
+                    .thenReturn(true)
+                    .thenReturn(false);
+            when(resultSet.getLong("id"))
+                    .thenReturn(101L)
+                    .thenReturn(102L)
+                    .thenReturn(103L);
+            when(resultSet.getString("nombre"))
+                    .thenReturn("Clinica 1")
+                    .thenReturn("Clinica 2")
+                    .thenReturn("Clinica 3");
+            when(resultSet.getString("rut"))
+                    .thenReturn("111111111111")
+                    .thenReturn("222222222222")
+                    .thenReturn("333333333333");
+
+            // Act
+            List<Map<String, Object>> result = service.listTenants();
+
+            // Assert
+            assertNotNull(result);
+            assertEquals(3, result.size());
+            assertEquals(101L, result.get(0).get("id"));
+            assertEquals(102L, result.get(1).get("id"));
+            assertEquals(103L, result.get(2).get("id"));
+        }
+
+        @Test
+        @DisplayName("Debe manejar SQLException")
+        void listTenants_sqlException_throws() throws SQLException {
+            // Arrange
+            when(dataSource.getConnection()).thenReturn(connection);
+            when(connection.prepareStatement(anyString())).thenThrow(new SQLException("DB error"));
+
+            // Act & Assert
+            assertThrows(SQLException.class, () -> service.listTenants());
         }
     }
 
     @Nested
-    @DisplayName("registerNodoInPublic Tests")
+    @DisplayName("registerNodoInPublic Tests - TODOS LOS CASOS")
     class RegisterNodoTests {
 
         @Test
@@ -291,27 +552,120 @@ class TenantAdminServiceComprehensiveTest {
         }
 
         @Test
-        @DisplayName("Debe manejar RUT duplicado (ON CONFLICT)")
-        void registerNodo_duplicateRut_success() throws SQLException {
+        @DisplayName("Debe rechazar id null")
+        void registerNodo_nullId_throws() {
+            // Act & Assert
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                    () -> service.registerNodoInPublic(null, "Clinica", "123456789012", "schema_clinica_101"));
+            assertTrue(ex.getMessage().contains("id is required"));
+        }
+
+        @Test
+        @DisplayName("Debe rechazar rut null")
+        void registerNodo_nullRut_throws() {
+            // Act & Assert
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                    () -> service.registerNodoInPublic(101L, "Clinica", null, "schema_clinica_101"));
+            assertTrue(ex.getMessage().contains("rut is required"));
+        }
+
+        @Test
+        @DisplayName("Debe rechazar rut vacío")
+        void registerNodo_emptyRut_throws() {
+            // Act & Assert
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.registerNodoInPublic(101L, "Clinica", "", "schema_clinica_101"));
+        }
+
+        @Test
+        @DisplayName("Debe rechazar nombre null")
+        void registerNodo_nullNombre_throws() {
+            // Act & Assert
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                    () -> service.registerNodoInPublic(101L, null, "123456789012", "schema_clinica_101"));
+            assertTrue(ex.getMessage().contains("nombre is required"));
+        }
+
+        @Test
+        @DisplayName("Debe rechazar nombre vacío")
+        void registerNodo_emptyNombre_throws() {
+            // Act & Assert
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.registerNodoInPublic(101L, "", "123456789012", "schema_clinica_101"));
+        }
+
+        @Test
+        @DisplayName("Debe rechazar schemaName null")
+        void registerNodo_nullSchema_throws() {
+            // Act & Assert
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                    () -> service.registerNodoInPublic(101L, "Clinica", "123456789012", null));
+            assertTrue(ex.getMessage().contains("schemaName is required"));
+        }
+
+        @Test
+        @DisplayName("Debe rechazar schemaName vacío")
+        void registerNodo_emptySchema_throws() {
+            // Act & Assert
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.registerNodoInPublic(101L, "Clinica", "123456789012", ""));
+        }
+
+        @Test
+        @DisplayName("Debe manejar RUT duplicado (ON CONFLICT DO UPDATE)")
+        void registerNodo_duplicateRut_updates() throws SQLException {
             // Arrange
             when(dataSource.getConnection()).thenReturn(connection);
             when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
-            when(preparedStatement.executeUpdate()).thenReturn(0); // ON CONFLICT DO UPDATE
+            when(preparedStatement.executeUpdate()).thenReturn(1); // ON CONFLICT actualiza
 
             // Act
-            service.registerNodoInPublic(101L, "Clinica", "123456789012", "schema_clinica_101");
+            service.registerNodoInPublic(101L, "Clinica Actualizada", "123456789012", "schema_clinica_101");
 
             // Assert
+            verify(preparedStatement).executeUpdate();
+        }
+
+        @Test
+        @DisplayName("Debe registrar múltiples nodos")
+        void registerNodo_multiple_success() throws SQLException {
+            // Arrange
+            when(dataSource.getConnection()).thenReturn(connection);
+            when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+            when(preparedStatement.executeUpdate()).thenReturn(1);
+
+            // Act
+            service.registerNodoInPublic(101L, "Clinica 1", "111111111111", "schema_clinica_101");
+            service.registerNodoInPublic(102L, "Clinica 2", "222222222222", "schema_clinica_102");
+            service.registerNodoInPublic(103L, "Clinica 3", "333333333333", "schema_clinica_103");
+
+            // Assert
+            verify(preparedStatement, times(3)).executeUpdate();
+        }
+
+        @Test
+        @DisplayName("Debe manejar nombre con caracteres especiales")
+        void registerNodo_specialCharsInNombre_success() throws SQLException {
+            // Arrange
+            when(dataSource.getConnection()).thenReturn(connection);
+            when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+            when(preparedStatement.executeUpdate()).thenReturn(1);
+
+            // Act
+            service.registerNodoInPublic(101L, "Clínica José María O'Brien", "123456789012", "schema_clinica_101");
+
+            // Assert
+            verify(preparedStatement).setString(2, "Clínica José María O'Brien");
             verify(preparedStatement).executeUpdate();
         }
     }
 
     @Nested
-    @DisplayName("getTenantConfig Tests")
+    @DisplayName("getTenantConfig Tests - TODOS LOS CASOS")
     class GetTenantConfigTests {
 
         @Test
-        @DisplayName("Debe obtener config exitosamente")
+        @DisplayName("Debe obtener config completa exitosamente")
         void getTenantConfig_success() throws SQLException {
             // Arrange
             when(dataSource.getConnection()).thenReturn(connection);
@@ -324,12 +678,14 @@ class TenantAdminServiceComprehensiveTest {
             when(resultSet.getString("logo_url")).thenReturn("http://logo.png");
 
             // Act
-            java.util.Map<String, Object> result = service.getTenantConfig("101");
+            Map<String, Object> result = service.getTenantConfig("101");
 
             // Assert
             assertNotNull(result);
             assertEquals("#007bff", result.get("colorPrimario"));
+            assertEquals("#6c757d", result.get("colorSecundario"));
             assertEquals("Mi Clinica", result.get("nombrePortal"));
+            assertEquals("http://logo.png", result.get("logoUrl"));
         }
 
         @Test
@@ -342,21 +698,81 @@ class TenantAdminServiceComprehensiveTest {
             when(resultSet.next()).thenReturn(false);
 
             // Act
-            java.util.Map<String, Object> result = service.getTenantConfig("999");
+            Map<String, Object> result = service.getTenantConfig("999");
 
             // Assert
             assertNull(result);
         }
+
+        @Test
+        @DisplayName("Debe manejar logo_url null (retorna string vacío)")
+        void getTenantConfig_nullLogoUrl_returnsConfig() throws SQLException {
+            // Arrange
+            when(dataSource.getConnection()).thenReturn(connection);
+            when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+            when(preparedStatement.executeQuery()).thenReturn(resultSet);
+            when(resultSet.next()).thenReturn(true);
+            when(resultSet.getString("color_primario")).thenReturn("#007bff");
+            when(resultSet.getString("color_secundario")).thenReturn("#6c757d");
+            when(resultSet.getString("nombre_portal")).thenReturn("Mi Clinica");
+            when(resultSet.getString("logo_url")).thenReturn(null);
+
+            // Act
+            Map<String, Object> result = service.getTenantConfig("101");
+
+            // Assert
+            assertNotNull(result);
+            // El código convierte null a "" (string vacío)
+            assertEquals("", result.get("logoUrl"));
+        }
+
+        @Test
+        @DisplayName("Debe manejar logo_url vacío")
+        void getTenantConfig_emptyLogoUrl_returnsConfig() throws SQLException {
+            // Arrange
+            when(dataSource.getConnection()).thenReturn(connection);
+            when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+            when(preparedStatement.executeQuery()).thenReturn(resultSet);
+            when(resultSet.next()).thenReturn(true);
+            when(resultSet.getString("color_primario")).thenReturn("#007bff");
+            when(resultSet.getString("color_secundario")).thenReturn("#6c757d");
+            when(resultSet.getString("nombre_portal")).thenReturn("Mi Clinica");
+            when(resultSet.getString("logo_url")).thenReturn("");
+
+            // Act
+            Map<String, Object> result = service.getTenantConfig("101");
+
+            // Assert
+            assertNotNull(result);
+            assertEquals("", result.get("logoUrl"));
+        }
+
     }
 
     @Nested
-    @DisplayName("updateTenantConfig Tests")
+    @DisplayName("updateTenantConfig Tests - TODOS LOS CASOS")
     class UpdateTenantConfigTests {
 
         @Test
-        @DisplayName("Debe ejecutar update")
-        void updateConfig_executesUpdate() throws SQLException {
-            // Arrange
+        @DisplayName("Debe rechazar tenantId null")
+        void updateConfig_nullTenantId_throws() {
+            // Act & Assert
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.updateTenantConfig(null, "Clinica", "#FF0000", "#000000", "http://logo.png"));
+        }
+
+        @Test
+        @DisplayName("Debe rechazar tenantId vacío")
+        void updateConfig_emptyTenantId_throws() {
+            // Act & Assert
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.updateTenantConfig("", "Clinica", "#FF0000", "#000000", "http://logo.png"));
+        }
+
+        @Test
+        @DisplayName("Debe actualizar config con todos los parámetros")
+        void updateConfig_allParams_success() throws SQLException {
+            // Arrange - updateTenantConfig usa String.format, no setString
             when(dataSource.getConnection()).thenReturn(connection);
             when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
             when(preparedStatement.executeUpdate()).thenReturn(1);
@@ -365,8 +781,91 @@ class TenantAdminServiceComprehensiveTest {
             service.updateTenantConfig("101", "Nueva Clinica", "#FF0000", "#000000", "http://logo.png");
 
             // Assert
-            verify(dataSource).getConnection();
             verify(preparedStatement).executeUpdate();
+        }
+
+        @Test
+        @DisplayName("Debe actualizar config con logo null (usa string vacío)")
+        void updateConfig_nullLogo_usesEmpty() throws SQLException {
+            // Arrange
+            when(dataSource.getConnection()).thenReturn(connection);
+            when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+            when(preparedStatement.executeUpdate()).thenReturn(1);
+
+            // Act
+            service.updateTenantConfig("101", "Nueva Clinica", "#FF0000", "#000000", null);
+
+            // Assert
+            verify(preparedStatement).executeUpdate();
+        }
+
+        @Test
+        @DisplayName("Debe usar defaults cuando parámetros son null")
+        void updateConfig_nullParams_usesDefaults() throws SQLException {
+            // Arrange
+            when(dataSource.getConnection()).thenReturn(connection);
+            when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+            when(preparedStatement.executeUpdate()).thenReturn(1);
+
+            // Act
+            service.updateTenantConfig("102", null, null, null, null);
+
+            // Assert
+            verify(preparedStatement).executeUpdate();
+        }
+
+        @Test
+        @DisplayName("Debe escapar comillas simples en nombre")
+        void updateConfig_escapesQuotesInName() throws SQLException {
+            // Arrange
+            when(dataSource.getConnection()).thenReturn(connection);
+            when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+            when(preparedStatement.executeUpdate()).thenReturn(1);
+
+            // Act - Nombre con comillas
+            service.updateTenantConfig("103", "Clínica O'Brien", "#007bff", "#6c757d", "http://logo.png");
+
+            // Assert
+            verify(preparedStatement).executeUpdate();
+        }
+
+        @Test
+        @DisplayName("Debe crear config si no existe (rowsAffected=0)")
+        void updateConfig_notExists_insertsNew() throws SQLException {
+            // Arrange
+            PreparedStatement ps1 = mock(PreparedStatement.class);
+            PreparedStatement ps2 = mock(PreparedStatement.class);
+            
+            when(dataSource.getConnection()).thenReturn(connection);
+            when(connection.prepareStatement(anyString()))
+                    .thenReturn(ps1)
+                    .thenReturn(ps2);
+            when(ps1.executeUpdate()).thenReturn(0); // No existe, rowsAffected=0
+            when(ps2.executeUpdate()).thenReturn(1); // INSERT exitoso
+
+            // Act
+            service.updateTenantConfig("104", "Nueva Clinica", "#FF0000", "#000000", "http://logo.png");
+
+            // Assert
+            verify(ps1).executeUpdate(); // UPDATE intenta
+            verify(ps2).executeUpdate(); // INSERT se ejecuta
+        }
+
+        @Test
+        @DisplayName("Debe actualizar múltiples tenants consecutivos")
+        void updateConfig_multipleTenants_success() throws SQLException {
+            // Arrange
+            when(dataSource.getConnection()).thenReturn(connection);
+            when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+            when(preparedStatement.executeUpdate()).thenReturn(1);
+
+            // Act
+            service.updateTenantConfig("201", "Clinica 1", "#FF0000", "#000000", "http://logo1.png");
+            service.updateTenantConfig("202", "Clinica 2", "#00FF00", "#000000", "http://logo2.png");
+            service.updateTenantConfig("203", "Clinica 3", "#0000FF", "#000000", "http://logo3.png");
+
+            // Assert
+            verify(preparedStatement, atLeast(3)).executeUpdate();
         }
     }
 
