@@ -39,13 +39,15 @@ SELECT setval('usuario_id_seq', 104, true);
 -- USUARIOS PERIFÉRICOS
 -- ============================================================================
 -- dtype valores: 'ProfesionalSalud', 'AdministradorClinica', 'OtrosActoresSalud'
+-- contraseña: 1234567@ (todos igual)
+
 
 INSERT INTO usuarioperiferico (id, nickname, password_hash, tenant_id, role, dtype) VALUES
-(100, 'dr_perez', '$2a$10$N9qo8uLOickgx2ZMRZoMye/3MZQqXFZUl3.G3OP6aDx', '1', 'PROFESIONAL', 'ProfesionalSalud'),
-(101, 'dra_martinez', '$2a$10$N9qo8uLOickgx2ZMRZoMye/3MZQqXFZUl3.G3OP6aDx', '1', 'PROFESIONAL', 'ProfesionalSalud'),
-(102, 'dr_sanchez', '$2a$10$N9qo8uLOickgx2ZMRZoMye/3MZQqXFZUl3.G3OP6aDx', '1', 'PROFESIONAL', 'ProfesionalSalud'),
-(103, 'admin_central', '$2a$10$N9qo8uLOickgx2ZMRZoMye/3MZQqXFZUl3.G3OP6aDx', '1', 'ADMIN', 'AdministradorClinica'),
-(104, 'admin_este', '$2a$10$N9qo8uLOickgx2ZMRZoMye/3MZQqXFZUl3.G3OP6aDx', '2', 'ADMIN', 'AdministradorClinica');
+(100, 'dr_perez', '$2a$10$qgjKNZru0nlHNd9KFljnZOgKDRU7Baf/NdH4ROS025eQRY/sC3uLG', '1', 'PROFESIONAL', 'ProfesionalSalud'),
+(101, 'dra_martinez', '$2a$10$qgjKNZru0nlHNd9KFljnZOgKDRU7Baf/NdH4ROS025eQRY/sC3uLG', '1', 'PROFESIONAL', 'ProfesionalSalud'),
+(102, 'dr_sanchez', '$2a$10$qgjKNZru0nlHNd9KFljnZOgKDRU7Baf/NdH4ROS025eQRY/sC3uLG', '1', 'PROFESIONAL', 'ProfesionalSalud'),
+(103, 'admin_central', '$2a$10$qgjKNZru0nlHNd9KFljnZOgKDRU7Baf/NdH4ROS025eQRY/sC3uLG', '1', 'ADMINISTRADOR', 'AdministradorClinica'),
+(104, 'admin_este', '$2a$10$qgjKNZru0nlHNd9KFljnZOgKDRU7Baf/NdH4ROS025eQRY/sC3uLG', '2', 'ADMINISTRADOR', 'AdministradorClinica');
 
 -- ============================================================================
 -- ADMINISTRADORES DE CLÍNICA
@@ -53,7 +55,7 @@ INSERT INTO usuarioperiferico (id, nickname, password_hash, tenant_id, role, dty
 
 INSERT INTO administradorclinica (id, nodo_periferico_id) VALUES
 (103, 1),  -- admin_central administra Hospital Central (nodo 1)
-(104, 1);  -- admin_este también puede administrar Hospital Central
+(104, 2);  -- admin_este también puede administrar Hospital Central
 
 -- ============================================================================
 -- VERIFICACIÓN
