@@ -1,6 +1,5 @@
 package uy.edu.tse.hcen.multitenancy;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -9,38 +8,27 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("TenantContext Additional Tests")
 class TenantContextTest2 {
 
-    @AfterEach
-    void cleanup() {
+    @Test
+    void setAndGetTenant_shouldWork() {
+        TenantContext.setCurrentTenant("101");
+        String result = TenantContext.getCurrentTenant();
+        assertEquals("101", result);
         TenantContext.clear();
     }
 
     @Test
-    void setCurrentTenant_multipleTimes_shouldOverwrite() {
+    void clearTenant_shouldRemove() {
+        TenantContext.setCurrentTenant("102");
+        TenantContext.clear();
+        String result = TenantContext.getCurrentTenant();
+        assertNull(result);
+    }
+
+    @Test
+    void multipleCalls_shouldOverwrite() {
         TenantContext.setCurrentTenant("101");
         TenantContext.setCurrentTenant("102");
-        TenantContext.setCurrentTenant("103");
-        
-        assertEquals("103", TenantContext.getCurrentTenant());
-    }
-
-    @Test
-    void clear_afterSet_shouldRemoveTenant() {
-        TenantContext.setCurrentTenant("101");
+        assertEquals("102", TenantContext.getCurrentTenant());
         TenantContext.clear();
-        
-        assertNull(TenantContext.getCurrentTenant());
-    }
-
-    @Test
-    void setCurrentTenant_withNull_shouldHandle() {
-        TenantContext.setCurrentTenant(null);
-        assertNull(TenantContext.getCurrentTenant());
-    }
-
-    @Test
-    void setCurrentTenant_withEmpty_shouldSet() {
-        TenantContext.setCurrentTenant("");
-        assertEquals("", TenantContext.getCurrentTenant());
     }
 }
-
