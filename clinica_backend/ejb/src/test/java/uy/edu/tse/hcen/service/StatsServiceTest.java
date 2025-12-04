@@ -453,5 +453,564 @@ class StatsServiceTest {
         usuario.setFechaAlta(fechaAlta);
         return usuario;
     }
+
+    // ==================== MÉTODOS PRIVADOS - COBERTURA EXHAUSTIVA ====================
+
+    @Nested
+    @DisplayName("Métodos Privados - contarProfesionales")
+    @MockitoSettings(strictness = Strictness.LENIENT)
+    class ContarProfesionalesTests {
+
+        @Test
+        @DisplayName("Debe contar profesionales correctamente")
+        void contarProfesionales_success() {
+            // Arrange
+            List<ProfesionalSalud> profs = Arrays.asList(
+                new ProfesionalSalud(), new ProfesionalSalud(), new ProfesionalSalud()
+            );
+            when(profesionalRepository.findAll()).thenReturn(profs);
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Collections.emptyList());
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollection()).thenReturn(mongoCollection);
+            when(mongoCollection.countDocuments(any(Bson.class))).thenReturn(0L);
+
+            // Act
+            Map<String, Object> result = service.obtenerEstadisticas(TENANT_ID);
+
+            // Assert
+            assertEquals(3, result.get("profesionales"));
+        }
+
+        @Test
+        @DisplayName("Debe retornar 0 cuando profesionalRepository lanza excepción")
+        void contarProfesionales_exception_returns0() {
+            // Arrange
+            when(profesionalRepository.findAll()).thenThrow(new RuntimeException("DB error"));
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Collections.emptyList());
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollection()).thenReturn(mongoCollection);
+            when(mongoCollection.countDocuments(any(Bson.class))).thenReturn(0L);
+
+            // Act
+            Map<String, Object> result = service.obtenerEstadisticas(TENANT_ID);
+
+            // Assert
+            assertEquals(0, result.get("profesionales"));
+        }
+
+        @Test
+        @DisplayName("Debe manejar lista null de profesionales")
+        void contarProfesionales_nullList_returns0() {
+            // Arrange
+            when(profesionalRepository.findAll()).thenReturn(null);
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Collections.emptyList());
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollection()).thenReturn(mongoCollection);
+            when(mongoCollection.countDocuments(any(Bson.class))).thenReturn(0L);
+
+            // Act
+            Map<String, Object> result = service.obtenerEstadisticas(TENANT_ID);
+
+            // Assert
+            assertEquals(0, result.get("profesionales"));
+        }
+    }
+
+    @Nested
+    @DisplayName("Métodos Privados - contarUsuariosSalud")
+    @MockitoSettings(strictness = Strictness.LENIENT)
+    class ContarUsuariosSaludTests {
+
+        @Test
+        @DisplayName("Debe contar usuarios correctamente")
+        void contarUsuarios_success() {
+            // Arrange
+            List<UsuarioSalud> usuarios = Arrays.asList(
+                new UsuarioSalud(), new UsuarioSalud(), new UsuarioSalud(), new UsuarioSalud(), new UsuarioSalud()
+            );
+            when(profesionalRepository.findAll()).thenReturn(Collections.emptyList());
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(usuarios);
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollection()).thenReturn(mongoCollection);
+            when(mongoCollection.countDocuments(any(Bson.class))).thenReturn(0L);
+
+            // Act
+            Map<String, Object> result = service.obtenerEstadisticas(TENANT_ID);
+
+            // Assert
+            assertEquals(5, result.get("usuarios"));
+        }
+
+        @Test
+        @DisplayName("Debe retornar 0 cuando usuarioSaludRepository lanza excepción")
+        void contarUsuarios_exception_returns0() {
+            // Arrange
+            when(profesionalRepository.findAll()).thenReturn(Collections.emptyList());
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenThrow(new RuntimeException("DB error"));
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollection()).thenReturn(mongoCollection);
+            when(mongoCollection.countDocuments(any(Bson.class))).thenReturn(0L);
+
+            // Act
+            Map<String, Object> result = service.obtenerEstadisticas(TENANT_ID);
+
+            // Assert
+            assertEquals(0, result.get("usuarios"));
+        }
+
+        @Test
+        @DisplayName("Debe manejar lista null de usuarios")
+        void contarUsuarios_nullList_returns0() {
+            // Arrange
+            when(profesionalRepository.findAll()).thenReturn(Collections.emptyList());
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(null);
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollection()).thenReturn(mongoCollection);
+            when(mongoCollection.countDocuments(any(Bson.class))).thenReturn(0L);
+
+            // Act
+            Map<String, Object> result = service.obtenerEstadisticas(TENANT_ID);
+
+            // Assert
+            assertEquals(0, result.get("usuarios"));
+        }
+    }
+
+    @Nested
+    @DisplayName("Métodos Privados - contarDocumentosTotales")
+    @MockitoSettings(strictness = Strictness.LENIENT)
+    class ContarDocumentosTotalesTests {
+
+        @Test
+        @DisplayName("Debe sumar documentos PDF y clínicos")
+        void contarDocumentos_sumsPdfAndClinicos() {
+            // Arrange
+            when(profesionalRepository.findAll()).thenReturn(Collections.emptyList());
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Collections.emptyList());
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollection()).thenReturn(mongoCollection);
+            when(mongoCollection.countDocuments(any(Bson.class)))
+                    .thenReturn(10L)  // PDFs
+                    .thenReturn(5L);  // Clínicos
+
+            // Act
+            Map<String, Object> result = service.obtenerEstadisticas(TENANT_ID);
+
+            // Assert
+            assertEquals(15, result.get("documentos")); // 10 + 5
+        }
+
+        @Test
+        @DisplayName("Debe retornar 0 cuando MongoDB lanza excepción")
+        void contarDocumentos_mongoException_returns0() {
+            // Arrange
+            when(profesionalRepository.findAll()).thenReturn(Collections.emptyList());
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Collections.emptyList());
+            when(documentoPdfRepository.getCollectionPublic()).thenThrow(new RuntimeException("MongoDB error"));
+
+            // Act
+            Map<String, Object> result = service.obtenerEstadisticas(TENANT_ID);
+
+            // Assert
+            assertEquals(0, result.get("documentos"));
+        }
+
+        @Test
+        @DisplayName("Debe manejar solo documentos PDF")
+        void contarDocumentos_onlyPdfs() {
+            // Arrange
+            when(profesionalRepository.findAll()).thenReturn(Collections.emptyList());
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Collections.emptyList());
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollection()).thenReturn(mongoCollection);
+            when(mongoCollection.countDocuments(any(Bson.class)))
+                    .thenReturn(20L)  // PDFs
+                    .thenReturn(0L);  // Clínicos
+
+            // Act
+            Map<String, Object> result = service.obtenerEstadisticas(TENANT_ID);
+
+            // Assert
+            assertEquals(20, result.get("documentos"));
+        }
+
+        @Test
+        @DisplayName("Debe manejar solo documentos clínicos")
+        void contarDocumentos_onlyClinicos() {
+            // Arrange
+            when(profesionalRepository.findAll()).thenReturn(Collections.emptyList());
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Collections.emptyList());
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollection()).thenReturn(mongoCollection);
+            when(mongoCollection.countDocuments(any(Bson.class)))
+                    .thenReturn(0L)   // PDFs
+                    .thenReturn(15L); // Clínicos
+
+            // Act
+            Map<String, Object> result = service.obtenerEstadisticas(TENANT_ID);
+
+            // Assert
+            assertEquals(15, result.get("documentos"));
+        }
+    }
+
+    @Nested
+    @DisplayName("Métodos Privados - contarDocumentosHoy")
+    @MockitoSettings(strictness = Strictness.LENIENT)
+    class ContarDocumentosHoyTests {
+
+        @Test
+        @DisplayName("Debe contar documentos creados hoy")
+        void contarDocumentosHoy_success() {
+            // Arrange
+            when(profesionalRepository.findAll()).thenReturn(Collections.emptyList());
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Collections.emptyList());
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollection()).thenReturn(mongoCollection);
+            when(mongoCollection.countDocuments(any(Bson.class)))
+                    .thenReturn(0L)  // Total PDFs
+                    .thenReturn(0L)  // Total Clínicos
+                    .thenReturn(3L)  // PDFs hoy
+                    .thenReturn(2L); // Clínicos hoy
+
+            // Act
+            Map<String, Object> result = service.obtenerEstadisticas(TENANT_ID);
+
+            // Assert
+            assertEquals(5, result.get("consultas")); // 3 + 2
+        }
+
+        @Test
+        @DisplayName("Debe retornar 0 cuando no hay documentos hoy")
+        void contarDocumentosHoy_noneToday_returns0() {
+            // Arrange
+            when(profesionalRepository.findAll()).thenReturn(Collections.emptyList());
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Collections.emptyList());
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollection()).thenReturn(mongoCollection);
+            when(mongoCollection.countDocuments(any(Bson.class)))
+                    .thenReturn(10L) // Total PDFs
+                    .thenReturn(5L)  // Total Clínicos
+                    .thenReturn(0L)  // PDFs hoy
+                    .thenReturn(0L); // Clínicos hoy
+
+            // Act
+            Map<String, Object> result = service.obtenerEstadisticas(TENANT_ID);
+
+            // Assert
+            assertEquals(0, result.get("consultas"));
+        }
+
+        @Test
+        @DisplayName("Debe manejar excepción en conteo de hoy")
+        void contarDocumentosHoy_exception_returns0() {
+            // Arrange
+            when(profesionalRepository.findAll()).thenReturn(Collections.emptyList());
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Collections.emptyList());
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollection()).thenReturn(mongoCollection);
+            when(mongoCollection.countDocuments(any(Bson.class)))
+                    .thenReturn(0L)  // Total PDFs
+                    .thenReturn(0L)  // Total Clínicos
+                    .thenThrow(new RuntimeException("MongoDB error")); // Error en hoy
+
+            // Act
+            Map<String, Object> result = service.obtenerEstadisticas(TENANT_ID);
+
+            // Assert
+            assertEquals(0, result.get("consultas"));
+        }
+    }
+
+    @Nested
+    @DisplayName("Métodos Privados - obtenerUltimosUsuarios")
+    @MockitoSettings(strictness = Strictness.LENIENT)
+    class ObtenerUltimosUsuariosTests {
+
+        @Test
+        @DisplayName("Debe obtener usuarios con fechaAlta")
+        void obtenerUltimosUsuarios_conFechaAlta() {
+            // Arrange
+            UsuarioSalud u1 = createUsuario("Juan", LocalDateTime.now().minusDays(1));
+            UsuarioSalud u2 = createUsuario("María", LocalDateTime.now().minusDays(2));
+            
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Arrays.asList(u1, u2));
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(profesionalRepository.findAll()).thenReturn(Collections.emptyList());
+
+            // Act
+            List<Map<String, Object>> result = service.obtenerActividadReciente(TENANT_ID, 10);
+
+            // Assert
+            assertNotNull(result);
+            assertEquals(2, result.size());
+            assertEquals("usuario", result.get(0).get("tipo"));
+            assertEquals("👤", result.get(0).get("icono"));
+        }
+
+        @Test
+        @DisplayName("Debe manejar usuarios con fechaAlta null")
+        void obtenerUltimosUsuarios_fechaAltaNull() {
+            // Arrange
+            UsuarioSalud u1 = new UsuarioSalud();
+            u1.setNombre("Juan");
+            u1.setApellido("Pérez");
+            u1.setFechaAlta(null);
+            
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Arrays.asList(u1));
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(profesionalRepository.findAll()).thenReturn(Collections.emptyList());
+
+            // Act
+            List<Map<String, Object>> result = service.obtenerActividadReciente(TENANT_ID, 10);
+
+            // Assert
+            assertNotNull(result);
+            assertEquals(1, result.size());
+            assertNotNull(result.get(0).get("fecha")); // Usa fecha actual
+        }
+
+        @Test
+        @DisplayName("Debe manejar usuarios con nombre/apellido null")
+        void obtenerUltimosUsuarios_nombreNull() {
+            // Arrange
+            UsuarioSalud u1 = new UsuarioSalud();
+            u1.setNombre(null);
+            u1.setApellido(null);
+            u1.setFechaAlta(LocalDateTime.now());
+            
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Arrays.asList(u1));
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(profesionalRepository.findAll()).thenReturn(Collections.emptyList());
+
+            // Act
+            List<Map<String, Object>> result = service.obtenerActividadReciente(TENANT_ID, 10);
+
+            // Assert
+            assertNotNull(result);
+            assertEquals(1, result.size());
+            assertTrue(result.get(0).get("texto").toString().contains("Nuevo usuario"));
+        }
+
+        @Test
+        @DisplayName("Debe ordenar usuarios por fechaAlta descendente")
+        void obtenerUltimosUsuarios_ordenaDescendente() {
+            // Arrange
+            UsuarioSalud u1 = createUsuario("Antiguo", LocalDateTime.now().minusDays(10));
+            UsuarioSalud u2 = createUsuario("Reciente", LocalDateTime.now().minusDays(1));
+            UsuarioSalud u3 = createUsuario("Medio", LocalDateTime.now().minusDays(5));
+            
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Arrays.asList(u1, u2, u3));
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(profesionalRepository.findAll()).thenReturn(Collections.emptyList());
+
+            // Act
+            List<Map<String, Object>> result = service.obtenerActividadReciente(TENANT_ID, 10);
+
+            // Assert
+            assertNotNull(result);
+            // El primero debe ser el más reciente
+            assertTrue(result.get(0).get("texto").toString().contains("Reciente"));
+        }
+
+        @Test
+        @DisplayName("Debe respetar límite en usuarios")
+        void obtenerUltimosUsuarios_respectaLimite() {
+            // Arrange
+            List<UsuarioSalud> muchosUsuarios = Arrays.asList(
+                createUsuario("U1", LocalDateTime.now().minusDays(1)),
+                createUsuario("U2", LocalDateTime.now().minusDays(2)),
+                createUsuario("U3", LocalDateTime.now().minusDays(3)),
+                createUsuario("U4", LocalDateTime.now().minusDays(4)),
+                createUsuario("U5", LocalDateTime.now().minusDays(5)),
+                createUsuario("U6", LocalDateTime.now().minusDays(6))
+            );
+            
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(muchosUsuarios);
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(profesionalRepository.findAll()).thenReturn(Collections.emptyList());
+
+            // Act
+            List<Map<String, Object>> result = service.obtenerActividadReciente(TENANT_ID, 3);
+
+            // Assert
+            assertNotNull(result);
+            assertTrue(result.size() <= 3);
+        }
+    }
+
+    @Nested
+    @DisplayName("Métodos Privados - obtenerUltimosProfesionales")
+    @MockitoSettings(strictness = Strictness.LENIENT)
+    class ObtenerUltimosProfesionalesTests {
+
+        @Test
+        @DisplayName("Debe obtener últimos profesionales")
+        void obtenerUltimosProfesionales_success() {
+            // Arrange
+            ProfesionalSalud p1 = new ProfesionalSalud();
+            p1.setNombre("Dr. Juan");
+            ProfesionalSalud p2 = new ProfesionalSalud();
+            p2.setNombre("Dra. María");
+            
+            when(profesionalRepository.findAll()).thenReturn(Arrays.asList(p1, p2));
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Collections.emptyList());
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollectionPublic()).thenReturn(mongoCollection);
+
+            // Act
+            List<Map<String, Object>> result = service.obtenerActividadReciente(TENANT_ID, 10);
+
+            // Assert
+            assertNotNull(result);
+            // Debe tener actividades de profesionales
+            long profActividades = result.stream()
+                    .filter(a -> "profesional".equals(a.get("tipo")))
+                    .count();
+            assertEquals(2, profActividades);
+        }
+
+        @Test
+        @DisplayName("Debe manejar profesionales con nombre null")
+        void obtenerUltimosProfesionales_nombreNull() {
+            // Arrange
+            ProfesionalSalud p1 = new ProfesionalSalud();
+            p1.setNombre(null);
+            
+            when(profesionalRepository.findAll()).thenReturn(Arrays.asList(p1));
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Collections.emptyList());
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollectionPublic()).thenReturn(mongoCollection);
+
+            // Act
+            List<Map<String, Object>> result = service.obtenerActividadReciente(TENANT_ID, 10);
+
+            // Assert
+            assertNotNull(result);
+            assertTrue(result.get(0).get("texto").toString().contains("Profesional"));
+        }
+
+        @Test
+        @DisplayName("Debe respetar límite en profesionales")
+        void obtenerUltimosProfesionales_respectaLimite() {
+            // Arrange
+            List<ProfesionalSalud> muchosProfesionales = Arrays.asList(
+                new ProfesionalSalud(), new ProfesionalSalud(), new ProfesionalSalud(),
+                new ProfesionalSalud(), new ProfesionalSalud(), new ProfesionalSalud()
+            );
+            
+            when(profesionalRepository.findAll()).thenReturn(muchosProfesionales);
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Collections.emptyList());
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollectionPublic()).thenReturn(mongoCollection);
+
+            // Act
+            List<Map<String, Object>> result = service.obtenerActividadReciente(TENANT_ID, 2);
+
+            // Assert
+            assertNotNull(result);
+            assertTrue(result.size() <= 2);
+        }
+
+        @Test
+        @DisplayName("Debe manejar excepción en profesionales")
+        void obtenerUltimosProfesionales_exception() {
+            // Arrange
+            when(profesionalRepository.findAll()).thenThrow(new RuntimeException("DB error"));
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Collections.emptyList());
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollectionPublic()).thenReturn(mongoCollection);
+
+            // Act & Assert - No debe lanzar excepción
+            assertDoesNotThrow(() -> service.obtenerActividadReciente(TENANT_ID, 10));
+        }
+    }
+
+    @Nested
+    @DisplayName("Métodos Privados - Ordenamiento y Límites")
+    @MockitoSettings(strictness = Strictness.LENIENT)
+    class OrdenamientoYLimitesTests {
+
+        @Test
+        @DisplayName("Debe ordenar actividades mixtas por fecha")
+        void ordenarActividades_mixtas() {
+            // Arrange
+            UsuarioSalud u1 = createUsuario("Usuario Reciente", LocalDateTime.now().minusHours(1));
+            
+            ProfesionalSalud p1 = new ProfesionalSalud();
+            p1.setNombre("Dr. Antiguo");
+            
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Arrays.asList(u1));
+            when(profesionalRepository.findAll()).thenReturn(Arrays.asList(p1));
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollectionPublic()).thenReturn(mongoCollection);
+
+            // Act
+            List<Map<String, Object>> result = service.obtenerActividadReciente(TENANT_ID, 10);
+
+            // Assert
+            assertNotNull(result);
+            // Usuario más reciente debe estar primero
+            if (result.size() >= 2) {
+                String fecha1 = (String) result.get(0).get("fecha");
+                String fecha2 = (String) result.get(1).get("fecha");
+                assertTrue(fecha1.compareTo(fecha2) >= 0);
+            }
+        }
+
+        @Test
+        @DisplayName("Debe limitar actividades cuando hay más que el límite")
+        void limitarActividades_masQueLimite() {
+            // Arrange
+            List<UsuarioSalud> usuarios = Arrays.asList(
+                createUsuario("U1", LocalDateTime.now().minusDays(1)),
+                createUsuario("U2", LocalDateTime.now().minusDays(2)),
+                createUsuario("U3", LocalDateTime.now().minusDays(3)),
+                createUsuario("U4", LocalDateTime.now().minusDays(4)),
+                createUsuario("U5", LocalDateTime.now().minusDays(5))
+            );
+            
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(usuarios);
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(profesionalRepository.findAll()).thenReturn(Collections.emptyList());
+
+            // Act
+            List<Map<String, Object>> result = service.obtenerActividadReciente(TENANT_ID, 3);
+
+            // Assert
+            assertEquals(3, result.size());
+        }
+
+        @Test
+        @DisplayName("Debe manejar actividades con fechas null")
+        void ordenarActividades_fechasNull() {
+            // Arrange
+            UsuarioSalud u1 = new UsuarioSalud();
+            u1.setNombre("Usuario");
+            u1.setApellido("Sin Fecha");
+            u1.setFechaAlta(null);
+            
+            UsuarioSalud u2 = createUsuario("Usuario Con Fecha", LocalDateTime.now());
+            
+            when(usuarioSaludRepository.findByTenant(TENANT_ID_LONG)).thenReturn(Arrays.asList(u1, u2));
+            when(documentoPdfRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(documentoClinicoRepository.getCollectionPublic()).thenReturn(mongoCollection);
+            when(profesionalRepository.findAll()).thenReturn(Collections.emptyList());
+
+            // Act
+            List<Map<String, Object>> result = service.obtenerActividadReciente(TENANT_ID, 10);
+
+            // Assert
+            assertNotNull(result);
+            assertEquals(2, result.size());
+        }
+    }
 }
+
 
