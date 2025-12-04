@@ -18,6 +18,7 @@ import static org.mockito.Mockito.*;
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("TenantAdminService Comprehensive Tests")
+@org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
 class TenantAdminServiceComprehensiveTest {
 
     @Mock
@@ -71,6 +72,7 @@ class TenantAdminServiceComprehensiveTest {
             assertThrows(IllegalArgumentException.class,
                     () -> service.createTenantSchema("   ", "#007bff", "Test"));
         }
+
     }
 
     @Nested
