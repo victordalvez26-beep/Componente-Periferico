@@ -45,13 +45,9 @@ public class UsuarioSaludService {
         
         LOGGER.info("Creando Usuario de Salud - CI: " + usuario.getCi() + ", Clínica: " + tenantId);
         
-        // DEBUG: Verificar tenant context
+        // Asegurar que el tenant context esté seteado
         String currentTenant = TenantContext.getCurrentTenant();
-        LOGGER.info("🔍 DEBUG - TenantContext actual: " + currentTenant);
-        
-        // Asegurar que el tenant context esté seteado (por si acaso)
         if (currentTenant == null || !currentTenant.equals(String.valueOf(tenantId))) {
-            LOGGER.warn("⚠️ TenantContext no está seteado correctamente, seteándolo a: " + tenantId);
             TenantContext.setCurrentTenant(String.valueOf(tenantId));
         }
         

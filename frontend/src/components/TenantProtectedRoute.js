@@ -12,13 +12,13 @@ function TenantProtectedRoute({ children }) {
   
   // Sin sesión → Redirect al login
   if (!token || !storedTenantId) {
-    console.warn('⚠️ No session found, redirecting to login');
+    console.warn('No session found, redirecting to login');
     return <Navigate to={`/portal/clinica/${tenantId}/login`} replace />;
   }
   
-  // 🔒 VALIDACIÓN CRÍTICA: ¿El tenant del storage coincide con la URL?
+  // VALIDACIÓN CRÍTICA: ¿El tenant del storage coincide con la URL?
   if (storedTenantId !== tenantId) {
-    console.error('❌ Tenant mismatch:', {
+    console.error('Tenant mismatch:', {
       urlTenant: tenantId,
       storedTenant: storedTenantId
     });
@@ -87,7 +87,7 @@ function TenantProtectedRoute({ children }) {
     );
   }
   
-  // ✅ Validación OK: Renderizar contenido protegido
+  // Validación OK: Renderizar contenido protegido
   return children;
 }
 

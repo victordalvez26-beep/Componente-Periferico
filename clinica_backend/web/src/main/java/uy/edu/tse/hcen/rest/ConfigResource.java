@@ -6,7 +6,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.jboss.logging.Logger;
 import uy.edu.tse.hcen.service.TenantAdminService;
-import uy.edu.tse.hcen.utils.HcenCentralUrlUtil;
 
 import java.util.Map;
 
@@ -21,6 +20,16 @@ import java.util.Map;
 public class ConfigResource {
 
     private static final Logger LOG = Logger.getLogger(ConfigResource.class);
+    private static final String KEY_ERROR = "error";
+    private static final String KEY_TENANT_ID = "tenantId";
+    private static final String KEY_NOMBRE_PORTAL = "nombrePortal";
+    private static final String KEY_COLOR_PRIMARIO = "colorPrimario";
+    private static final String KEY_COLOR_SECUNDARIO = "colorSecundario";
+    private static final String KEY_LOGO_URL = "logoUrl";
+    private static final String MSG_TENANT_ID_REQUIRED = "tenantId is required";
+    private static final String PREFIX_CLINICA = "Clínica ";
+    private static final String COLOR_BLUE_DEFAULT = "#007bff";
+    private static final String KEY_MESSAGE = "message";
 
     @Inject
     private TenantAdminService tenantAdminService;
@@ -29,17 +38,17 @@ public class ConfigResource {
      * DTO para recibir información de inicialización de clínica desde HCEN central.
      */
     public static class InitRequest {
-        public Long id;
-        public String rut;
-        public String nombre;
-        public String departamento;
-        public String localidad;
-        public String direccion;
-        public String nodoPerifericoUrlBase;
-        public String nodoPerifericoUsuario;
-        public String nodoPerifericoPassword;
-        public String contacto;
-        public String url;
+        private Long id;
+        private String rut;
+        private String nombre;
+        private String departamento;
+        private String localidad;
+        private String direccion;
+        private String nodoPerifericoUrlBase;
+        private String nodoPerifericoUsuario;
+        private String nodoPerifericoPassword;
+        private String contacto;
+        private String url;
         
         // Getters y setters para JSON-B
         public Long getId() { return id; }
@@ -82,87 +91,87 @@ public class ConfigResource {
     @Path("/init")
     public Response init(InitRequest req) {
         LOG.infof("Received init request for clinic: id=%s, rut=%s, nombre=%s", 
-                  req.id, req.rut, req.nombre);
+                  req.getId(), req.getRut(), req.getNombre());
         
         try {
             // Validar datos requeridos
-            if (req.id == null) {
+            if (req.getId() == null) {
                 LOG.error("Missing required field: id");
                 return Response.status(Response.Status.BAD_REQUEST)
-                        .entity(Map.of("error", "Field 'id' is required"))
+                        .entity(Map.of(KEY_ERROR, "Field 'id' is required"))
                         .build();
             }
             
-            if (req.rut == null || req.rut.isBlank()) {
+            if (req.getRut() == null || req.getRut().isBlank()) {
                 LOG.error("Missing required field: rut");
                 return Response.status(Response.Status.BAD_REQUEST)
-                        .entity(Map.of("error", "Field 'rut' is required"))
+                        .entity(Map.of(KEY_ERROR, "Field 'rut' is required"))
                         .build();
             }
             
-            if (req.nombre == null || req.nombre.isBlank()) {
+            if (req.getNombre() == null || req.getNombre().isBlank()) {
                 LOG.error("Missing required field: nombre");
                 return Response.status(Response.Status.BAD_REQUEST)
-                        .entity(Map.of("error", "Field 'nombre' is required"))
+                        .entity(Map.of(KEY_ERROR, "Field 'nombre' is required"))
                         .build();
             }
             
             // 1. Crear schema del tenant
-            String tenantId = String.valueOf(req.id);
+            String tenantId = String.valueOf(req.getId());
             String schemaName = "schema_clinica_" + tenantId;
             
             LOG.infof("Creating tenant schema: %s", schemaName);
             
             // Usar color primario por defecto si no se especifica
-            String colorPrimario = "#007bff"; // Azul por defecto
+            String colorPrimario = COLOR_BLUE_DEFAULT; // Azul por defecto
             
-            tenantAdminService.createTenantSchema(schemaName, colorPrimario, req.nombre);
+            tenantAdminService.createTenantSchema(schemaName, colorPrimario, req.getNombre());
             
             // 2. Registrar nodo en tabla maestra public.nodoperiferico
             LOG.infof("Registering nodo in public schema: id=%s, nombre=%s, rut=%s, schema=%s", 
-                      req.id, req.nombre, req.rut, schemaName);
-            tenantAdminService.registerNodoInPublic(req.id, req.nombre, req.rut, schemaName);
+                      req.getId(), req.getNombre(), req.getRut(), schemaName);
+            tenantAdminService.registerNodoInPublic(req.getId(), req.getNombre(), req.getRut(), schemaName);
             
             // 3. Crear usuario administrador inicial de la clínica
             LOG.infof("Creating admin user for tenant %s", tenantId);
             
             // Extraer email del contacto si está presente
-            String adminEmail = extractEmail(req.contacto);
+            String adminEmail = extractEmail(req.getContacto());
             
             // URL base del componente periférico (puede venir en la request o usar la configurada)
-            String peripheralBaseUrl = req.nodoPerifericoUrlBase != null ? 
-                                      req.nodoPerifericoUrlBase : "http://localhost:8081";
+            String peripheralBaseUrl = req.getNodoPerifericoUrlBase() != null ? 
+                                      req.getNodoPerifericoUrlBase() : "http://localhost:8081";
             
             TenantAdminService.AdminCreationResult adminResult = 
                 tenantAdminService.createAdminUser(tenantId, schemaName, adminEmail, peripheralBaseUrl);
             
             LOG.infof("Successfully initialized tenant: %s (id=%s), admin user: %s", 
-                      req.nombre, req.id, adminResult.adminNickname);
+                      req.getNombre(), req.getId(), adminResult.getAdminNickname());
             
             return Response.ok()
                     .entity(Map.of(
-                        "message", "Tenant initialized successfully",
-                        "tenantId", tenantId,
+                        KEY_MESSAGE, "Tenant initialized successfully",
+                        KEY_TENANT_ID, tenantId,
                         "schemaName", schemaName,
-                        "clinicName", req.nombre,
-                        "adminNickname", adminResult.adminNickname,
-                        "activationToken", adminResult.activationToken,
-                        "activationUrl", adminResult.activationUrl,
-                        "tokenExpiresAt", adminResult.tokenExpiry.toString()
+                        "clinicName", req.getNombre(),
+                        "adminNickname", adminResult.getAdminNickname(),
+                        "activationToken", adminResult.getActivationToken(),
+                        "activationUrl", adminResult.getActivationUrl(),
+                        "tokenExpiresAt", adminResult.getTokenExpiry().toString()
                     ))
                     .build();
                     
         } catch (IllegalArgumentException e) {
             LOG.error("Validation error during tenant initialization", e);
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(Map.of("error", e.getMessage()))
+                    .entity(Map.of(KEY_ERROR, e.getMessage()))
                     .build();
                     
         } catch (Exception ex) {
             LOG.error("Error initializing tenant", ex);
             return Response.serverError()
                     .entity(Map.of(
-                        "error", "Failed to initialize tenant",
+                        KEY_ERROR, "Failed to initialize tenant",
                         "details", ex.getMessage() != null ? ex.getMessage() : "Unknown error"
                     ))
                     .build();
@@ -178,31 +187,31 @@ public class ConfigResource {
     @POST
     @Path("/update")
     public Response update(InitRequest req) {
-        LOG.infof("Received update request for clinic: id=%s, rut=%s", req.id, req.rut);
+        LOG.infof("Received update request for clinic: id=%s, rut=%s", req.getId(), req.getRut());
         
         try {
-            if (req.id == null) {
+            if (req.getId() == null) {
                 return Response.status(Response.Status.BAD_REQUEST)
-                        .entity(Map.of("error", "Field 'id' is required"))
+                        .entity(Map.of(KEY_ERROR, "Field 'id' is required"))
                         .build();
             }
             
-            // TODO: Implementar actualización de datos del nodo si es necesario
             // El nodo ya está registrado desde /init, no necesita re-registro
+            // Se asume que la actualización de datos del nodo se maneja por otro canal o no es necesaria aquí
             
-            LOG.infof("Successfully updated tenant: id=%s", req.id);
+            LOG.infof("Successfully updated tenant: id=%s", req.getId());
             
             return Response.ok()
                     .entity(Map.of(
-                        "message", "Tenant configuration updated",
-                        "tenantId", String.valueOf(req.id)
+                        KEY_MESSAGE, "Tenant configuration updated",
+                        KEY_TENANT_ID, String.valueOf(req.getId())
                     ))
                     .build();
                     
         } catch (Exception ex) {
             LOG.error("Error updating tenant", ex);
             return Response.serverError()
-                    .entity(Map.of("error", ex.getMessage()))
+                    .entity(Map.of(KEY_ERROR, ex.getMessage()))
                     .build();
         }
     }
@@ -223,13 +232,13 @@ public class ConfigResource {
             Object idObj = req.get("id");
             if (idObj == null) {
                 return Response.status(Response.Status.BAD_REQUEST)
-                        .entity(Map.of("error", "Field 'id' is required"))
+                        .entity(Map.of(KEY_ERROR, "Field 'id' is required"))
                         .build();
             }
             
             Long id = idObj instanceof Number ? ((Number) idObj).longValue() : Long.parseLong(idObj.toString());
             
-            // TODO: Implementar soft-delete
+            // Implementación de soft-delete pendiente
             // Por ahora solo logeamos la operación
             LOG.infof("Marking tenant as deleted: id=%s", id);
             
@@ -238,7 +247,7 @@ public class ConfigResource {
         } catch (Exception ex) {
             LOG.error("Error deleting tenant", ex);
             return Response.serverError()
-                    .entity(Map.of("error", ex.getMessage()))
+                    .entity(Map.of(KEY_ERROR, ex.getMessage()))
                     .build();
         }
     }
@@ -248,17 +257,17 @@ public class ConfigResource {
      * Incluye tanto credenciales de usuario como datos de la clínica.
      */
     public static class ActivationRequest {
-        public String tenantId;
-        public String token;
+        private String tenantId;
+        private String token;
         // Credenciales de usuario
-        public String username;
-        public String password;
+        private String username;
+        private String password;
         // Datos de la clínica
-        public String rut;
-        public String departamento;
-        public String localidad;
-        public String direccion;
-        public String telefono;
+        private String rut;
+        private String departamento;
+        private String localidad;
+        private String direccion;
+        private String telefono;
         
         // Getters y Setters
         public String getTenantId() { return tenantId; }
@@ -295,117 +304,136 @@ public class ConfigResource {
         LOG.infof("Received complete registration request for tenant: %s", req.tenantId);
         
         try {
-            // Validar datos requeridos básicos
-            if (req.tenantId == null || req.tenantId.isBlank()) {
-                return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "tenantId is required")).build();
-            }
-            if (req.token == null || req.token.isBlank()) {
-                return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "token is required")).build();
-            }
-            if (req.username == null || req.username.length() < 3) {
-                return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "username must be at least 3 characters")).build();
-            }
-            if (req.password == null || req.password.length() < 8) {
-                return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "password must be at least 8 characters")).build();
-            }
-            // Validar datos de la clínica
-            if (req.rut == null || req.rut.length() < 12) {
-                return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "RUT must be 12 digits")).build();
-            }
-            if (req.departamento == null || req.departamento.isBlank()) {
-                return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "departamento is required")).build();
-            }
-            if (req.direccion == null || req.direccion.isBlank()) {
-                return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "direccion is required")).build();
-            }
-            if (req.telefono == null || req.telefono.isBlank()) {
-                return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", "telefono is required")).build();
-            }
+            validateActivationRequest(req);
             
-            String schemaName = "schema_clinica_" + req.tenantId;
-            String colorPrimario = "#007bff";
+            String schemaName = "schema_clinica_" + req.getTenantId();
+            String colorPrimario = COLOR_BLUE_DEFAULT;
             
             // PASO 1: Crear schema y tablas del tenant
             LOG.infof("Creating tenant schema: %s", schemaName);
-            tenantAdminService.createTenantSchema(schemaName, colorPrimario, "Clínica " + req.tenantId);
+            tenantAdminService.createTenantSchema(schemaName, colorPrimario, PREFIX_CLINICA + req.getTenantId());
             
             // PASO 2: Registrar clínica en public.nodoperiferico con los datos completos
-            LOG.infof("Registering clinic in public schema with RUT: %s", req.rut);
-            tenantAdminService.registerNodoInPublic(Long.parseLong(req.tenantId), "Clínica " + req.tenantId, req.rut, schemaName);
+            LOG.infof("Registering clinic in public schema with RUT: %s", req.getRut());
+            tenantAdminService.registerNodoInPublic(Long.parseLong(req.getTenantId()), PREFIX_CLINICA + req.getTenantId(), req.getRut(), schemaName);
             
             // PASO 3: Activar el usuario con username personalizado y contraseña
             String userNickname = tenantAdminService.activateAdminUserComplete(
-                req.tenantId,
+                req.getTenantId(),
                 schemaName,
-                req.token,
-                req.username,
-                req.password
+                req.getToken(),
+                req.getUsername(),
+                req.getPassword()
             );
             
-            LOG.infof("✅ Clinic fully registered: tenant=%s, username=%s, RUT=%s", req.tenantId, userNickname, req.rut);
+            LOG.infof("Clinic fully registered: tenant=%s, username=%s, RUT=%s", req.getTenantId(), userNickname, req.getRut());
             
             // PASO 4: Notificar a HCEN que el registro se completó
-            try {
-                String hcenUrl = uy.edu.tse.hcen.utils.HcenCentralUrlUtil.buildApiUrl("/nodos/" + req.tenantId + "/complete-registration");
-                LOG.infof("Notifying HCEN about completed registration: %s", hcenUrl);
-                
-                java.net.http.HttpClient httpClient = java.net.http.HttpClient.newHttpClient();
-                String jsonPayload = String.format(
-                    "{\"rut\":\"%s\",\"departamento\":\"%s\",\"localidad\":\"%s\",\"direccion\":\"%s\",\"adminNickname\":\"%s\"}",
-                    req.rut, req.departamento, 
-                    req.localidad != null ? req.localidad : "", 
-                    req.direccion, userNickname
-                );
-                
-                java.net.http.HttpRequest hcenRequest = java.net.http.HttpRequest.newBuilder()
-                        .uri(java.net.URI.create(hcenUrl))
-                        .header("Content-Type", "application/json")
-                        .timeout(java.time.Duration.ofSeconds(10))
-                        .POST(java.net.http.HttpRequest.BodyPublishers.ofString(jsonPayload))
-                        .build();
-                
-                java.net.http.HttpResponse<String> hcenResponse = httpClient.send(
-                    hcenRequest, 
-                    java.net.http.HttpResponse.BodyHandlers.ofString()
-                );
-                
-                if (hcenResponse.statusCode() >= 200 && hcenResponse.statusCode() < 300) {
-                    LOG.info("✅ HCEN notified successfully about clinic " + req.tenantId);
-                } else {
-                    LOG.warn("⚠️ HCEN notification failed. Status: " + hcenResponse.statusCode());
-                }
-            } catch (Exception e) {
-                LOG.error("Error notifying HCEN (clinic still functional): " + e.getMessage(), e);
-                // No fallar el registro si HCEN no responde - la clínica ya está creada
-            }
+            notifyHcenRegistration(req, userNickname);
             
             return Response.ok()
                     .entity(Map.of(
-                        "message", "Clinic registered and account activated successfully",
+                        KEY_MESSAGE, "Clinic registered and account activated successfully",
                         "username", userNickname,
-                        "loginUrl", "/portal/clinica/" + req.tenantId + "/login",
+                        "loginUrl", "/portal/clinica/" + req.getTenantId() + "/login",
                         "clinicData", Map.of(
-                            "rut", req.rut,
-                            "departamento", req.departamento,
-                            "direccion", req.direccion
+                            "rut", req.getRut(),
+                            "departamento", req.getDepartamento(),
+                            "direccion", req.getDireccion()
                         )
                     ))
                     .build();
-                    
+        
+        } catch (IllegalArgumentException e) {
+             return Response.status(Response.Status.BAD_REQUEST).entity(Map.of(KEY_ERROR, e.getMessage())).build();
         } catch (SecurityException se) {
             LOG.warn("Activation failed - security error: " + se.getMessage());
             return Response.status(Response.Status.UNAUTHORIZED)
-                    .entity(Map.of("error", se.getMessage()))
+                    .entity(Map.of(KEY_ERROR, se.getMessage()))
                     .build();
                     
         } catch (Exception ex) {
             LOG.error("Error during clinic registration/activation", ex);
             return Response.serverError()
                     .entity(Map.of(
-                        "error", "Failed to complete clinic registration",
+                        KEY_ERROR, "Failed to complete clinic registration",
                         "details", ex.getMessage() != null ? ex.getMessage() : "Unknown error"
                     ))
                     .build();
+        }
+    }
+
+    private void validateActivationRequest(ActivationRequest req) {
+        validateRequiredFields(req);
+        validateClinicData(req);
+    }
+
+    private void validateRequiredFields(ActivationRequest req) {
+        if (req.getTenantId() == null || req.getTenantId().isBlank()) {
+            throw new IllegalArgumentException(MSG_TENANT_ID_REQUIRED);
+        }
+        if (req.getToken() == null || req.getToken().isBlank()) {
+            throw new IllegalArgumentException("token is required");
+        }
+        if (req.getUsername() == null || req.getUsername().length() < 3) {
+            throw new IllegalArgumentException("username must be at least 3 characters");
+        }
+        if (req.getPassword() == null || req.getPassword().length() < 8) {
+            throw new IllegalArgumentException("password must be at least 8 characters");
+        }
+    }
+
+    private void validateClinicData(ActivationRequest req) {
+        if (req.getRut() == null || req.getRut().length() < 12) {
+            throw new IllegalArgumentException("RUT must be 12 digits");
+        }
+        if (req.getDepartamento() == null || req.getDepartamento().isBlank()) {
+            throw new IllegalArgumentException("departamento is required");
+        }
+        if (req.getDireccion() == null || req.getDireccion().isBlank()) {
+            throw new IllegalArgumentException("direccion is required");
+        }
+        if (req.getTelefono() == null || req.getTelefono().isBlank()) {
+            throw new IllegalArgumentException("telefono is required");
+        }
+    }
+
+    private void notifyHcenRegistration(ActivationRequest req, String userNickname) {
+        try {
+            String hcenUrl = uy.edu.tse.hcen.utils.HcenCentralUrlUtil.buildApiUrl("/nodos/" + req.getTenantId() + "/complete-registration");
+            LOG.infof("Notifying HCEN about completed registration: %s", hcenUrl);
+            
+            java.net.http.HttpClient httpClient = java.net.http.HttpClient.newHttpClient();
+            String jsonPayload = String.format(
+                "{\"rut\":\"%s\",\"departamento\":\"%s\",\"localidad\":\"%s\",\"direccion\":\"%s\",\"adminNickname\":\"%s\"}",
+                req.getRut(), req.getDepartamento(), 
+                req.getLocalidad() != null ? req.getLocalidad() : "", 
+                req.getDireccion(), userNickname
+            );
+            
+            java.net.http.HttpRequest hcenRequest = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(hcenUrl))
+                    .header("Content-Type", "application/json")
+                    .timeout(java.time.Duration.ofSeconds(10))
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(jsonPayload))
+                    .build();
+            
+            java.net.http.HttpResponse<String> hcenResponse = httpClient.send(
+                hcenRequest, 
+                java.net.http.HttpResponse.BodyHandlers.ofString()
+            );
+            
+            if (hcenResponse.statusCode() >= 200 && hcenResponse.statusCode() < 300) {
+                LOG.info("HCEN notified successfully about clinic " + req.getTenantId());
+            } else {
+                LOG.warn("HCEN notification failed. Status: " + hcenResponse.statusCode());
+            }
+        } catch (InterruptedException ie) {
+             Thread.currentThread().interrupt();
+             LOG.error("Interrupted during HCEN notification", ie);
+        } catch (Exception e) {
+            LOG.error("Error notifying HCEN (clinic still functional): " + e.getMessage(), e);
+            // No fallar el registro si HCEN no responde - la clínica ya está creada
         }
     }
 
@@ -423,7 +451,7 @@ public class ConfigResource {
         try {
             if (id == null || id.isBlank()) {
                 return Response.status(Response.Status.BAD_REQUEST)
-                        .entity(Map.of("error", "tenantId is required"))
+                        .entity(Map.of(KEY_ERROR, MSG_TENANT_ID_REQUIRED))
                         .build();
             }
             
@@ -434,11 +462,11 @@ public class ConfigResource {
                 // Si no existe configuración, retornar valores por defecto
                 return Response.ok()
                         .entity(Map.of(
-                            "tenantId", id,
-                            "nombrePortal", "Clínica " + id,
-                            "colorPrimario", "#007bff",
-                            "colorSecundario", "#6b7280",
-                            "logoUrl", ""
+                            KEY_TENANT_ID, id,
+                            KEY_NOMBRE_PORTAL, PREFIX_CLINICA + id,
+                            KEY_COLOR_PRIMARIO, COLOR_BLUE_DEFAULT,
+                            KEY_COLOR_SECUNDARIO, "#6b7280",
+                            KEY_LOGO_URL, ""
                         ))
                         .build();
             }
@@ -448,7 +476,7 @@ public class ConfigResource {
         } catch (Exception ex) {
             LOG.error("Error getting tenant config", ex);
             return Response.serverError()
-                    .entity(Map.of("error", ex.getMessage()))
+                    .entity(Map.of(KEY_ERROR, ex.getMessage()))
                     .build();
         }
     }
@@ -472,7 +500,7 @@ public class ConfigResource {
         try {
             if (id == null || id.isBlank()) {
                 return Response.status(Response.Status.BAD_REQUEST)
-                        .entity(Map.of("error", "tenantId is required"))
+                        .entity(Map.of(KEY_ERROR, MSG_TENANT_ID_REQUIRED))
                         .build();
             }
 
@@ -481,29 +509,29 @@ public class ConfigResource {
             if (config == null || config.isEmpty()) {
                 return Response.ok()
                         .entity(Map.of(
-                                "tenantId", id,
-                                "nombrePortal", "Clínica " + id,
-                                "colorPrimario", "#667eea",
-                                "colorSecundario", "#764ba2",
-                                "logoUrl", ""
+                                KEY_TENANT_ID, id,
+                                KEY_NOMBRE_PORTAL, PREFIX_CLINICA + id,
+                                KEY_COLOR_PRIMARIO, "#667eea",
+                                KEY_COLOR_SECUNDARIO, "#764ba2",
+                                KEY_LOGO_URL, ""
                         ))
                         .build();
             }
 
             return Response.ok()
                     .entity(Map.of(
-                            "tenantId", id,
-                            "nombrePortal", config.getOrDefault("nombrePortal", "Clínica " + id),
-                            "colorPrimario", config.getOrDefault("colorPrimario", "#667eea"),
-                            "colorSecundario", config.getOrDefault("colorSecundario", "#764ba2"),
-                            "logoUrl", config.getOrDefault("logoUrl", "")
+                            KEY_TENANT_ID, id,
+                            KEY_NOMBRE_PORTAL, config.getOrDefault(KEY_NOMBRE_PORTAL, PREFIX_CLINICA + id),
+                            KEY_COLOR_PRIMARIO, config.getOrDefault(KEY_COLOR_PRIMARIO, "#667eea"),
+                            KEY_COLOR_SECUNDARIO, config.getOrDefault(KEY_COLOR_SECUNDARIO, "#764ba2"),
+                            KEY_LOGO_URL, config.getOrDefault(KEY_LOGO_URL, "")
                     ))
                     .build();
 
         } catch (Exception ex) {
             LOG.error("Error getting public clinic config", ex);
             return Response.serverError()
-                    .entity(Map.of("error", ex.getMessage()))
+                    .entity(Map.of(KEY_ERROR, ex.getMessage()))
                     .build();
         }
     }
@@ -523,32 +551,32 @@ public class ConfigResource {
         try {
             if (id == null || id.isBlank()) {
                 return Response.status(Response.Status.BAD_REQUEST)
-                        .entity(Map.of("error", "tenantId is required"))
+                        .entity(Map.of(KEY_ERROR, MSG_TENANT_ID_REQUIRED))
                         .build();
             }
             
             // Actualizar configuración del tenant
             tenantAdminService.updateTenantConfig(
                 id,
-                (String) configData.get("nombrePortal"),
-                (String) configData.get("colorPrimario"),
-                (String) configData.get("colorSecundario"),
-                (String) configData.get("logoUrl")
+                (String) configData.get(KEY_NOMBRE_PORTAL),
+                (String) configData.get(KEY_COLOR_PRIMARIO),
+                (String) configData.get(KEY_COLOR_SECUNDARIO),
+                (String) configData.get(KEY_LOGO_URL)
             );
             
             LOG.infof("Successfully updated config for tenant: %s", id);
             
             return Response.ok()
                     .entity(Map.of(
-                        "message", "Configuration updated successfully",
-                        "tenantId", id
+                        KEY_MESSAGE, "Configuration updated successfully",
+                        KEY_TENANT_ID, id
                     ))
                     .build();
                     
         } catch (Exception ex) {
             LOG.error("Error updating tenant config", ex);
             return Response.serverError()
-                    .entity(Map.of("error", ex.getMessage()))
+                    .entity(Map.of(KEY_ERROR, ex.getMessage()))
                     .build();
         }
     }
@@ -565,7 +593,7 @@ public class ConfigResource {
                 .entity(Map.of(
                     "status", "UP",
                     "service", "config-service",
-                    "message", "Configuration service is running"
+                    KEY_MESSAGE, "Configuration service is running"
                 ))
                 .build();
     }

@@ -218,7 +218,7 @@ function DocumentosPage() {
       }
       
       if (!profesionalId) {
-        console.error('❌ [FRONTEND] No se pudo obtener profesionalId del token');
+        console.error('No se pudo obtener profesionalId del token');
         setError('No se pudo identificar al profesional. Por favor, inicie sesión nuevamente.');
         setLoading(false);
         return;
@@ -257,17 +257,12 @@ function DocumentosPage() {
                                             !politica.profesionalAutorizado);
               
               const tieneAccesoParaEstePaciente = esPacienteCorrecto && esActiva && esProfesionalCorrecto;
-              if (tieneAccesoParaEstePaciente) {
-                console.log('✅ [FRONTEND] Política encontrada para paciente:', ciPacienteBuscado, 'profesional:', profesionalId, politica);
-              }
               return tieneAccesoParaEstePaciente;
             });
-            console.log('🔵 [FRONTEND] Tiene acceso por políticas:', tieneAcceso);
           } else if (politicasResponse.status === 404) {
             // No hay políticas para este profesional, continuar con verificación de solicitudes
-            console.log('⚠️ [FRONTEND] No se encontraron políticas para el profesional:', profesionalId);
           } else {
-            console.warn('⚠️ [FRONTEND] Error al obtener políticas:', politicasResponse.status, politicasResponse.statusText);
+            console.warn('Error al obtener políticas:', politicasResponse.status, politicasResponse.statusText);
           }
         } catch (e) {
           console.warn('Error al verificar políticas de acceso:', e);
@@ -305,18 +300,14 @@ function DocumentosPage() {
                 const esPendienteOAprobada = (solicitud.estado === 'PENDIENTE' || solicitud.estado === 'APROBADA');
                 
                 const tieneSolicitud = esPacienteCorrecto && esSolicitanteCorrecto && esPendienteOAprobada;
-                if (tieneSolicitud) {
-                  console.log('✅ [FRONTEND] Solicitud encontrada para paciente:', ciPacienteBuscado, 'profesional:', profesionalId, solicitud);
-                }
                 return tieneSolicitud;
               });
               
               if (tieneSolicitudParaPaciente) {
                 tieneAcceso = true;
-                console.log('✅ [FRONTEND] Tiene acceso por solicitud existente');
               }
             } else {
-              console.warn('⚠️ [FRONTEND] Error al obtener solicitudes:', solicitudesResponse.status, solicitudesResponse.statusText);
+              console.warn('Error al obtener solicitudes:', solicitudesResponse.status, solicitudesResponse.statusText);
             }
           } catch (e) {
             console.warn('Error al verificar solicitudes de acceso:', e);
@@ -326,15 +317,12 @@ function DocumentosPage() {
         
         // 3. Si tiene acceso (política o solicitud aprobada), mostrar mensaje y no permitir nueva solicitud
         if (tieneAcceso) {
-          console.log('🛑 [FRONTEND] BLOQUEANDO solicitud - ya tiene acceso');
           setPopupMessage('Ya tiene acceso a los documentos de este paciente. No es necesario solicitar acceso nuevamente.');
           setShowSolicitarAccesoModal(false);
           setSolicitarAccesoForm({ ciPaciente: '', motivo: '' });
           setError(null);
           setLoading(false);
           return;
-        } else {
-          console.log('✅ [FRONTEND] No tiene acceso, continuando con verificación de documentos');
         }
       }
 
@@ -421,7 +409,7 @@ function DocumentosPage() {
             console.log('🛑 [FRONTEND] Mensaje extraído:', mensaje);
             setPopupMessage(String(mensaje)); // Asegurar que sea string
           } catch (e) {
-            console.warn('⚠️ [FRONTEND] Error al parsear respuesta 409:', e);
+            console.warn('Error al parsear respuesta 409:', e);
             // Si no se puede parsear el JSON, usar mensaje por defecto
             setPopupMessage('Ya tiene acceso a los documentos de este paciente. No es necesario solicitar acceso nuevamente.');
           }

@@ -25,12 +25,12 @@ public class DatabaseInitializer {
 
     @PostConstruct
     public void init() {
-        LOG.info("🚀 DatabaseInitializer - Checking master tables in public schema...");
+        LOG.info("DatabaseInitializer - Checking master tables in public schema...");
         try {
             createMasterTables();
-            LOG.info("✅ All master tables initialized successfully");
+            LOG.info("All master tables initialized successfully");
         } catch (Exception e) {
-            LOG.error("❌ Failed to initialize master tables: " + e.getMessage(), e);
+            LOG.error("Failed to initialize master tables: " + e.getMessage(), e);
         }
     }
 
@@ -77,22 +77,22 @@ public class DatabaseInitializer {
             
             try (PreparedStatement ps1 = c.prepareStatement(createNodoPeriferico)) {
                 ps1.execute();
-                LOG.info("  ✅ Table public.nodoperiferico ready");
+                LOG.info("Table public.nodoperiferico ready");
             }
             
             try (PreparedStatement ps2 = c.prepareStatement(createUsuario)) {
                 ps2.execute();
-                LOG.info("  ✅ Table public.usuario ready");
+                LOG.info("Table public.usuario ready");
             }
             
             try (PreparedStatement ps3 = c.prepareStatement(createUsuarioPeriDef)) {
                 ps3.execute();
-                LOG.info("  ✅ Table public.usuarioperiferico ready");
+                LOG.info("Table public.usuarioperiferico ready");
             }
             
             try (PreparedStatement ps4 = c.prepareStatement(createAdminClinica)) {
                 ps4.execute();
-                LOG.info("  ✅ Table public.administradorclinica ready");
+                LOG.info("Table public.administradorclinica ready");
             }
             
         } catch (Exception e) {
