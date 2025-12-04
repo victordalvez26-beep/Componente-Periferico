@@ -566,6 +566,56 @@ class DocumentoPdfServiceTest {
             assertNull(result);
             verify(documentoPdfRepository).buscarPorId(mongoId, null);
         }
+
+        @Test
+        @DisplayName("Procesar PDF con diferentes tipos")
+        void procesarPdf_differentTypes_shouldWork() throws Exception {
+            // Arrange
+            UsuarioSalud paciente = createTestPaciente();
+            
+            when(usuarioSaludRepository.findByCiAndTenant(CI_PACIENTE, TENANT_ID))
+                    .thenReturn(paciente);
+            when(profesionalSaludRepository.findByNickname(PROFESIONAL_ID))
+                    .thenReturn(Optional.empty());
+            when(documentoPdfRepository.guardarPdf(anyString(), any(byte[].class), anyString(),
+                    any(), anyString(), anyString(), anyString()))
+                    .thenReturn("mongo123");
+
+            String[] tipos = {"EVALUACION", "RECETA", "ESTUDIO"};
+
+            // Act & Assert
+            for (String tipo : tipos) {
+                InputStream pdfStream = new ByteArrayInputStream(VALID_PDF_BYTES);
+                Map<String, Object> result = service.procesarYGuardarPdf(
+                        TENANT_ID, PROFESIONAL_ID, CI_PACIENTE, pdfStream, tipo, "Desc");
+                assertNotNull(result);
+            }
+        }
+
+        @Test
+        @DisplayName("Procesar PDF grande")
+        void procesarPdf_largePdf_shouldWork() throws Exception {
+            // Arrange
+            UsuarioSalud paciente = createTestPaciente();
+            byte[] largePdf = new byte[1024 * 512]; // 512KB
+            
+            when(usuarioSaludRepository.findByCiAndTenant(CI_PACIENTE, TENANT_ID))
+                    .thenReturn(paciente);
+            when(profesionalSaludRepository.findByNickname(PROFESIONAL_ID))
+                    .thenReturn(Optional.empty());
+            when(documentoPdfRepository.guardarPdf(anyString(), any(byte[].class), anyString(),
+                    any(), anyString(), anyString(), anyString()))
+                    .thenReturn("mongo123");
+            
+            InputStream pdfStream = new ByteArrayInputStream(largePdf);
+
+            // Act
+            Map<String, Object> result = service.procesarYGuardarPdf(
+                    TENANT_ID, PROFESIONAL_ID, CI_PACIENTE, pdfStream, TIPO_DOC, null);
+
+            // Assert
+            assertNotNull(result);
+        }
     }
 }
 
