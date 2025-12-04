@@ -211,7 +211,6 @@ function DocumentosPage() {
         if (tokenParts.length === 3) {
           const payload = JSON.parse(atob(tokenParts[1]));
           profesionalId = payload.sub || payload.userId || payload.nickname || payload.username;
-          console.log('🔵 [FRONTEND] ProfesionalId extraído del token:', profesionalId);
         }
       } catch (e) {
         console.warn('No se pudo decodificar el token para obtener profesionalId:', e);
@@ -233,7 +232,6 @@ function DocumentosPage() {
         try {
           // Usar directamente el servicio de políticas (el proxy está devolviendo 404)
           const politicasUrl = `/hcen-politicas-service/api/politicas/profesional/${encodeURIComponent(profesionalId)}`;
-          console.log('🔵 [FRONTEND] Llamando directamente a servicio de políticas:', politicasUrl);
           
           let politicasResponse = await fetch(politicasUrl, {
             headers: {
@@ -241,11 +239,8 @@ function DocumentosPage() {
             }
           });
           
-          console.log('🔵 [FRONTEND] Respuesta de políticas:', politicasResponse.status, politicasResponse.statusText);
-          
           if (politicasResponse.ok) {
             const politicas = await politicasResponse.json().catch(() => []);
-            console.log('🔵 [FRONTEND] Políticas recibidas:', Array.isArray(politicas) ? politicas.length : 'no es array', politicas);
             
             // Verificar si hay políticas activas para este paciente específico
             tieneAcceso = Array.isArray(politicas) && politicas.some(politica => {
@@ -290,7 +285,6 @@ function DocumentosPage() {
             
             if (solicitudesResponse.ok) {
               const solicitudes = await solicitudesResponse.json().catch(() => []);
-              console.log('🔵 [FRONTEND] Solicitudes recibidas:', Array.isArray(solicitudes) ? solicitudes.length : 'no es array', solicitudes);
               
               // Verificar si hay solicitudes (pendientes o aprobadas) para este paciente
               const tieneSolicitudParaPaciente = Array.isArray(solicitudes) && solicitudes.some(solicitud => {
@@ -378,7 +372,6 @@ function DocumentosPage() {
         if (response.status === 409) {
           try {
             const errorData = await response.json();
-            console.log('🛑 [FRONTEND] Respuesta 409 recibida:', errorData);
             
             // Extraer solo el mensaje del JSON, asegurándose de que sea un string
             let mensaje = 'Ya tiene acceso a los documentos de este paciente. No es necesario solicitar acceso nuevamente.';
@@ -406,7 +399,6 @@ function DocumentosPage() {
               mensaje = errorData;
             }
             
-            console.log('🛑 [FRONTEND] Mensaje extraído:', mensaje);
             setPopupMessage(String(mensaje)); // Asegurar que sea string
           } catch (e) {
             console.warn('Error al parsear respuesta 409:', e);
