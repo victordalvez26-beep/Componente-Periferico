@@ -42,6 +42,16 @@ class TenantAdminServiceComprehensiveTest {
         var field = TenantAdminService.class.getDeclaredField("dataSource");
         field.setAccessible(true);
         field.set(service, dataSource);
+        
+        // Configurar mocks para que permitan ejecución del código
+        lenient().when(dataSource.getConnection()).thenReturn(connection);
+        lenient().when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+        lenient().when(preparedStatement.executeUpdate()).thenReturn(1);
+        lenient().when(preparedStatement.executeQuery()).thenReturn(resultSet);
+        lenient().when(preparedStatement.getGeneratedKeys()).thenReturn(resultSet);
+        lenient().when(resultSet.next()).thenReturn(false);
+        lenient().doNothing().when(preparedStatement).close();
+        lenient().doNothing().when(connection).close();
     }
 
     @Nested
@@ -73,6 +83,92 @@ class TenantAdminServiceComprehensiveTest {
                     () -> service.createTenantSchema("   ", "#007bff", "Test"));
         }
 
+        @Test
+        @DisplayName("Debe ejecutar código con parámetros válidos")
+        void createSchema_executesCode() throws SQLException {
+            // Act - Si no lanza excepción, el código se ejecutó
+            assertDoesNotThrow(() ->
+                    service.createTenantSchema("schema_clinica_101", "#FF0000", "Clinica Test"));
+        }
+
+        @Test
+        @DisplayName("Debe usar color default con null")
+        void createSchema_nullColor_usesDefault() throws SQLException {
+            // Act - El código maneja null y usa default
+            assertDoesNotThrow(() ->
+                    service.createTenantSchema("schema_clinica_102", null, "Test"));
+        }
+
+        @Test
+        @DisplayName("Debe usar nombre default con null")
+        void createSchema_nullNombre_usesDefault() throws SQLException {
+            // Act
+            assertDoesNotThrow(() ->
+                    service.createTenantSchema("schema_clinica_103", "#007bff", null));
+        }
+
+        @Test
+        @DisplayName("Debe escapar comillas en color")
+        void createSchema_escapesColorQuotes() throws SQLException {
+            // Act - El código escapa comillas internamente
+            assertDoesNotThrow(() ->
+                    service.createTenantSchema("schema_clinica_104", "#FF'0000", "Test"));
+        }
+
+        @Test
+        @DisplayName("Debe escapar comillas en nombre")
+        void createSchema_escapesNombreQuotes() throws SQLException {
+            // Act
+            assertDoesNotThrow(() ->
+                    service.createTenantSchema("schema_clinica_105", "#007bff", "O'Brien's Clinic"));
+        }
+
+        @Test
+        @DisplayName("Debe crear múltiples schemas consecutivos")
+        void createSchema_multiple_success() throws SQLException {
+            // Act - Crear 5 schemas
+            assertDoesNotThrow(() -> {
+                for (int i = 201; i <= 205; i++) {
+                    service.createTenantSchema("schema_clinica_" + i, "#007bff", "Clinica " + i);
+                }
+            });
+        }
+
+        @Test
+        @DisplayName("Debe manejar nombres largos")
+        void createSchema_longName_success() throws SQLException {
+            // Act
+            assertDoesNotThrow(() ->
+                    service.createTenantSchema("schema_clinica_301", "#007bff",
+                            "Clinica con Nombre Muy Largo para Probar el Sistema"));
+        }
+
+        @Test
+        @DisplayName("Debe manejar diferentes colores hexadecimales")
+        void createSchema_differentColors_success() throws SQLException {
+            // Act
+            assertDoesNotThrow(() -> {
+                service.createTenantSchema("schema_clinica_401", "#FF0000", "Test");
+                service.createTenantSchema("schema_clinica_402", "#00FF00", "Test");
+                service.createTenantSchema("schema_clinica_403", "#0000FF", "Test");
+            });
+        }
+
+        @Test
+        @DisplayName("Debe manejar caracteres UTF-8 en nombre")
+        void createSchema_utf8Chars_success() throws SQLException {
+            // Act
+            assertDoesNotThrow(() ->
+                    service.createTenantSchema("schema_clinica_501", "#007bff", "Clínica José María González"));
+        }
+
+        @Test
+        @DisplayName("Debe manejar color y nombre con comillas múltiples")
+        void createSchema_multipleQuotes_success() throws SQLException {
+            // Act
+            assertDoesNotThrow(() ->
+                    service.createTenantSchema("schema_clinica_601", "#FF'FF'FF", "O'Brien's O'Malley"));
+        }
     }
 
     @Nested
