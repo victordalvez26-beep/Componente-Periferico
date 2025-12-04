@@ -10,10 +10,9 @@ import static org.junit.jupiter.api.Assertions.*;
 class MongoDBProducerTest {
 
     @Test
-    @DisplayName("Producer debe tener constructor")
-    void constructor_shouldExist() {
+    @DisplayName("Producer debe tener constructor público")
+    void producer_shouldHavePublicConstructor() {
         MongoDBProducer producer = new MongoDBProducer();
         assertNotNull(producer);
     }
 }
-
