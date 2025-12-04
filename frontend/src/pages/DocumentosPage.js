@@ -143,8 +143,6 @@ function DocumentosPage() {
         'Authorization': `Bearer ${token}`,
       };
 
-      console.log('Descargando documento desde:', downloadUrl);
-
       const response = await fetch(downloadUrl, {
         method: 'GET',
         headers: headers,

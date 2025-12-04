@@ -242,11 +242,10 @@ public class DocumentoPdfResource {
     @Produces("application/pdf")
     // @RolesAllowed("PROFESIONAL") // Temporalmente deshabilitado para pruebas
     public Response descargarPdf(@PathParam("id") String id, @QueryParam("tenantId") Long tenantIdParam) {
-        LOG.info(String.format("📥 [BACKEND→PERIFERICO] Petición recibida para descargar PDF - ID: %s, TenantId (query): %s", id, tenantIdParam));
+        LOG.info(String.format("Petición recibida para descargar PDF - ID: %s, TenantId (query): %s", id, tenantIdParam));
         
         try {
             String tenantIdStr = TenantContext.getCurrentTenant();
-            LOG.info(String.format("📋 [PERIFERICO] Tenant en contexto: %s", tenantIdStr));
             
             // Prioridad: 1) Query parameter, 2) Contexto, 3) Fallback
             Long tenantId = null;
