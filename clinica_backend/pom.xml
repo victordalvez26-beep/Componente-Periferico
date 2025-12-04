@@ -57,6 +57,9 @@
 
         <!-- maven-compiler-plugin -->
         <maven.compiler.release>17</maven.compiler.release>
+        
+        <!-- JaCoCo for code coverage -->
+        <version.jacoco>0.8.11</version.jacoco>
     </properties>
 
     <!--
@@ -190,6 +193,27 @@
                 <configuration>
                     <skip>true</skip>
                 </configuration>
+            </plugin>
+            <!-- JaCoCo for code coverage -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${version.jacoco}</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

@@ -20,7 +20,12 @@ public class ProfesionalSalud extends UsuarioPeriferico {
     @Enumerated(EnumType.STRING)
     private Departamentos departamento;
 
-    private String direccion; 
+    private String direccion;
+    
+    private String telefono;
+    
+    @Column(length = 20)
+    private String ci; // Documento de identidad
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "nodo_periferico_id")
@@ -49,6 +54,12 @@ public class ProfesionalSalud extends UsuarioPeriferico {
 
     public String getDireccion() { return direccion; }
     public void setDireccion(String direccion) { this.direccion = direccion; }
+    
+    public String getTelefono() { return telefono; }
+    public void setTelefono(String telefono) { this.telefono = telefono; }
+    
+    public String getCi() { return ci; }
+    public void setCi(String ci) { this.ci = ci; }
 
     public void setTrabajaEn(NodoPeriferico trabajaEn) { this.trabajaEn = trabajaEn; }
 

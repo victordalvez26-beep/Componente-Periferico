@@ -93,6 +93,8 @@ public class TenantAdminService {
             "  especialidad VARCHAR(100), " +     // De ProfesionalSalud
             "  departamento VARCHAR(50), " +      // De ProfesionalSalud
             "  direccion VARCHAR(255), " +        // De ProfesionalSalud
+            "  telefono VARCHAR(50), " +          // De ProfesionalSalud
+            "  ci VARCHAR(20), " +                // De ProfesionalSalud
             "  nodo_periferico_id BIGINT" +      // Relación con clínica
             ");",
             tenantSchema, tenantSchema);
